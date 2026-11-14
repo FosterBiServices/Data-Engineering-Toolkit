@@ -30,6 +30,11 @@ const logged = (label, layer, log, edit) => { const c = base(); c.layer = layer;
 const g = logged('logging gold: early exit stays outside try', 'gold', LOG); console.log('   exit before try (expect true):', g.code.indexOf('if not dates:') < g.code.indexOf('\ntry:') && !/try:[\s\S]*if not dates:/.test(g.code), '| exit not inside try (expect true):', !/^    .*dbutils\.notebook\.exit/m.test(g.code.slice(g.code.indexOf('\ntry:'), g.code.indexOf('\nexcept Exception as error'))));
 logged('logging success only, import', 'silver', Object.assign({}, LOG, { load: 'import', line: 'from shared.logging import log_run', start: false, fail: false }));
 logged('logging gold full rebuild, failure only, utility preloaded', 'gold', Object.assign({}, LOG, { load: 'none', line: '', start: false, ok: false }), c => { c.gold.mode = 'full'; });
+const NBRUN = { on: true, load: 'nbrun', nbPath: '/Shared/utilities/nb_log_run', timeout: 600, params: P.defaultLogParams().concat([{ name: 'environment', use: 'fixed', value: 'dev' }]), start: true, ok: true, fail: true };
+['bronze', 'silver', 'gold'].forEach(L => logged('logging via dbutils.notebook.run, ' + L, L, NBRUN));
+{ const o = logged('show nbrun helper', 'silver', NBRUN); const i = o.code.indexOf('LOG_NOTEBOOK ='); console.log(o.code.slice(i, o.code.indexOf('_log_run_status("started")', i) + 26)); }
+console.log('nbrun problems (expect path, empty, dupe):', P.logProblems({ on: true, load: 'nbrun', nbPath: 'nb_log', params: [{ name: 'a', use: 'status' }, { name: 'a', use: 'error' }], ok: true }).map(p => p.msg.slice(0, 50)), P.logProblems({ on: true, load: 'nbrun', nbPath: '/x', params: [], ok: true }).length);
+console.log('call with a dict literal is accepted (expect 0):', P.logProblems({ on: true, load: 'none', call: 'dbutils.notebook.run("/x", 0, {"status": {status}, "env": "dev"})', ok: true }).length);
 console.log('logging off leaves the notebook unchanged (expect true):', P.build(base(), null, Object.assign({}, LOG, { on: false })).code === P.build(base(), null, null).code);
 console.log('logging problems:', P.logProblems({ on: true, load: 'run', line: 'nb_logging', call: 'log_run(x={nope}, y=(1', start: 1 }).map(p => p.msg.slice(0, 44)));
 if (process.argv[2] === 'log') console.log(logged('show', 'silver', LOG).code);

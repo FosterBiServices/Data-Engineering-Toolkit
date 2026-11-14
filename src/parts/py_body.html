@@ -133,8 +133,19 @@
             <label class="lab">How the notebook gets the utility<select data-g="load" id="logLoad"></select></label>
             <label class="lab wide" id="logLineBox"><span id="logLineLbl">Notebook to %run</span><input type="text" data-g="line" spellcheck="false" autocomplete="off" id="logLine"></label>
           </div>
+          <div id="nbrunBox" style="display:flex;flex-direction:column;gap:10px">
+            <div class="qgrid">
+              <label class="lab wide">Logging notebook path<input type="text" data-g="nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/utilities/nb_log_run"></label>
+              <label class="lab">Timeout, seconds <span class="hint">0 = no limit</span><input type="number" min="0" max="86400" data-g="timeout"></label>
+            </div>
+            <div class="details-head"><h3>Parameters it reads</h3><button type="button" class="btn" id="addLogParam">Add a parameter</button></div>
+            <p class="note small" style="margin-top:-6px">One row per <span class="mono">dbutils.widgets.get("name")</span> in your logging notebook: the exact name, and what to send. Every value arrives as text; a value the notebook doesn&rsquo;t have yet (a count before the step that makes it) arrives empty.</p>
+            <div class="rowlist" id="logRows"></div>
+          </div>
+          <div id="callBox" style="display:flex;flex-direction:column;gap:10px">
           <label class="lab">The call <span class="hint">exactly as you would write it, with {values} from the list where the notebook should fill them in</span><input type="text" data-g="call" spellcheck="false" autocomplete="off" id="logCall" style="width:100%;font-family:var(--mono);font-size:13px"></label>
           <div class="chips" id="logTokens"></div>
+          </div>
           <div class="opts">
             <label><input type="checkbox" data-g="start"> When it starts</label>
             <label><input type="checkbox" data-g="ok"> When it succeeds</label>

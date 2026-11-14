@@ -28,7 +28,10 @@
   function load() {
     const s = store.get('st', null); st = { example: !!(s && s.example), done: (s && Array.isArray(s.done) ? s.done : []).filter(x => typeof x === 'string') };
     const lg = store.get('log', null), d = P.defaultLog(); log = d;      // the logging setup outlives the entity: it is the team's, not the table's
-    if (lg && typeof lg === 'object' && !Array.isArray(lg)) { ['on', 'start', 'ok', 'fail'].forEach(k => { if (typeof lg[k] === 'boolean') log[k] = lg[k]; }); ['line', 'call'].forEach(k => { if (typeof lg[k] === 'string') log[k] = lg[k].slice(0, 600); }); if (P.LOG_LOADS.some(x => x[0] === lg.load)) log.load = lg.load; }
+    if (lg && typeof lg === 'object' && !Array.isArray(lg)) { ['on', 'start', 'ok', 'fail'].forEach(k => { if (typeof lg[k] === 'boolean') log[k] = lg[k]; }); ['line', 'call', 'nbPath'].forEach(k => { if (typeof lg[k] === 'string') log[k] = lg[k].slice(0, 600); }); if (P.LOG_LOADS.some(x => x[0] === lg.load)) log.load = lg.load;
+      if (typeof lg.timeout === 'number') log.timeout = Math.max(0, Math.min(86400, Math.round(lg.timeout)));
+      const uses = P.LOG_TOKENS.map(x => x[0]).concat(['fixed']);
+      if (Array.isArray(lg.params)) log.params = lg.params.filter(r => r && typeof r === 'object').slice(0, 40).map(r => ({ name: String(r.name == null ? '' : r.name).slice(0, 100), use: uses.indexOf(r.use) >= 0 ? r.use : 'fixed', value: String(r.value == null ? '' : r.value).slice(0, 300) })); }
     const saved = store.get('cfg', null);
     if (saved) cfg = restore(saved); else if (store.get('blank', false)) { cfg = P.blank(); st.example = false; } else { cfg = window.PYG_EX(P); st.example = true; }
   }
@@ -37,7 +40,7 @@
 
   function fill(skip) {
     document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || el.tagName === 'SELECT' && el.id) return; const v = get(cfg, el.dataset.k); if (el.type === 'radio') el.checked = el.value === v; else el.value = v == null ? '' : v; });
-    document.querySelectorAll('[data-g]').forEach(el => { if (el === skip || el.tagName === 'SELECT') return; if (el.type === 'checkbox') el.checked = !!log[el.dataset.g]; else el.value = log[el.dataset.g] || ''; });
+    document.querySelectorAll('[data-g]').forEach(el => { if (el === skip || el.tagName === 'SELECT') return; if (el.type === 'checkbox') el.checked = !!log[el.dataset.g]; else el.value = log[el.dataset.g] == null ? '' : log[el.dataset.g]; });
     if ($('schemaIn') !== skip) $('schemaIn').value = L() === 'bronze' ? '' : sub().schemaText;
     if ($('aiReq') !== skip) $('aiReq').value = L() === 'bronze' ? '' : sub().aiReq;
     $('aiReply').value = L() === 'bronze' ? '' : sub().aiReply;
@@ -89,7 +92,11 @@
       $('derivedList').innerHTML = g.derived.map((d, i) => '<div class="rrow" data-list="derived" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(d.name) + '" placeholder="metric_name" spellcheck="false" aria-label="Name">'
         + '<input type="text" data-f="expr" value="' + esc(d.expr) + '" placeholder="gross_sales_amount - cancelled_amount" spellcheck="false" aria-label="Formula" style="grid-column:span 3"><button type="button" class="x" data-del aria-label="Remove calculation">&times;</button></div>').join('');
     }
-    $('logBox').hidden = !log.on; $('logLoad').innerHTML = opts(P.LOG_LOADS, log.load); $('logLineBox').hidden = log.load === 'none';
+    $('logBox').hidden = !log.on; $('logLoad').innerHTML = opts(P.LOG_LOADS, log.load); $('logLineBox').hidden = log.load === 'none' || log.load === 'nbrun';
+    $('nbrunBox').hidden = log.load !== 'nbrun'; $('callBox').hidden = log.load === 'nbrun';
+    const lr = $('logRows');
+    if (!(lr.contains(document.activeElement) && document.activeElement.tagName === 'INPUT')) lr.innerHTML = log.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + opts(P.LOG_TOKENS.map(k => [k[0], k[1].charAt(0).toUpperCase() + k[1].slice(1)]).concat([['fixed', 'Fixed text']]), r.use) + '</select>'
+      + (r.use === 'fixed' ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="text to send" spellcheck="false" aria-label="Fixed text">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('');
     $('logLineLbl').textContent = log.load === 'import' ? 'Import line' : 'Notebook to %run'; $('logLine').placeholder = log.load === 'import' ? 'from shared.logging import log_run' : '/Shared/utilities/nb_logging';
     $('logCall').placeholder = P.LOG_EXAMPLE;
     $('logTokens').innerHTML = P.LOG_TOKENS.map(k => '<button type="button" class="chip" data-token="' + k[0] + '" title="' + esc(k[1]) + '">{' + k[0] + '}</button>').join('');
@@ -163,6 +170,8 @@
       const el = e.target;
       if (el.id === 'schemaIn') { onSchema(el.value); renderForm(); return; }
       if (el.dataset && el.dataset.g && el.type === 'text') { log[el.dataset.g] = el.value; renderOut(); return; }
+      if (el.dataset && el.dataset.g && el.type === 'number') { log[el.dataset.g] = Math.max(0, parseInt(el.value, 10) || 0); renderOut(); return; }
+      const lrow = el.closest('[data-logrow]'); if (lrow && el.dataset.lf && el.tagName === 'INPUT') { const r = log.params[Number(lrow.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; renderOut(); return; }
       if (el.id === 'aiReq') { sub().aiReq = el.value; renderOut(); return; }
       if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
       const row = el.closest('[data-i]');
@@ -171,7 +180,8 @@
     });
     document.addEventListener('change', e => {
       const el = e.target;
-      if (el.dataset && el.dataset.g && el.type !== 'text') { log[el.dataset.g] = el.type === 'checkbox' ? el.checked : el.value; renderForm(); return; }
+      const lrow2 = el.closest('[data-logrow]'); if (lrow2 && el.dataset.lf === 'use') { const r = log.params[Number(lrow2.dataset.logrow)]; if (r) r.use = el.value; renderForm(); return; }
+      if (el.dataset && el.dataset.g && el.type !== 'text' && el.type !== 'number') { log[el.dataset.g] = el.type === 'checkbox' ? el.checked : el.value; renderForm(); return; }
       if (el.dataset && el.dataset.done != null) { st.done = st.done.filter(x => x !== el.dataset.done).concat(el.checked ? [el.dataset.done] : []); save(); return; }
       const row = el.closest('[data-i]');
       if (row && el.dataset.f) {
@@ -188,12 +198,14 @@
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
+      const ldel = e.target.closest('[data-logdel]'); if (ldel) { log.params.splice(Number(ldel.closest('[data-logrow]').dataset.logrow), 1); renderForm(); return; }
       const tok = e.target.closest('[data-token]');
       if (tok) { const box = $('logCall'), at = box.selectionStart == null ? box.value.length : box.selectionStart, ins = '{' + tok.dataset.token + '}'; box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd == null ? at : box.selectionEnd); log.call = box.value; box.focus(); box.setSelectionRange(at + ins.length, at + ins.length); renderOut(); return; }
       const del = e.target.closest('[data-del]'), gr = e.target.closest('[data-grain]');
       if (del) { const row = del.closest('[data-i]'); (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (gr) { const g = cfg.gold, i = g.grain.indexOf(gr.dataset.grain); if (i >= 0) g.grain.splice(i, 1); else g.grain.push(gr.dataset.grain); pruneGold(); renderForm(); }
     });
+    $('addLogParam').addEventListener('click', () => { log.params.push({ name: '', use: 'fixed', value: '' }); renderForm(); });
     $('addRule').addEventListener('click', () => { cfg.silver.rules.push({ kind: 'min', col: '', val: '', name: '' }); renderForm(); });
     $('addMetric').addEventListener('click', () => { cfg.gold.metrics.push({ name: '', agg: 'sum', col: '', filter: '' }); renderForm(); });
     $('addDerived').addEventListener('click', () => { cfg.gold.derived.push({ name: '', expr: '' }); renderForm(); });

@@ -334,15 +334,24 @@
   /* ---------- logging from inside the notebook, through the team's shared utility ---------- */
   P.LOG_TOKENS = [['notebook', 'the notebook’s name'], ['layer', 'bronze, silver or gold'], ['entity', 'the entity'], ['batch_id', 'the batch id from ADF'], ['status', 'started, succeeded or failed'], ['error', 'the error message (None unless it failed)'],
     ['rows_read', 'rows read (None until known)'], ['rows_written', 'rows written'], ['rows_quarantined', 'rows quarantined'], ['source', 'the source table or path'], ['target_table', 'the target table']];
-  P.LOG_LOADS = [['run', '%run a notebook that defines it'], ['import', 'An import line'], ['none', 'It is already available (cluster library or init script)']];
-  P.defaultLog = () => ({ on: false, load: 'run', line: '', call: '', start: false, ok: true, fail: true });
+  P.LOG_LOADS = [['nbrun', 'Run my logging notebook with parameters (dbutils.notebook.run)'], ['run', 'Call a function from a notebook I %run'], ['import', 'Call a function I import'], ['none', 'Call a function that is already available']];
+  P.defaultLogParams = () => [['notebook_name', 'notebook'], ['batch_id', 'batch_id'], ['status', 'status'], ['rows_read', 'rows_read'], ['rows_written', 'rows_written'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
+  P.defaultLog = () => ({ on: false, load: 'nbrun', line: '', call: '', nbPath: '', timeout: 600, params: P.defaultLogParams(), start: false, ok: true, fail: true });
   P.LOG_EXAMPLE = 'log_run(notebook={notebook}, batch_id={batch_id}, status={status}, rows_read={rows_read}, rows_written={rows_written}, message={error})';
   P.logProblems = function (log) {
     const R = [], add = (sev, msg) => R.push({ sev, msg }); if (!log || !log.on) return R;
+    if (log.load === 'nbrun') {
+      if (!/^\/|^\.{1,2}\//.test(String(log.nbPath || '').trim())) add('err', 'Logging: give the path of your logging notebook, starting with / (or ./ for one next to this notebook).');
+      const ps = (Array.isArray(log.params) ? log.params : []).filter(r => String(r.name || '').trim()), names = ps.map(r => r.name.trim());
+      if (!ps.length) add('err', 'Logging: add the parameters your logging notebook reads with dbutils.widgets.get.');
+      names.filter((x, i) => names.indexOf(x) !== i).forEach(x => add('err', 'Logging: the parameter ' + x + ' is listed twice.'));
+      if (!log.start && !log.ok && !log.fail) add('warn', 'Logging is on but no moment is ticked, so the notebook is never run.');
+      return R;
+    }
     const call = String(log.call || '').trim(), line = String(log.line || '').trim();
     if (!call) { add('err', 'Logging: write the call to your logging utility, for example ' + P.LOG_EXAMPLE); return R; }
     if (/\n/.test(call)) add('err', 'Logging: write the call on one line.');
-    (call.match(/\{[^{}]*\}/g) || []).map(s => s.slice(1, -1)).filter(k => !P.LOG_TOKENS.some(x => x[0] === k)).forEach(k => add('err', 'Logging: {' + k + '} isn’t a value the notebook has. Use one of: ' + P.LOG_TOKENS.map(x => '{' + x[0] + '}').join(' ') + '.'));
+    (call.match(/\{[A-Za-z_]\w*\}/g) || []).map(s => s.slice(1, -1)).filter(k => !P.LOG_TOKENS.some(x => x[0] === k)).forEach(k => add('err', 'Logging: {' + k + '} isn’t a value the notebook has. Use one of: ' + P.LOG_TOKENS.map(x => '{' + x[0] + '}').join(' ') + '.'));
     const bare = call.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""'); let d = 0; for (const ch of bare) { if ('([{'.indexOf(ch) >= 0) d++; if (')]}'.indexOf(ch) >= 0) d--; if (d < 0) break; }
     if (d !== 0) add('err', 'Logging: the brackets in the call don’t balance.');
     if (!/^[A-Za-z_][\w.]*\s*\(/.test(call)) add('err', 'Logging: the call should start with the function’s name, like log_run(...).');
@@ -356,7 +365,14 @@
     if (!log || !log.on || P.logProblems(log).some(p => p.sev === 'err')) return code;
     const parts = code.split(SPLIT), headTxt = parts[0], secs = []; for (let i = 1; i < parts.length; i += 2) secs.push({ title: parts[i], code: parts[i + 1].replace(/\n$/, '') });
     const L = cfg.layer, val = { notebook: py(n.nb), layer: py(L), entity: py(n.entity), batch_id: 'batch_id', status: 'status', error: 'error', rows_read: 'known("rows_read")', rows_written: 'known("rows_written")', rows_quarantined: 'known("rows_quarantined")', source: L === 'bronze' ? 'source_path' : 'source_table', target_table: 'target_table' };
-    const call = String(log.call).trim().replace(/\{([^{}]*)\}/g, (m, k) => val[k] || m), line = String(log.line || '').trim();
+    const call = String(log.call || '').trim().replace(/\{([A-Za-z_]\w*)\}/g, (m, k) => val[k] || m), line = String(log.line || '').trim();
+    const nbrun = log.load === 'nbrun', rows = (Array.isArray(log.params) ? log.params : []).filter(r => String(r.name || '').trim());
+    const pv = r => (r.use === 'fixed' ? py(r.value || '') : val[r.use] || 'None'), pw = Math.max.apply(null, rows.map(r => py(r.name.trim()).length).concat([4]));
+    const helper = nbrun
+      ? ['LOG_NOTEBOOK = ' + py(String(log.nbPath).trim()), 'LOG_TIMEOUT  = ' + (Math.max(0, parseInt(log.timeout, 10) || 0)) + '   # seconds; 0 = no limit', '',
+        'def _log_run_status(status, error=None):', '    """Runs the team\'s logging notebook. It reads each value with dbutils.widgets.get, always as text."""', '    known = globals().get', '    values = {']
+        .concat(rows.map(r => '        ' + (py(r.name.trim()) + ':').padEnd(pw + 1) + ' ' + pv(r) + ','), ['    }', '    dbutils.notebook.run(LOG_NOTEBOOK, LOG_TIMEOUT, {k: "" if v is None else str(v) for k, v in values.items()})'])
+      : ['def _log_run_status(status, error=None):', '    """Calls the team\'s shared logging utility. Counts are None until the notebook has them."""', '    known = globals().get', '    ' + call];
     const out = [], cell = (title, body) => out.push({ title, code: body });
     secs.forEach(s => {
       const num = parseInt(s.title, 10);
@@ -364,7 +380,7 @@
       out.push(s);
       if (num === 2) {
         if (log.load === 'run') cell('Shared logging utility', '# MAGIC %run ' + line);
-        cell('Logging', (log.load === 'import' ? [line, ''] : []).concat(['def _log_run_status(status, error=None):', '    """Calls the team\'s shared logging utility. Counts are None until the notebook has them."""', '    known = globals().get', '    ' + call], log.start ? ['', '_log_run_status("started")'] : []).join('\n'));
+        cell('Logging', (log.load === 'import' ? [line, ''] : []).concat(helper, log.start ? ['', '_log_run_status("started")'] : []).join('\n'));
       }
     });
     let res = out;
