@@ -33,7 +33,8 @@ run('files, plain copy (leave)', c => { c.src.kind = 'files'; c.src.ls = 'ls_adl
 run('files, move (delete)', c => { c.src.kind = 'files'; c.src.ls = 'ls_adls'; c.src.after = 'delete'; });
 const o1 = run('files, own Binary datasets, odd parameter names', c => { own(c, DS('ds_in', 'Binary', ['fs', 'dir', 'fname'], { fileSystem: E('fs'), folderPath: E('dir'), fileName: E('fname') }), DS('ds_out', 'Binary', ['p1', 'p2'], { fileSystem: 'lake', folderPath: E('p1'), fileName: E('p2') })); c.src.after = 'archive'; });
 console.log('   own refs:', JSON.stringify(o1.pipeline.properties.activities[0].typeProperties.dataset.parameters), '| new datasets (expect none):', o1.datasets.length, '| reused:', o1.reused.map(d => d.name).join(','));
-run('files, own source without file parameter', c => { own(c, DS('ds_in', 'Binary', ['dir'], { fileSystem: 'x', folderPath: E('dir') }), null); }, 'blocked');
+run('files, own source without file parameter, archive mode', c => { own(c, DS('ds_in', 'Binary', ['dir'], { fileSystem: 'x', folderPath: E('dir') }), null); c.src.after = 'archive'; }, 'blocked');
+run('files, own source without file parameter, plain copy (whole folder)', c => { own(c, DS('ds_in', 'Binary', ['dir'], { fileSystem: 'x', folderPath: E('dir') }), null); c.src.after = 'leave'; });
 run('files, own csv source + page binary destination', c => { own(c, DS('ds_in', 'DelimitedText', ['dir', 'file'], { fileSystem: 'x', folderPath: E('dir'), fileName: E('file') }), null); }, 'blocked');
 run('files, own destination with no folder + archive', c => { own(c, null, DS('ds_out', 'Binary', ['file'], { fileSystem: 'x', folderPath: 'bronze', fileName: E('file') })); c.src.after = 'archive'; }, 'blocked');
 run('files, own destination with no folder, plain copy', c => { own(c, null, DS('ds_out', 'Binary', ['file'], { fileSystem: 'x', folderPath: 'bronze', fileName: E('file') })); c.src.after = 'leave'; });

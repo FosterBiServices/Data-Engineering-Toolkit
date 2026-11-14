@@ -24,8 +24,27 @@
   A.LOG_METHODS = [['sp_new', 'A stored procedure and log table the page creates'], ['sp_own', 'My own stored procedure'], ['notebook', 'My own Databricks notebook'], ['none', 'No logging']];
   A.LOG_VALUES = [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['status', 'Status (Succeeded or Failed)'], ['rows_read', 'Rows or files read'], ['rows_written', 'Rows or files written'], ['win_start', 'Window start'], ['win_end', 'Window end'],
     ['error', 'Error message'], ['duration', 'Copy or run duration'], ['obj_id', 'Object id (files and layers)'], ['obj_name', 'Object name (files and layers)'], ['file', 'File name (files)'], ['layer', 'Layer'], ['factory', 'Data factory name'], ['trig_time', 'Trigger time'], ['trig_name', 'Trigger name'], ['source', 'Source object'], ['target', 'Target object'],
-    ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression'], ['fixed', 'Fixed text']];
-  A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['rows_read', 'rows_read'], ['rows_written', 'rows_written'], ['window_start', 'win_start'], ['window_end', 'win_end'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
+    ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression'], ['fixed', 'Fixed text'], ['step', 'Output of an earlier step']];
+  /* the short list shown for logging parameters; older choices still work when a saved setup has them */
+  A.logChoices = kind => [['step', 'Output of an earlier step'], ['variable', 'Pipeline variable'], ['fixed', 'Fixed text'], ['expr', 'ADF expression'], ['global', 'Global parameter'], ['status', 'Status (Succeeded or Failed)'], ['error', 'Error message (filled in the failure log)']]
+    .concat(kind === 'medallion' ? [['obj_name', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer']] : [], [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['trig_time', 'Trigger time']]);
+  /* "Output of an earlier step": value is "activity|field", or "activity|=path" for any other output */
+  A.STEP_FIELDS = { Copy: [['rowsCopied', 'Rows copied'], ['rowsRead', 'Rows read'], ['filesWritten', 'Files written'], ['filesRead', 'Files read'], ['copyDuration', 'Copy duration (seconds)'], ['dataWritten', 'Bytes written']],
+    DatabricksNotebook: [['runOutput', 'Notebook exit value'], ['executionDuration', 'Run duration (seconds)']], Lookup: [['firstRow', 'First row'], ['count', 'Row count']],
+    GetMetadata: [['itemName', 'Item name'], ['lastModified', 'Last modified'], ['exists', 'Exists'], ['childItems', 'Child items']], ExecutePipeline: [['pipelineRunId', 'Child run ID']] };
+  A.STEP_ANY = [['error', 'Its error message'], ['=', 'Other output (type its path)']];
+  A.stepFields = type => (A.STEP_FIELDS[type] || []).concat(A.STEP_ANY);
+  A.stepExpr = function (value, numeric) {
+    const s = String(value || ''), i = s.indexOf('|'), act = (i < 0 ? s : s.slice(0, i)).trim().replace(/'/g, "''"), f = i < 0 ? '' : s.slice(i + 1).trim();
+    if (!act) return "''";
+    if (f === 'error') return "coalesce(activity('" + act + "')?.error?.message, '')";
+    const path = (/^=/.test(f) ? f.slice(1).trim() : f).replace(/^output\./, '').split('.').filter(Boolean).map(p => p.replace(/[^\w\[\]]/g, '')).join('?.');
+    if (!path) return "''";
+    const read = "activity('" + act + "')?.output?." + path;
+    return numeric ? 'coalesce(' + read + ', 0)' : "string(coalesce(" + read + ", ''))";
+  };
+  A.STEP_NUMERIC = /^(rowsCopied|rowsRead|filesWritten|filesRead|copyDuration|dataWritten|dataRead|executionDuration|count)$/;
+  A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
 
   /* ---- datasets: one the page creates, or the user's own, read from its code-view JSON ---- */
   const EXTRA_USES = [['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression']];
@@ -523,21 +542,21 @@
     const srcObj = files ? (cfg.src.folder.trim() || (n.ownSrc ? n.ownSrc.name : '')) : (cfg.src.schema || 'dbo') + '.' + (cfg.src.table || ph('TABLE'));
     const tgtObj = files ? (n.destFolder || '') : sql ? (cfg.tgt.schema || 'dbo') + '.' + (cfg.tgt.table || ph('TARGET_TABLE')) : pathExpr(std.rawPath, n);
     const logValue = (use, ok, err, fixed) => ({ pipeline: ['@pipeline().Pipeline'], run: ['@pipeline().RunId'], status: [ok ? 'Succeeded' : 'Failed'], rows_read: [ok ? rowsRead : '0', 1], rows_written: [ok ? rowsWritten : '0', 1],
-      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [err || ''], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')] }[use] || ['']);
+      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [err || ''], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')], step: ['@' + A.stepExpr(fixed, false)] }[use] || ['']);
     const logAct = (ok, err, after) => {
       const tag = ok ? 'success' : 'failure';
       if (method === 'none') return null;
       if (method === 'sp_new') return sp('sp_log_' + tag, ctl + '.' + q('usp_log_pipeline_run'), { pipeline_name: P('@pipeline().Pipeline'), run_id: P('@pipeline().RunId'), status: P(ok ? 'Succeeded' : 'Failed'), rows_read: P(ok ? rowsRead : '0', 'Int64'), rows_written: P(ok ? rowsWritten : '0', 'Int64'),
         window_start: P(ok ? winStart : ''), window_end: P(ok ? winEnd : ''), error_message: P(err || '') }, after);
       const rows = (Array.isArray(lg.params) ? lg.params : []).filter(r => r && String(r.name || '').trim());
-      if (method === 'sp_own') { const ps = {}; rows.forEach(r => { const v = logValue(r.use, ok, err, r.value); ps[String(r.name).trim().replace(/^@/, '')] = P(v[0], v[1] ? 'Int64' : 'String'); }); return sp('sp_log_' + tag, String(lg.proc || '').trim() || ph('LOG_PROCEDURE'), ps, after); }
+      if (method === 'sp_own') { const ps = {}; rows.forEach(r => { const v = logValue(r.use, ok, err, r.value); const num = r.use === 'step' && A.STEP_NUMERIC.test(String(r.value || '').split('|')[1] || ''); ps[String(r.name).trim().replace(/^@/, '')] = num ? P('@' + A.stepExpr(r.value, true), 'Int64') : P(v[0], v[1] ? 'Int64' : 'String'); }); return sp('sp_log_' + tag, String(lg.proc || '').trim() || ph('LOG_PROCEDURE'), ps, after); }
       const bp = {}; rows.forEach(r => { const v = logValue(r.use, ok, err, r.value), s = String(v[0]); bp[String(r.name).trim()] = /^@/.test(s) ? X(v[1] ? '@string(' + s.slice(1) + ')' : s) : (/@\{/.test(s) ? X(s) : s); });
       return { name: 'nb_log_' + tag, type: 'DatabricksNotebook', dependsOn: after, policy: policy(false), userProperties: [], typeProperties: { notebookPath: String(lg.nbPath || '').trim() || ph('LOG_NOTEBOOK_PATH'), baseParameters: bp }, linkedServiceName: lsRef(String(lg.nbLs || '').trim() || cfg.nbLs.trim() || ph('LS_DATABRICKS')) };
     };
     const okLog = logAct(true, '', last ? dep(last) : []); if (okLog) push(okLog);
     if (files && variables.v_quarantined) push({ name: 'if_any_quarantined', type: 'IfCondition', dependsOn: dep(last), userProperties: [], typeProperties: { expression: X("@greater(length(variables('v_quarantined')), 0)"),
       ifTrueActivities: [{ name: 'fail_files_quarantined', type: 'Fail', dependsOn: [], userProperties: [], typeProperties: { message: X("@concat(string(length(variables('v_quarantined'))), ' file(s) could not be landed and were moved to quarantine: ', join(variables('v_quarantined'), ', '))"), errorCode: 'FILES_QUARANTINED' } }] } });
-    const errExpr = '@coalesce(' + mainNames.map(a => "activity('" + a + "').error?.message").join(', ') + ", 'See the failed activity in Monitor')";
+    const errExpr = '@coalesce(' + mainNames.map(a => "activity('" + a + "')?.error?.message").join(', ') + ", 'See the failed activity in Monitor')";
     /* the failure path starts from the last main activity (Failed or Skipped); a Fail activity ends it so the run still shows Failed */
     let tail = null; const hook = () => (tail ? dep(tail, 'Completed') : dep(last, ['Failed', 'Skipped']));
     const badLog = logAct(false, errExpr, hook()); if (badLog) { acts.push(badLog); tail = badLog.name; }

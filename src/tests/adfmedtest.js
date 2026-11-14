@@ -33,8 +33,12 @@ const S = f => fs.readFileSync(DIR + '/' + f + '.json', 'utf8');
   await page.click('[data-addp=s0]'); await page.fill('[data-pkey=s0][data-pi="4"] [data-pf=name]', 'storage_name'); await page.selectOption('[data-pkey=s0][data-pi="4"] [data-pf=use]', 'global'); await page.fill('[data-pkey=s0][data-pi="4"] [data-pf=value]', 'StorageAccountName');
   // logging: his log_run notebook
   await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/platform/log_run'); await page.fill('[data-l=nbLs]', 'ls_databricks');
-  const setRow = async (i, name, use, value) => { await page.fill('#logRows [data-logrow="' + i + '"] input[data-lf=name]', name); await page.selectOption('#logRows [data-logrow="' + i + '"] select', use); if (value != null) await page.fill('#logRows [data-logrow="' + i + '"] input[data-lf=value]', value); };
-  await setRow(0, 'obj_id', 'obj_id'); await setRow(1, 'obj_name', 'obj_name'); await setRow(2, 'status', 'status'); await setRow(3, 'number_rows', 'rows_written'); await setRow(4, 'duration', 'duration'); await setRow(5, 'error_details', 'error'); await setRow(6, 'layer', 'layer'); await setRow(7, 'storage_name', 'global', 'StorageAccountName');
+  const row = i => '#logRows [data-logrow="' + i + '"] ';
+  const setRow = async (i, name, use, value) => { if (!(await page.$(row(i)))) await page.click('#addLogParam'); await page.fill(row(i) + 'input[data-lf=name]', name); await page.selectOption(row(i) + 'select[data-lf=use]', use); if (value != null) await page.fill(row(i) + 'input[data-lf=value]', value); };
+  const setStep = async (i, name, act, field) => { await setRow(i, name, 'step'); await page.selectOption(row(i) + 'select[data-lf=stepAct]', act); await page.selectOption(row(i) + 'select[data-lf=stepField]', field); };
+  await setRow(0, 'obj_id', 'obj_id'); await setRow(1, 'obj_name', 'obj_name'); await setRow(2, 'status', 'status'); await setRow(3, 'error_details', 'error');
+  await setStep(4, 'number_rows', 'cp_file_to_bronze', 'rowsCopied'); await setStep(5, 'duration', 'cp_file_to_bronze', 'copyDuration');
+  await setRow(6, 'layer', 'layer'); await setRow(7, 'storage_name', 'global', 'StorageAccountName');
   await T('problems shown (expect none)', () => [...document.querySelectorAll('#briefMsg .msg.err')].map(m => m.textContent));
   await T('flow', () => [...document.querySelectorAll('#flowBody tr')].map(r => r.children[1].textContent.trim()));
   await T('own checks and placeholders (expect empty)', () => [document.getElementById('outMsg').textContent, document.getElementById('phMsg').textContent]);

@@ -12,7 +12,7 @@
   const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
   /* standards from storage or a file: the log parameter rows are a list of objects, which merge() doesn't carry */
   function readStd(saved) {
-    const s = merge(A.defaultStandards(), saved), uses = A.LOG_VALUES.map(v => v[0]);
+    const s = merge(A.defaultStandards(), saved), uses = A.LOG_VALUES.map(v => v[0]).concat(['step']);
     const rows = isObj(saved) && isObj(saved.log) && Array.isArray(saved.log.params) ? saved.log.params.filter(isObj).map(r => ({ name: String(r.name == null ? '' : r.name).slice(0, 100), use: uses.indexOf(r.use) >= 0 ? r.use : 'fixed', value: String(r.value == null ? '' : r.value).slice(0, 300) })) : null;
     s.log.params = rows || A.defaultLogParams();
     if (!A.LOG_METHODS.some(m => m[0] === s.log.method)) s.log.method = 'sp_new';
@@ -182,6 +182,7 @@
       $('phMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you build:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ') + '. Fill in the matching box in Step 2 and they disappear.') : '';
     }
     $('rawNote').hidden = sqlT || files; if (!sqlT && !files) $('rawNote').textContent = 'Files land under ' + std.rawPath.replace('{source}', names.srcShort).replace('{object}', names.obj) + (files ? '/<run id>/' : '/') + ' in the data lake container. Change the path under Team standards.';
+    renderLogging(files, sqlT, inc);   // again, now that the pipeline's steps are known
     renderVars();
     renderCheck();
     save();
@@ -243,8 +244,15 @@
         : m === 'notebook' ? 'Your notebook is run at the end of a run and on failure. Base parameters are always text, so counts are passed as text. Read them with dbutils.widgets.get.'
           : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
     const box = $('logRows'); if (typing(box)) return;
-    box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(A.LOG_VALUES, r.use) + '</select>'
-      + (/^(fixed|global|expr|variable)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+    const choices = A.logChoices(cfg.src.kind), label = u => (A.LOG_VALUES.find(v => v[0] === u) || [u, u])[1];
+    const steps = out ? A.flatten(out.pipeline).filter(f => /^(Copy|DatabricksNotebook|Lookup|GetMetadata|ExecutePipeline|SqlServerStoredProcedure|Script)$/.test(f.type) && !/^(nb|sp)_log_/.test(f.name)).map(f => [f.name, f.type, f.parent ? f.parent.name : '']) : [];
+    const stepCtl = r => { const s = String(r.value || ''), i = s.indexOf('|'), act = i < 0 ? s : s.slice(0, i), f = i < 0 ? '' : s.slice(i + 1), st = steps.find(x => x[0] === act), fields = st ? A.stepFields(st[1]) : Object.keys(A.STEP_FIELDS).reduce((a, k) => a.concat(A.STEP_FIELDS[k].filter(x => !a.some(y => y[0] === x[0]))), []).concat(A.STEP_ANY);
+      const fv = /^=/.test(f) ? '=' : f;
+      return '<span class="stepctl"><select data-lf="stepAct" aria-label="Which step">' + optsHtml([['', 'Choose a step']].concat(steps.map(x => [x[0], x[0] + (x[2] ? ' (inside ' + x[2] + ')' : '')]), act && !st ? [[act, act + ' (not in this pipeline)']] : []), act) + '</select>'
+        + '<select data-lf="stepField" aria-label="Which output">' + optsHtml([['', 'Choose an output']].concat(fields), fv) + '</select>'
+        + (fv === '=' ? '<input type="text" data-lf="stepPath" value="' + esc(f.slice(1)) + '" placeholder="runOutput.rows_written" spellcheck="false" aria-label="Output path">' : '') + '</span>'; };
+    box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(choices.some(c => c[0] === r.use) ? choices : choices.concat([[r.use, label(r.use) + ' (older choice)']]), r.use) + '</select>'
+      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
   }
 
   function renderCheck() {
@@ -293,6 +301,7 @@
     }, true);
     document.addEventListener('input', e => { fromInput = true; try {
       const el = e.target, row = el.closest && el.closest('[data-logrow]');
+      if (row && el.dataset.lf === 'stepPath') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) { const s = String(r.value || ''), k = s.indexOf('|'); r.value = (k < 0 ? s : s.slice(0, k)) + '|=' + el.value; } render(); return; }
       if (row && el.dataset.lf && el.tagName === 'INPUT') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; render(); return; }
       const vr = el.closest && el.closest('[data-vi]'); if (vr && el.dataset.vf && el.tagName === 'INPUT') { const v = cfg.vars[Number(vr.dataset.vi)]; if (v) v[el.dataset.vf] = el.value; render(); return; }
       if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed], own = A.ownDs(cfg, el.dataset.dsfixed), cur = own && own.map[el.dataset.p]; d.map[el.dataset.p] = { use: cur ? cur.use : 'fixed', value: el.value }; render(); return; }
@@ -308,7 +317,9 @@
       if (sc && el.dataset.sf && (el.tagName === 'SELECT' || el.type === 'checkbox')) { const s = cfg.med.stages[Number(sc.dataset.si)]; if (s) s[el.dataset.sf] = el.type === 'checkbox' ? el.checked : el.value; render(); return; }
       const vr2 = el.closest && el.closest('[data-vi]'); if (vr2 && el.dataset.vf === 'type') { const v = cfg.vars[Number(vr2.dataset.vi)]; if (v) v.type = el.value; render(); return; }
       const row = el.closest && el.closest('[data-logrow]');
-      if (row && el.dataset.lf === 'use') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r.use = el.value; render(); return; }
+      if (row && /^step(Act|Field)$/.test(el.dataset.lf || '')) { const r = std.log.params[Number(row.dataset.logrow)]; if (!r) return; const s = String(r.value || ''), k = s.indexOf('|'), act = k < 0 ? s : s.slice(0, k), f = k < 0 ? '' : s.slice(k + 1);
+        r.value = el.dataset.lf === 'stepAct' ? el.value + '|' + (el.value === act ? f : '') : act + '|' + (el.value === '=' ? '=' : el.value); render(); return; }
+      if (row && el.dataset.lf === 'use') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) { if (r.use !== el.value) r.value = ''; r.use = el.value; } render(); return; }
       if (el.dataset && el.dataset.dsmap) { const own = A.ownDs(cfg, el.dataset.dsmap); const prev = own && own.map[el.dataset.p]; cfg.ds[el.dataset.dsmap].map[el.dataset.p] = { use: el.value, value: prev ? prev.value : '' }; render(); return; }
       if (el.id === 'runBy' || (el.dataset && (el.dataset.dsmode || ((el.dataset.k || el.dataset.s || el.dataset.l) && (el.tagName === 'SELECT' || el.type === 'radio' || el.type === 'checkbox'))))) { readEl(el); render(); }
     });
