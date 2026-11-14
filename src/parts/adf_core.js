@@ -969,6 +969,76 @@
     const order = { high: 0, medium: 1, low: 2 };
     return F.sort((a, b) => order[a.sev] - order[b.sev]);
   };
+  /* ---------- writing an ADF expression: what can be referenced, a check, and a Copilot prompt ---------- */
+  A.EXPR_FUNCS = [
+    ['concat', "concat('text ', variables('name'))", 'Join text'], ['string', 'string(value)', 'Turn a number or object into text'], ['int', "int('42')", 'Text to a whole number'],
+    ['coalesce', "coalesce(value, 'fallback')", 'First value that isn’t null'], ['if', "if(equals(a, b), 'yes', 'no')", 'Choose between two values'], ['equals', 'equals(a, b)', 'True when equal'],
+    ['greater', 'greater(a, b)', 'True when a > b'], ['and', 'and(a, b)', 'Both true'], ['or', 'or(a, b)', 'Either true'], ['not', 'not(a)', 'Opposite'],
+    ['utcNow', 'utcNow()', 'Current date and time (UTC)'], ['formatDateTime', "formatDateTime(utcNow(), 'yyyy-MM-dd')", 'Date as text'], ['addDays', 'addDays(utcNow(), -1)', 'Add days to a date'],
+    ['convertFromUtc', "convertFromUtc(utcNow(), 'Eastern Standard Time')", 'UTC to a time zone'], ['replace', "replace(text, '-', '_')", 'Replace text'], ['toLower', 'toLower(text)', 'Lower case'],
+    ['toUpper', 'toUpper(text)', 'Upper case'], ['trim', 'trim(text)', 'Remove outer spaces'], ['substring', 'substring(text, 0, 4)', 'Part of text (start, length)'], ['split', "split(text, '/')", 'Text to a list'],
+    ['length', 'length(listOrText)', 'Count items or characters'], ['first', 'first(list)', 'First item'], ['last', 'last(list)', 'Last item'], ['contains', "contains(text, 'abc')", 'True when it contains'],
+    ['startsWith', "startsWith(text, 'abc')", 'True when it starts with'], ['endsWith', "endsWith(text, '.csv')", 'True when it ends with'], ['json', "json('{\"a\":1}')", 'Text to an object'], ['add', 'add(1, 2)', 'Add numbers'], ['sub', 'sub(5, 2)', 'Subtract numbers']
+  ];
+  const KNOWN_FUNCS = new Set(A.EXPR_FUNCS.map(f => f[0].toLowerCase()).concat(['activity', 'variables', 'pipeline', 'item', 'dataset', 'linkedservice', 'trigger', 'mul', 'div', 'mod', 'min', 'max', 'range', 'less', 'lessorequals', 'greaterorequals', 'empty', 'union', 'intersection', 'skip', 'take', 'createarray', 'array', 'bool', 'float', 'base64', 'base64tostring', 'uricomponent', 'uricomponenttostring', 'guid', 'indexof', 'lastindexof', 'adddays', 'addhours', 'addminutes', 'addseconds', 'addtotime', 'subtractfromtime', 'getfutureltime', 'getfuturetime', 'getpasttime', 'dayofmonth', 'dayofweek', 'dayofyear', 'startofday', 'startofmonth', 'startofhour', 'ticks', 'converttimezone', 'converttoutc', 'xml', 'xpath', 'decimal']));
+  /* what an expression can refer to, from the pipeline the page built (or any pipeline JSON) */
+  A.exprContext = function (pipeline, cfg) {
+    const flat = pipeline ? A.flatten(pipeline) : [];
+    const steps = flat.filter(f => /^(Copy|DatabricksNotebook|Lookup|GetMetadata|ExecutePipeline|SqlServerStoredProcedure|Script|Filter|WebActivity)$/.test(f.type) && !/^(nb|sp)_log_/.test(f.name))
+      .map(f => ({ name: f.name, type: f.type, inside: f.parent ? f.parent.name : '', fields: (A.STEP_FIELDS[f.type] || []).concat(f.type === 'Filter' ? [['value', 'Matching items'], ['FilteredItemsCount', 'How many matched']] : []) }));
+    const vars = Object.keys(((pipeline || {}).properties || {}).variables || {});
+    (cfg && Array.isArray(cfg.vars) ? A.userVars(cfg) : []).forEach(v => { if (vars.indexOf(v.name.trim()) < 0) vars.push(v.name.trim()); });
+    const params = Object.keys(((pipeline || {}).properties || {}).parameters || {});
+    return { steps, vars, params, loop: flat.some(f => f.type === 'ForEach') };
+  };
+  /* a check that needs no factory: syntax, and the names it uses */
+  A.checkExpr = function (text, ctx) {
+    const R = [], s = String(text || '').trim();
+    if (!s) return [{ sev: 'err', msg: 'Empty.' }];
+    if (!/^@/.test(s) && !/@\{/.test(s)) R.push({ sev: 'err', msg: 'An expression starts with @ (or uses @{...} inside text). Without it, ADF passes the words as they are.' });
+    let q = false, d = 0, bad = false;
+    const body = s.replace(/^@/, '');
+    for (let i = 0; i < body.length; i++) { const c = body[i]; if (c === "'") { if (q && body[i + 1] === "'") { i++; continue; } q = !q; continue; } if (q) continue; if (c === '(' || c === '[') d++; if (c === ')' || c === ']') d--; if (d < 0) bad = true; }
+    if (q) R.push({ sev: 'err', msg: 'A quote isn’t closed. Text goes in single quotes, and a quote inside text is written twice (’’).' });
+    if (d !== 0 || bad) R.push({ sev: 'err', msg: 'The brackets don’t balance.' });
+    if (/"/.test(body.replace(/'(?:[^']|'')*'/g, ''))) R.push({ sev: 'err', msg: 'Use single quotes for text in ADF expressions, not double quotes.' });
+    const noStr = body.replace(/'(?:[^']|'')*'/g, "''"); let m;
+    const fr = /([A-Za-z_]\w*)\s*\(/g; while ((m = fr.exec(noStr))) if (!KNOWN_FUNCS.has(m[1].toLowerCase()) && noStr[m.index - 1] !== '.') R.push({ sev: 'warn', msg: m[1] + '() isn’t an ADF function the page knows. Check the spelling (names are case-insensitive).' });
+    if (ctx) {
+      const ar = /activity\(\s*'([^']*)'\s*\)/g, seen = {}; while ((m = ar.exec(body))) { const hit = ctx.steps.find(x => x.name === m[1]); if (hit && hit.inside && !seen[m[1]]) { seen[m[1]] = 1; R.push({ sev: 'warn', msg: m[1] + ' runs inside ' + hit.inside + ': ADF only lets steps inside ' + hit.inside + ' read it. Anywhere else the pipeline fails validation.' }); } if (!hit) R.push({ sev: 'err', msg: 'There is no step called ' + m[1] + ' in this pipeline' + (ctx.steps.length ? ' (steps: ' + ctx.steps.map(x => x.name).slice(0, 8).join(', ') + ')' : '') + '.' }); }
+      const vr = /variables\(\s*'([^']*)'\s*\)/g; while ((m = vr.exec(body))) if (ctx.vars.indexOf(m[1]) < 0) R.push({ sev: 'err', msg: 'There is no pipeline variable called ' + m[1] + '. Add it under Pipeline variables.' });
+      const pr = /pipeline\(\)\.parameters\.(\w+)/g; while ((m = pr.exec(body))) if (ctx.params.indexOf(m[1]) < 0) R.push({ sev: 'err', msg: 'The pipeline has no parameter called ' + m[1] + '.' });
+      if (/item\(\)/.test(body) && !ctx.loop) R.push({ sev: 'warn', msg: 'item() only has a value inside a ForEach or Filter. This pipeline has no loop.' });
+    }
+    if (/activity\(\s*'[^']*'\s*\)\.output\.[\w.]+/.test(body) && !/\?\./.test(body)) R.push({ sev: 'info', msg: 'If that step can be skipped (for example after a failure), read its output with ?. so the expression doesn’t fail: activity(’name’)?.output?.rowsCopied.' });
+    return R;
+  };
+  A.exprPrompt = function (request, ctx, where) {
+    const L = ['You are writing one Azure Data Factory pipeline expression. You cannot see the factory: use only the steps, outputs and variables listed under CONTEXT.'];
+    L.push('', 'TASK (the user’s request: all the expression has to do)', (request || '(not given)').trim());
+    L.push('', 'CONTEXT', 'Where it is used: ' + (where || 'an activity parameter') + '.');
+    if (ctx.steps.length) { L.push('Steps it can read (activity name | type | outputs):'); ctx.steps.forEach(s => L.push('- ' + s.name + ' | ' + s.type + (s.inside ? ' (inside ' + s.inside + ')' : '') + ' | ' + (s.fields.map(f => 'output.' + f[0]).join(', ') || 'output') + ', error.message')); }
+    if (ctx.vars.length) L.push('Pipeline variables: ' + ctx.vars.join(', '));
+    if (ctx.params.length) L.push('Pipeline parameters: ' + ctx.params.join(', '));
+    L.push('Always available: pipeline().Pipeline, pipeline().RunId, pipeline().TriggerTime, pipeline().TriggerName, pipeline().DataFactory, pipeline().globalParameters.<name>, utcNow()' + (ctx.loop ? ', and item() inside a loop' : '') + '.');
+    L.push('', 'RULES', '- One expression that starts with @. Use only ADF expression functions, with text in single quotes (a quote inside text is written twice).',
+      '- Use only the step, variable and parameter names listed. Read a step’s output with ?. (activity(\'name\')?.output?.field) when the step may have been skipped.',
+      '- The value is passed as text unless the TASK says otherwise: wrap numbers and objects in string().',
+      '- A step marked (inside X) can only be read by steps inside that same X.',
+      '- If the TASK can’t be done with what is listed, write a SKIPPED block that says why instead of guessing.');
+    L.push('', 'REPLY FORMAT (a template: replace the placeholder lines with your answer)', 'Reply inside one code block, with these labelled blocks and nothing else:', '@@@ EXPRESSION @@@', '@the expression', '@@@ NOTES @@@', 'what it does and anything to confirm, one per line', '@@@ SKIPPED @@@', 'only if it can’t be done: why');
+    return L.join('\n');
+  };
+  A.exprParse = function (reply, parseBlocks) {
+    const res = { expr: '', notes: [], skipped: '' };
+    parseBlocks(reply).forEach(b => {
+      if (b.tag === 'EXPRESSION' && !/^@the expression$/i.test(b.body.trim())) res.expr = b.body.replace(/\s*\n\s*/g, ' ').trim();
+      else if (b.tag === 'NOTES') b.body.split('\n').map(x => x.replace(/^[-*]\s*/, '').trim()).filter(x => x && !/^what it does and anything/i.test(x)).forEach(x => res.notes.push(x));
+      else if (b.tag === 'SKIPPED' && !/^only if it can/i.test(b.body.trim())) res.skipped = b.body.trim();
+    });
+    if (!res.expr && !res.skipped) { const m = /(^|\n)\s*(@[^\n]+)/.exec(String(reply || '')); if (m) res.expr = m[2].trim(); }
+    return res;
+  };
   A.fixPrompt = function (pipeline, findings, std, manual) {
     std = Object.assign(A.defaultStandards(), std || {});
     const L = ['You are a senior Azure Data Factory engineer correcting a pipeline. You cannot see the factory: use only what is in the pipeline JSON under STARTING POINT.'];

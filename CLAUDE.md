@@ -109,6 +109,17 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   no empty-check, notebook parameter names differing only by case, notebooks in /Users folders, typed-in environment
   values. Naming/retry checks ("Standards") are off by default (`std.v = 2` migrates saved standards). "How is this
   pipeline run?" has "By another pipeline" for Execute Pipeline children. Default logging method is none.
+- Logging values (owner, Nov 2026: "this list is too long... I need pipeline variable, output from previous step, fixed
+  text", then "keep ADF expression"): `A.logChoices(kind)` is the short list; "Output of an earlier step" stores
+  `activity|field` (or `activity|=path`) and `A.stepExpr` writes `coalesce(activity('a')?.output?.field, '')`. Outputs per
+  type in `A.STEP_FIELDS`. Object values exist only in medallion loops; the error message only fills in the failure log.
+- Expression helper (owner: "assistance in writing the adf expression and what outputs are available from the previous
+  step"): an `fx` button beside every "ADF expression" box (logging, dataset parameter, notebook parameter) opens a dialog:
+  chips for each step's outputs (`A.exprContext` from the built pipeline), variables, run values and functions
+  (`A.EXPR_FUNCS`), a live check (`A.checkExpr`: @, brackets, quotes, double quotes, unknown functions, step/variable/
+  parameter names, a step inside a ForEach/If read from elsewhere), and an optional Copilot prompt (`A.exprPrompt`,
+  reply `@@@ EXPRESSION @@@`, `A.exprParse`, refused when the check finds errors). "Use" writes back by dispatching an
+  input event on the original box. Check: `adfexprtest.js` (no samples needed).
 - `adfmedtest.js` sets up the owner's yourproject pipeline through the page with his datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
 

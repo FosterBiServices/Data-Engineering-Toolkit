@@ -204,12 +204,12 @@
       if (typing(map)) return;
       const uses = A.DS_USES[wantFile ? 'file' : 'table'];
       map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
-        + (/^(fixed|variable|global|expr)$/.test(m.use) ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
+        + (/^(fixed|variable|global|expr)$/.test(m.use) ? (m.use === 'expr' ? fxBox : x => x)('<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">') : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
     });
   }
   const NBV = A.NB_VALUES;
   const paramRows = (list, key) => list.map((r, i) => '<div class="rrow log4" data-pkey="' + key + '" data-pi="' + i + '"><input type="text" data-pf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-pf="use" aria-label="Value">' + optsHtml(NBV, r.use) + '</select>'
-    + (/^(text|global|expr|variable)$/.test(r.use) ? '<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
+    + (/^(text|global|expr|variable)$/.test(r.use) ? (r.use === 'expr' ? fxBox : x => x)('<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">') : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
   const listFor = key => (key === 'bronze' ? cfg.med.bronzeNb.params : (cfg.med.stages[Number(key.slice(1))] || {}).params);
   function renderMed() {
     const m = cfg.med;
@@ -252,7 +252,80 @@
         + '<select data-lf="stepField" aria-label="Which output">' + optsHtml([['', 'Choose an output']].concat(fields), fv) + '</select>'
         + (fv === '=' ? '<input type="text" data-lf="stepPath" value="' + esc(f.slice(1)) + '" placeholder="runOutput.rows_written" spellcheck="false" aria-label="Output path">' : '') + '</span>'; };
     box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(choices.some(c => c[0] === r.use) ? choices : choices.concat([[r.use, label(r.use) + ' (older choice)']]), r.use) + '</select>'
-      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable)$/.test(r.use) ? (r.use === 'expr' ? fxBox : x => x)('<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">') : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+  }
+
+  /* ---- expression helper: opened by the fx button beside any "ADF expression" box ---- */
+  const fxBox = input => '<span class="fxwrap">' + input + '<button type="button" class="fxbtn" data-fx title="Help writing this expression" aria-label="Help writing this expression">fx</button></span>';
+  const fx = { sel: '', ctx: null, where: '', reply: null };
+  const chip = (ins, label, cls, hint) => '<button type="button" class="fxchip' + (cls ? ' ' + cls : '') + '" data-ins="' + esc(ins) + '"' + (hint ? ' data-hint="' + esc(hint) + '"' : '') + ' title="' + esc(hint || ins) + '">' + esc(label) + '</button>';
+  function fxCheck() {
+    const R = A.checkExpr($('fxText').value, fx.ctx), cls = { err: 'err', warn: 'warn', info: 'info' };
+    $('fxCheck').innerHTML = !$('fxText').value.trim() ? '' : R.length ? R.map(r => S.msg(cls[r.sev], esc(r.msg))).join('') : S.msg('ok', 'Brackets, quotes and names check out. ADF Studio checks the rest when you validate the pipeline.');
+  }
+  function fxPromptText() { return S.fullPrompt(A.exprPrompt($('fxAsk').value, fx.ctx || A.exprContext(null, cfg), fx.where)); }
+  function fxAiRender() {
+    $('fxPrompt').textContent = fxPromptText();
+    const t = $('fxReply').value; fx.reply = null; $('fxTake').hidden = true;
+    if (!t.trim()) { $('fxAiMsg').innerHTML = ''; return; }
+    const r = A.exprParse(t, S.parseBlocks);
+    if (r.skipped) { $('fxAiMsg').innerHTML = S.msg('warn', '<b>Copilot didn\u2019t write one:</b> ' + esc(r.skipped)); return; }
+    if (!r.expr) { $('fxAiMsg').innerHTML = S.msg('err', 'No EXPRESSION block was found. Paste the whole reply, inside its code block.'); return; }
+    const errs = A.checkExpr(r.expr, fx.ctx).filter(x => x.sev === 'err');
+    fx.reply = errs.length ? null : r.expr; $('fxTake').hidden = !fx.reply;
+    $('fxAiMsg').innerHTML = (errs.length ? S.msg('err', '<b>Not used:</b> <span class="mono">' + esc(r.expr) + '</span><ul>' + errs.map(x => '<li>' + esc(x.msg) + '</li>').join('') + '</ul>Ask Copilot again with these problems.') : S.msg('ok', '<span class="mono">' + esc(r.expr) + '</span>'))
+      + (r.notes.length ? S.msg('info', '<b>Confirm:</b><ul>' + r.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>') : '');
+  }
+  function fxInsert(text, snippet) {
+    const ta = $('fxText'); let v = ta.value, a = ta.selectionStart, b = ta.selectionEnd;
+    if (!v.trim()) { v = ''; a = b = 0; if (!/^@/.test(text)) text = '@' + text; }
+    ta.value = v.slice(0, a) + text + v.slice(b);
+    const sel = text.match(/'[^']*'|\b(value|text|list|listOrText|a|b)\b/);   /* select the first placeholder so it can be typed over */
+    if (sel && snippet) { ta.setSelectionRange(a + sel.index, a + sel.index + sel[0].length); } else { const p = a + text.length; ta.setSelectionRange(p, p); }
+    ta.focus(); fxCheck();
+  }
+  function fxOpen(btn) {
+    const input = btn.parentNode.querySelector('input'), row = input.closest('[data-logrow],[data-pi]');
+    const q = s => '"' + String(s).replace(/["\\]/g, '\\$&') + '"';
+    if (input.dataset.dsfixed) { fx.sel = '[data-dsfixed=' + q(input.dataset.dsfixed) + '][data-p=' + q(input.dataset.p) + ']'; fx.where = 'the value of dataset parameter ' + input.dataset.p; }
+    else if (row && row.dataset.logrow != null) { fx.sel = '[data-logrow=' + q(row.dataset.logrow) + '] input[data-lf="value"]'; fx.where = 'logging parameter ' + ((row.querySelector('[data-lf="name"]') || {}).value || '') + ' (passed as ' + (std.log.method === 'notebook' ? 'a notebook base parameter, always text' : 'a procedure parameter') + ')'; }
+    else if (row) { fx.sel = '[data-pkey=' + q(row.dataset.pkey) + '][data-pi=' + q(row.dataset.pi) + '] input[data-pf="value"]'; fx.where = 'notebook base parameter ' + ((row.querySelector('[data-pf="name"]') || {}).value || '') + ' (always text)'; }
+    else return;
+    fx.ctx = A.exprContext(out && out.pipeline, cfg);
+    $('fxWhere').textContent = 'For ' + fx.where + '.' + (out ? '' : ' Build the pipeline first (fix the items in red) to list its steps.');
+    $('fxText').value = input.value;
+    $('fxSteps').innerHTML = fx.ctx.steps.length ? fx.ctx.steps.map(s => '<div class="fxrow"><span class="nm">' + esc(s.name) + '</span>' + s.fields.map(f => chip("activity('" + s.name + "')?.output?." + f[0], f[1], '', "activity('" + s.name + "')?.output?." + f[0])).join('') + chip("activity('" + s.name + "')?.error?.message", 'Error message', '', 'Filled in only when this step failed') + (s.inside ? '<span class="note small">inside ' + esc(s.inside) + '</span>' : '') + '</div>').join('')
+      + '<p class="note small">A step inside a loop or an If can only be read by steps inside the same one. Numbers and objects need string() around them when the value is passed as text.</p>' : '<p class="note small">No steps yet.</p>';
+    $('fxVars').innerHTML = fx.ctx.vars.length ? '<div class="fxrow">' + fx.ctx.vars.map(v => chip("variables('" + v + "')", v, 'fn')).join('') + '</div>' : '<p class="note small">None. Add one under Pipeline variables.</p>';
+    $('fxRun').innerHTML = '<div class="fxrow">' + [['pipeline().Pipeline', 'Pipeline name'], ['pipeline().RunId', 'Run ID'], ['pipeline().TriggerTime', 'Trigger time'], ['pipeline().TriggerName', 'Trigger name'], ['pipeline().DataFactory', 'Factory name'], ['utcNow()', 'Now (UTC)'], ['pipeline().globalParameters.', 'Global parameter (type its name)']]
+      .concat(fx.ctx.loop ? [['item().name', 'Loop item name']] : []).concat(fx.ctx.params.map(p => ['pipeline().parameters.' + p, 'Parameter ' + p])).map(r => chip(r[0], r[1], '', r[0])).join('') + '</div>';
+    $('fxFuncs').innerHTML = '<div class="fxrow">' + A.EXPR_FUNCS.map(f => chip(f[1], f[0], 'fn', f[2] + ': ' + f[1])).join('') + '</div>';
+    $('fxHint').textContent = 'Click anything below to put it in at the cursor.';
+    $('fxReply').value = ''; fxAiRender(); fxCheck();
+    $('fxModal').hidden = false; document.body.style.overflow = 'hidden';
+    $('fxText').focus();
+  }
+  function fxClose(use) {
+    $('fxModal').hidden = true; document.body.style.overflow = '';
+    const input = document.querySelector(fx.sel);
+    if (!input) return;
+    if (use) { input.value = $('fxText').value.trim(); input.focus(); input.dispatchEvent(new Event('input', { bubbles: true })); }
+    else input.focus();
+  }
+  function fxWire(getters) {
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-fx]'); if (b) { fxOpen(b); return; }
+      const c = e.target.closest('[data-ins]'); if (c && !$('fxModal').hidden) { fxInsert(c.dataset.ins, c.classList.contains('fn') && /\(/.test(c.dataset.ins) && !/^variables\(/.test(c.dataset.ins)); if (c.dataset.hint) $('fxHint').textContent = c.dataset.hint; }
+    });
+    $('fxText').addEventListener('input', e => { e.stopPropagation(); fxCheck(); });
+    ['fxAsk', 'fxReply'].forEach(id => $(id).addEventListener('input', e => { e.stopPropagation(); fxAiRender(); }));
+    $('fxTake').addEventListener('click', () => { if (fx.reply) { $('fxText').value = fx.reply; fxCheck(); $('fxText').focus(); } });
+    $('fxUse').addEventListener('click', () => fxClose(true));
+    $('fxCancel').addEventListener('click', () => fxClose(false));
+    $('fxClose').addEventListener('click', () => fxClose(false));
+    $('fxModal').addEventListener('click', e => { if (e.target === $('fxModal')) fxClose(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('fxModal').hidden) fxClose(false); });
+    getters.fxPrompt = () => fxPromptText();
   }
 
   function renderCheck() {
@@ -362,6 +435,7 @@
       fixPrompt: () => checkRes && checkRes.prompt && ({ name: 'adf-fix-prompt.txt', text: checkRes.prompt })
     };
     document.addEventListener('click', e => { const b = e.target.closest('[data-copy^="ds"]'); if (b && out) { const d = out.datasets[Number(b.dataset.copy.slice(2))]; if (d) S.copyText(JSON.stringify(d, null, 4), b); } });
+    fxWire(getters);
     S.wireCopy(getters);
     render();
   }

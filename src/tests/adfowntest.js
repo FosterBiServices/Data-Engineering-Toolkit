@@ -18,15 +18,15 @@ const DS = (name, type) => JSON.stringify({ name, properties: { linkedServiceNam
   // logging with my own notebook
   await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/util/nb_log_run'); await page.fill('[data-l=nbLs]', 'ls_databricks_dev');
   await page.fill('#logRows [data-logrow="0"] input[data-lf=name]', 'pipeline');
-  await page.click('#logRows [data-logrow="7"] [data-logdel]');
-  await page.click('#addLogParam'); await page.fill('#logRows [data-logrow="7"] input[data-lf=name]', 'environment'); await page.fill('#logRows [data-logrow="7"] input[data-lf=value]', 'dev');
+  await page.click('#logRows [data-logrow="3"] [data-logdel]');
+  await page.click('#addLogParam'); await page.fill('#logRows [data-logrow="3"] input[data-lf=name]', 'environment'); await page.fill('#logRows [data-logrow="3"] input[data-lf=value]', 'dev');
   await T('flow', () => [...document.querySelectorAll('#flowBody tr')].map(r => r.children[1].textContent.trim() + ' [' + r.children[2].textContent + ']'));
   await T('placeholders and own-check message (expect both empty)', () => [document.getElementById('phMsg').textContent, document.getElementById('outMsg').textContent]);
   await T('copy activity uses my datasets and parameters', () => { const p = JSON.parse(document.getElementById('plView').textContent), cp = p.properties.activities[2].typeProperties.activities[0]; return [cp.inputs[0].referenceName, cp.inputs[0].parameters.p_directory, cp.outputs[0].referenceName, cp.outputs[0].parameters, p.properties.activities[3].typeProperties]; });
   await T('datasets tab says reuse; SQL tab; objects', () => [document.getElementById('dsList').textContent.slice(0, 80), document.getElementById('sqlView').textContent.trim(), [...document.querySelectorAll('#objBody tr')].map(r => r.children[0].textContent + ':' + r.children[1].textContent + ':' + r.children[2].textContent)]);
   await page.screenshot({ path: __dirname + '/adf_own.png', fullPage: true });
   await page.reload();
-  await T('after reload: datasets, mapping and logging kept', () => [document.getElementById('dsInfosrc').textContent.slice(0, 30), document.querySelector('#dsMaptgt input[data-dsfixed]').value, document.getElementById('logMethod').value, document.querySelectorAll('#logRows [data-logrow]').length, document.querySelector('#logRows [data-logrow="7"] input[data-lf=value]').value]);
+  await T('after reload: datasets, mapping and logging kept', () => [document.getElementById('dsInfosrc').textContent.slice(0, 30), document.querySelector('#dsMaptgt input[data-dsfixed]').value, document.getElementById('logMethod').value, document.querySelectorAll('#logRows [data-logrow]').length, document.querySelector('#logRows [data-logrow="3"] input[data-lf=value]').value]);
   // checker: paste the pipeline the page just made minus its failure path end
   const json = await page.evaluate(() => { const p = JSON.parse(document.getElementById('plView').textContent); p.properties.activities = p.properties.activities.filter(a => a.type !== 'Fail'); return JSON.stringify(p); });
   await page.click('#modeBar [data-tab=check]'); await page.fill('#checkInput', json);

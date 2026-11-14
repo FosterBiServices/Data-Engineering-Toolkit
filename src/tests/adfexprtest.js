@@ -1,0 +1,44 @@
+// Expression helper: the fx button beside "ADF expression" boxes, its inserts, live check, Copilot reply, and writing back.
+const { open } = require('./lib');
+(async () => {
+  const { browser, page, errors } = await open('adf-pipeline-generator.html');
+  const T = async (label, fn) => console.log(label, JSON.stringify(await page.evaluate(fn)));
+  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/log_run');
+  await page.click('#addLogParam'); const r = '#logRows [data-logrow="4"] ';
+  await page.fill(r + 'input[data-lf=name]', 'duration_min'); await page.selectOption(r + 'select[data-lf=use]', 'expr');
+  await T('fx button beside the expression box', () => !!document.querySelector('#logRows [data-logrow="4"] [data-fx]'));
+  await page.click(r + '[data-fx]');
+  await T('dialog open, where', () => [!document.getElementById('fxModal').hidden, document.getElementById('fxWhere').textContent]);
+  await T('steps listed', () => [...document.querySelectorAll('#fxSteps .fxrow .nm')].map(e => e.textContent));
+  await page.click('#fxFuncs [data-ins^="string("]');
+  await T('after string(): text and selection', () => { const t = document.getElementById('fxText'); return [t.value, t.value.slice(t.selectionStart, t.selectionEnd)]; });
+  await page.click('#fxSteps [data-ins="activity(\'cp_file_to_bronze\')?.output?.copyDuration"]');
+  await T('after the Copy output', () => [document.getElementById('fxText').value, document.getElementById('fxCheck').textContent]);
+  await page.fill('#fxText', "@concat('a', variables('nope')");
+  await T('bad expression check', () => document.getElementById('fxCheck').textContent);
+  await page.fill('#fxText', "@string(activity('cp_file_to_bronze')?.output?.copyDuration)");
+  await page.click('#fxAi summary'); await page.fill('#fxAsk', 'the copy duration in minutes');
+  await T('prompt has context', () => { const p = document.getElementById('fxPrompt').textContent; return [/cp_file_to_bronze \| Copy/.test(p), /the copy duration in minutes/.test(p), /=== END OF PROMPT ===/.test(p)]; });
+  await page.fill('#fxReply', "```\n@@@ EXPRESSION @@@\n@string(activity('missing')?.output?.x)\n```");
+  await T('bad reply refused', () => [document.getElementById('fxAiMsg').textContent.slice(0, 80), document.getElementById('fxTake').hidden]);
+  await page.fill('#fxReply', "```\n@@@ EXPRESSION @@@\n@string(div(activity('cp_file_to_bronze')?.output?.copyDuration, 60))\n@@@ NOTES @@@\n- whole minutes\n```");
+  await page.click('#fxTake');
+  await T('taken into the box', () => document.getElementById('fxText').value);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await T('390px with the dialog open (expect 0)', () => document.documentElement.scrollWidth - window.innerWidth);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.click('#fxUse');
+  await T('written back, dialog closed', () => [document.querySelector('#logRows [data-logrow="4"] input[data-lf=value]').value, document.getElementById('fxModal').hidden]);
+  await T('in the pipeline JSON', () => { const p = JSON.parse(document.getElementById('plView').textContent), hit = JSON.stringify(p).match(/"duration_min":\{[^}]*\}/); return hit && hit[0]; });
+  // notebook parameter in a layer, and Escape cancels
+  await page.click('[data-si="0"] [data-addp="s0"]'); const pr = '[data-pkey="s0"][data-pi="' + await page.evaluate(() => document.querySelectorAll('[data-pkey="s0"]').length - 1) + '"] ';
+  await page.fill(pr + 'input[data-pf=name]', 'run_day'); await page.selectOption(pr + 'select[data-pf=use]', 'expr');
+  await page.click(pr + '[data-fx]'); await page.click('#fxFuncs [data-ins^="formatDateTime"]');
+  await page.keyboard.press('Escape');
+  await T('Escape leaves it empty', () => [document.getElementById('fxModal').hidden, [...document.querySelectorAll('[data-pkey="s0"] input[data-pf=value]')].pop().value]);
+  await page.click(pr + '[data-fx]'); await page.click('#fxFuncs [data-ins^="formatDateTime"]'); await page.click('#fxUse');
+  await T('notebook parameter value', () => [...document.querySelectorAll('[data-pkey="s0"] input[data-pf=value]')].pop().value);
+  await page.reload();
+  await T('kept after reload', () => [document.querySelector('#logRows [data-logrow="4"] input[data-lf=value]').value, [...document.querySelectorAll('[data-pkey="s0"] input[data-pf=value]')].pop().value]);
+  console.log('errors', JSON.stringify(errors)); await browser.close();
+})();

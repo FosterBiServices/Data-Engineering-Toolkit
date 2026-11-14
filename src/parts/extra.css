@@ -70,3 +70,21 @@ td.flowname .ind{color:var(--ws)}
 @media (max-width:700px){.rrow.map3{grid-template-columns:1fr}.rrow.log4{grid-template-columns:1fr 1fr}}
 .stepctl{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
 .stepctl select,.stepctl input{flex:1 1 140px;min-width:0}
+/* ADF expression helper */
+.fxwrap { display: flex; gap: 4px; min-width: 0; }
+.fxwrap input { flex: 1; min-width: 0; }
+.fxbtn { flex: none; font: 600 12px/1 var(--mono); font-style: italic; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--accent); cursor: pointer; }
+.fxbtn:hover, .fxbtn:focus-visible { border-color: var(--gold); background: var(--accent-soft); }
+.fxback { position: fixed; inset: 0; background: rgba(10, 45, 90, .45); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 24px 10px; overflow-y: auto; }
+.fxback[hidden] { display: none; }
+.fxpanel { background: var(--surface); color: var(--ink); border-radius: 10px; width: 100%; max-width: 780px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.25); min-width: 0; }
+.fxhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fxhead h2 { margin: 0; font-size: 18px; }
+#fxText { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 13px; }
+.fxsec h3 { margin: 6px 0 4px; font-size: 13px; }
+.fxrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 3px 0; }
+.fxrow .nm { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; margin-right: 4px; }
+.fxchip { font-size: 12px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--code-bg); cursor: pointer; color: inherit; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.fxchip:hover, .fxchip:focus-visible { border-color: var(--gold); background: var(--accent-soft); }
+.fxchip.fn { font-family: var(--mono); }
+.fxfoot { justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 10px; }

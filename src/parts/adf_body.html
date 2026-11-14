@@ -504,5 +504,30 @@
   </section>
   </div>
 
+  <div class="fxback" id="fxModal" hidden>
+    <div class="fxpanel" role="dialog" aria-modal="true" aria-labelledby="fxTitle">
+      <div class="fxhead"><h2 id="fxTitle">Write an ADF expression</h2><button type="button" class="x" id="fxClose" aria-label="Close">&times;</button></div>
+      <p class="note small" id="fxWhere"></p>
+      <textarea id="fxText" rows="3" spellcheck="false" aria-label="Expression"></textarea>
+      <div id="fxCheck"></div>
+      <p class="note small" id="fxHint">Click anything below to put it in at the cursor.</p>
+      <div class="fxsec"><h3>Outputs of earlier steps</h3><div id="fxSteps"></div></div>
+      <div class="fxsec"><h3>Pipeline variables</h3><div id="fxVars"></div></div>
+      <div class="fxsec"><h3>Run values</h3><div id="fxRun"></div></div>
+      <div class="fxsec"><h3>Functions</h3><div id="fxFuncs"></div></div>
+      <details class="extra" id="fxAi">
+        <summary>Have Copilot write it <span class="muted">(optional)</span></summary>
+        <div class="extra-body">
+          <label class="lab">What should the value be? In plain words<textarea id="fxAsk" rows="2" placeholder="the copy duration in minutes, as text"></textarea></label>
+          <div class="codebox"><div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><button class="btn primary" type="button" data-copy="fxPrompt">Copy prompt</button></span></div><pre class="short" id="fxPrompt" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+          <label class="lab">Copilot&rsquo;s reply<textarea id="fxReply" rows="3" spellcheck="false" placeholder="Paste the whole reply"></textarea></label>
+          <div id="fxAiMsg"></div>
+          <div class="reply-actions"><button type="button" class="btn" id="fxTake" hidden>Put Copilot&rsquo;s expression in the box</button></div>
+        </div>
+      </details>
+      <div class="reply-actions fxfoot"><button type="button" class="btn" id="fxCancel">Cancel</button><button type="button" class="btn primary" id="fxUse">Use this expression</button></div>
+    </div>
+  </div>
+
   <footer>Everything runs in this page. Nothing is sent anywhere; your entries are saved only in this browser. Check everything before you use it: generated output can be wrong.</footer>
 </div>
