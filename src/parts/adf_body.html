@@ -1,0 +1,318 @@
+<div class="wrap">
+
+  <header class="top">
+    <div class="brandbar">
+      <img src="@@ICON@@" alt="Foster BI Services">
+      <div class="txt">
+        <span class="eyebrow">Data engineering toolkit</span>
+        <h1>ADF Pipeline Generator</h1>
+        <p class="lede">Describe a load and get the Azure Data Factory pipeline as JSON, with its datasets, supporting SQL and build steps. No AI needed; Copilot is optional for transformations in plain words.</p>
+      </div>
+      <button type="button" class="clear-btn" id="clearEntries" aria-controls="clearConfirm" aria-expanded="false">Clear entries</button>
+    </div>
+    <div class="clear-confirm" id="clearConfirm" role="alertdialog" aria-labelledby="clearMsg" hidden>
+      <span id="clearMsg"><b>Clear all entries?</b> This empties every box on this page and removes what this page saved in your browser, including your team standards. It can&rsquo;t be undone.</span>
+      <span class="btns"><button type="button" class="btn danger" id="clearYes">Clear entries</button><button type="button" class="btn" id="clearAllPages">Clear all pages</button><button type="button" class="btn" id="clearNo">Cancel</button></span>
+    </div>
+    <div class="clear-done msg ok" id="clearDone" role="status" hidden>Entries cleared. Start with the source in Step 1.</div>
+    <div class="banner" id="exampleBanner" hidden>
+      <span><strong>Example data loaded.</strong> A nightly orders load, to show what the page makes. Typing in a main box replaces the whole example with your own.</span>
+      <span class="btns"><button class="btn" id="startOwn" type="button">Start with my own</button></span>
+    </div>
+    <div class="tabbar" role="tablist" id="modeBar">
+      <button type="button" role="tab" data-tab="build" aria-selected="true"><span class="tn">Build a pipeline</span><span class="td">From a description of the load to pipeline JSON, SQL and build steps</span></button>
+      <button type="button" role="tab" data-tab="check" aria-selected="false"><span class="tn">Check a pipeline</span><span class="td">Paste any pipeline&rsquo;s JSON, yours or Copilot&rsquo;s, and get it checked</span></button>
+    </div>
+  </header>
+
+  <!-- ================= BUILD ================= -->
+  <div class="pane" data-pane="build" id="paneBuild">
+
+  <section class="step" aria-labelledby="s1">
+    <div class="step-num">Step<b>1</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s1">Read the source</h2>
+        <p>The page can&rsquo;t see your database, so you run one query and paste the result. Real column names and types are what make the output exact.</p>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="Source kind">
+        <label><input type="radio" name="srcKind" value="sql" data-k="src.kind"><span>A database table</span></label>
+        <label><input type="radio" name="srcKind" value="files" data-k="src.kind"><span>Files arriving in a data lake</span></label>
+      </div>
+
+      <div id="srcSql" class="pane" style="gap:14px">
+        <div class="qgrid">
+          <label class="lab">Source system
+            <select data-k="src.system"><option value="sqlserver">SQL Server</option><option value="azuresql">Azure SQL Database</option><option value="synapse">Synapse dedicated SQL pool</option></select></label>
+          <label class="lab">Schema<input type="text" data-k="src.schema" spellcheck="false" autocomplete="off" placeholder="dbo"></label>
+          <label class="lab">Table<input type="text" data-k="src.table" data-own spellcheck="false" autocomplete="off" placeholder="Orders"></label>
+        </div>
+        <ol class="how">
+          <li>Copy the query and run it on the source database (SSMS, Azure Data Studio or the portal&rsquo;s query editor).</li>
+          <li>In the results grid, select all, then <b>Copy with Headers</b>.</li>
+          <li>Paste the result below.</li>
+        </ol>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Schema query</span><span class="r"><button class="btn primary" type="button" data-copy="schemaQuery">Copy query</button></span></div>
+          <pre class="short" id="schemaQueryView"></pre>
+        </div>
+        <textarea class="mid" data-k="schemaText" data-own spellcheck="false" aria-label="Schema query results" placeholder="Paste the results here (tab-separated, with headers)"></textarea>
+        <div id="schemaStats" class="stats" aria-live="polite"></div>
+        <div id="schemaMsg" class="msgs"></div>
+        <p class="note">Names and types only. Don&rsquo;t paste rows of data, connection strings or passwords anywhere on this page.</p>
+      </div>
+
+      <div id="srcFiles" class="pane" style="gap:14px" hidden>
+        <div class="qgrid">
+          <label class="lab">Landing container<input type="text" data-k="src.container" spellcheck="false" autocomplete="off" placeholder="landing"></label>
+          <label class="lab">Landing folder<input type="text" data-k="src.folder" data-own spellcheck="false" autocomplete="off" placeholder="sales/orders"></label>
+          <label class="lab">File name starts with <span class="hint">optional</span><input type="text" data-k="src.starts" spellcheck="false" autocomplete="off" placeholder="orders_"></label>
+          <label class="lab">File name ends with<input type="text" data-k="src.ends" spellcheck="false" autocomplete="off" placeholder=".csv"></label>
+        </div>
+        <p class="note">Each run lands every matching file in the raw zone exactly as it arrived, moves it to the archive, and moves a file that can&rsquo;t be copied to quarantine. Cleaning and loading happen in the next layer (a bronze notebook, for example).</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s2">
+    <div class="step-num">Step<b>2</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s2">Describe the load</h2>
+        <p>Fill in what you know. Anything left empty becomes a placeholder like <span class="mono">&lt;LS_SOURCE&gt;</span> that Step 4 lists for you to replace.</p>
+      </div>
+
+      <div class="qgrid">
+        <label class="lab">Subject area <span class="hint">used in names</span><input type="text" data-k="domain" spellcheck="false" autocomplete="off" placeholder="sales"></label>
+        <label class="lab">Pipeline name <span class="hint">leave empty to name it by the standards</span><input type="text" data-k="name" spellcheck="false" autocomplete="off" id="plName"></label>
+        <label class="lab wide">Goal <span class="hint">one or two sentences, in business terms; becomes the pipeline description</span><textarea data-k="goal" data-own aria-label="Goal"></textarea></label>
+      </div>
+
+      <div class="sub">
+        <h3>Source connection</h3>
+        <div class="qgrid">
+          <label class="lab">Linked service <span class="hint">exact name from Manage &gt; Linked services</span><input type="text" data-k="src.ls" spellcheck="false" autocomplete="off" placeholder="ls_sqlserver_salesdb_prod"></label>
+          <label class="lab" data-only="sql">Integration runtime <span class="hint">if self-hosted</span><input type="text" data-k="src.ir" spellcheck="false" autocomplete="off" placeholder="shir-onprem-01"></label>
+          <label class="chk" data-only="sql"><input type="checkbox" data-k="src.onprem"> On-premises or behind a firewall</label>
+        </div>
+      </div>
+
+      <div class="sub">
+        <h3>Target</h3>
+        <div class="seg" role="radiogroup" aria-label="Target kind" data-only="sql">
+          <label><input type="radio" name="tgtKind" value="sql" data-k="tgt.kind"><span>A database table</span></label>
+          <label><input type="radio" name="tgtKind" value="adls" data-k="tgt.kind"><span>Parquet files in the raw zone</span></label>
+        </div>
+        <div class="qgrid" id="tgtSql">
+          <label class="lab">Target system
+            <select data-k="tgt.system"><option value="azuresql">Azure SQL Database</option><option value="synapse">Synapse dedicated SQL pool</option><option value="sqlserver">SQL Server</option></select></label>
+          <label class="lab">Linked service<input type="text" data-k="tgt.ls" spellcheck="false" autocomplete="off" placeholder="ls_azuresql_dw_prod"></label>
+          <label class="lab">Schema<input type="text" data-k="tgt.schema" spellcheck="false" autocomplete="off" placeholder="dw"></label>
+          <label class="lab">Table<input type="text" data-k="tgt.table" spellcheck="false" autocomplete="off" placeholder="fact_orders"></label>
+          <label class="lab">Write behavior
+            <select data-k="tgt.write"><option value="merge">Merge on the key (update and insert)</option><option value="overwrite">Overwrite (empty the table, then load)</option><option value="append">Append</option><option value="scd2">SCD Type 2 (keep history)</option></select></label>
+        </div>
+        <div class="qgrid" id="tgtAdls" hidden>
+          <label class="lab" data-only="sql">Data lake linked service<input type="text" data-k="tgt.ls" spellcheck="false" autocomplete="off" placeholder="ls_adls_datalake_prod"></label>
+          <label class="lab">Data lake container<input type="text" data-k="tgt.container" spellcheck="false" autocomplete="off" placeholder="datalake"></label>
+          <label class="lab">Storage account name <span class="hint">only for the notebook path</span><input type="text" data-k="tgt.storage" spellcheck="false" autocomplete="off" placeholder="stdatalakeprod"></label>
+        </div>
+        <p class="note small" id="rawNote" hidden></p>
+      </div>
+
+      <div class="sub" data-only="sql">
+        <h3>Load pattern</h3>
+        <div class="seg" role="radiogroup" aria-label="Load type">
+          <label><input type="radio" name="loadType" value="incremental" data-k="load.type"><span>Incremental (only new and changed rows)</span></label>
+          <label><input type="radio" name="loadType" value="full" data-k="load.type"><span>Full (every row, every run)</span></label>
+        </div>
+        <div class="qgrid" id="incBox">
+          <label class="lab">Change column <span class="hint">set on every insert and update</span><select data-k="load.wmCol" id="wmCol"></select></label>
+          <label class="lab">Its type<select data-k="load.wmType"><option value="datetime">Date and time</option><option value="integer">Number that only goes up</option></select></label>
+          <label class="lab" id="overlapBox">Overlap, minutes <span class="hint">re-reads this much before the last run, for late or backdated changes; the merge makes it harmless</span><input type="number" min="0" max="100000" data-k="load.overlap"></label>
+        </div>
+        <div class="picker" id="keyBox">
+          <div class="picker-head"><h3>Business key</h3><span class="note small">The column or columns that identify one row. Needed for Merge and SCD Type 2.</span></div>
+          <div class="chips" id="keyChips"></div>
+        </div>
+        <details class="extra" id="colWrap">
+          <summary>Columns to copy <span class="muted" id="colCount"></span></summary>
+          <div class="extra-body">
+            <p class="note">Every column is copied unless you turn it off. Leave out columns the target doesn&rsquo;t need, especially personal data.</p>
+            <div class="chips" id="colChips"></div>
+          </div>
+        </details>
+        <label class="lab">Row filter <span class="hint">optional T-SQL predicate, without WHERE; put column names in [square brackets]</span><input type="text" data-k="filter" spellcheck="false" autocomplete="off" placeholder="[CustomerID] &lt;&gt; 999999" style="width:100%"></label>
+        <details class="extra">
+          <summary>Check the size and change rate <span class="muted">(optional)</span></summary>
+          <div class="extra-body">
+            <p class="note">Run this on the source to decide between a full and an incremental load. As a guide: under about a million rows, a full load is simpler and usually fast enough; above that, load incrementally if there&rsquo;s a reliable change column.</p>
+            <div class="codebox">
+              <div class="codebox-bar"><span class="t">Volume query</span><span class="r"><button class="btn" type="button" data-copy="volumeQuery">Copy query</button></span></div>
+              <pre class="short" id="volumeQueryView"></pre>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="sub">
+        <h3>Schedule, alerts and what runs next</h3>
+        <div class="qgrid">
+          <label class="lab">Runs<select data-k="sched.freq"><option value="daily">Every day</option><option value="hourly">Every hour</option><option value="none">No schedule (run by hand or from another pipeline)</option></select></label>
+          <label class="lab" id="timeBox">At<input type="time" data-k="sched.time"></label>
+          <label class="lab" id="tzBox">Time zone<select data-k="sched.tz" id="tzSel"></select></label>
+          <label class="lab">On failure<select data-k="alert"><option value="web">Log it and post an alert (Logic App or Teams workflow URL)</option><option value="none">Log it only</option></select></label>
+          <label class="lab">Control database linked service <span class="hint">where the watermark and log tables live; empty = the target database</span><input type="text" data-k="ctlLs" spellcheck="false" autocomplete="off" placeholder="ls_azuresql_dw_prod"></label>
+        </div>
+        <details class="extra" id="nbWrap">
+          <summary>Run Databricks notebooks after the load <span class="muted" id="nbCount">(optional)</span></summary>
+          <div class="extra-body">
+            <p class="note">One notebook path per line, in the order they run (bronze, silver, gold). Each gets <span class="mono">batch_id = @pipeline().RunId</span>; a path containing &ldquo;bronze&rdquo; also gets <span class="mono">source_path</span>, pointing at what this run landed. The <a href="python-notebook-generator.html">Python Notebook Generator</a> writes notebooks that take exactly these.</p>
+            <label class="lab">Databricks linked service<input type="text" data-k="nbLs" spellcheck="false" autocomplete="off" placeholder="ls_databricks_prod" style="max-width:340px"></label>
+            <textarea class="mid" data-k="notebooks" spellcheck="false" aria-label="Notebook paths" placeholder="/Shared/medallion/nb_bronze_orders&#10;/Shared/medallion/nb_silver_orders"></textarea>
+          </div>
+        </details>
+        <details class="extra" id="stdWrap">
+          <summary>Team standards <span class="muted">(names, retries, control tables; saved in this browser)</span></summary>
+          <div class="extra-body">
+            <p class="note">Set these once for your team. Every pipeline is named and built by them, and <b>Check a pipeline</b> checks against them.</p>
+            <div class="qgrid">
+              <label class="lab">Pipeline prefix<input type="text" data-s="plPrefix" spellcheck="false"></label>
+              <label class="lab">Dataset prefix<input type="text" data-s="dsPrefix" spellcheck="false"></label>
+              <label class="lab">Trigger prefix<input type="text" data-s="trPrefix" spellcheck="false"></label>
+              <label class="lab">Control schema <span class="hint">watermark, log, procedures</span><input type="text" data-s="ctlSchema" spellcheck="false"></label>
+              <label class="lab">Staging schema<input type="text" data-s="stgSchema" spellcheck="false"></label>
+              <label class="lab">Watermark table<input type="text" data-s="wmTable" spellcheck="false"></label>
+              <label class="lab">Run log table<input type="text" data-s="logTable" spellcheck="false"></label>
+              <label class="lab">Retries <span class="hint">Copy, Lookup, Get Metadata</span><input type="number" min="0" max="10" data-s="retry"></label>
+              <label class="lab">Seconds between retries<input type="number" min="30" max="86400" data-s="retrySec"></label>
+              <label class="lab">Activity timeout, hours<input type="number" min="1" max="23" data-s="timeoutHrs"></label>
+              <label class="lab">Alert URL global parameter<input type="text" data-s="alertParam" spellcheck="false"></label>
+              <label class="lab wide">Raw zone path <span class="hint">{source} {object} {yyyy} {MM} {dd} are filled in</span><input type="text" data-s="rawPath" spellcheck="false"></label>
+              <label class="lab">Archive path<input type="text" data-s="archivePath" spellcheck="false"></label>
+              <label class="lab">Quarantine path<input type="text" data-s="quarantinePath" spellcheck="false"></label>
+            </div>
+            <div class="reply-actions">
+              <button type="button" class="btn" data-save="standards">Download standards</button>
+              <label class="btn filebtn">Load a standards file<input type="file" id="stdFile" accept=".json,application/json"></label>
+              <button type="button" class="linkbtn" id="stdReset">Reset to defaults</button>
+            </div>
+            <div id="stdMsg" class="msgs"></div>
+          </div>
+        </details>
+      </div>
+      <div id="briefMsg" class="msgs" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s3" id="aiStep">
+    <div class="step-num">Step<b>3</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s3">Transformations in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
+        <p>Skip this if the columns are copied as they are. Otherwise say what should change; Copilot writes the T-SQL expressions, and the page checks them against your columns before using them.</p>
+      </div>
+      <textarea class="req" data-k="ai.request" data-own aria-label="Transformations" placeholder="Convert OrderDate from US Eastern time to UTC.&#10;Add a column OrderYear with the year of OrderDate."></textarea>
+      <div id="aiBox" style="display:flex;flex-direction:column;gap:14px" hidden>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="aiCount"></span><button class="btn" type="button" data-save="aiPrompt">Download file</button><button class="btn primary" type="button" data-copy="aiPrompt">Copy prompt</button></span></div>
+          <pre class="short" id="aiPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+        <p class="note">Paste the prompt into Copilot, or attach the downloaded file. It carries column names and types only, never data. In Copilot, use the <b>Copy</b> button on the code block, then paste the whole reply here.</p>
+        <textarea class="mid" data-k="ai.reply" spellcheck="false" aria-label="Copilot reply" placeholder="Paste Copilot&rsquo;s reply here"></textarea>
+        <div id="aiMsg" class="msgs" aria-live="polite"></div>
+        <div class="tablewrap" id="aiReview" hidden>
+          <table><thead><tr><th>Column</th><th>Status</th><th>Type</th><th>Expression and checks</th></tr></thead><tbody id="aiBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s4">
+    <div class="step-num">Step<b>4</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s4">Get the pipeline</h2>
+        <p>Read the flow first: it&rsquo;s the design. Then copy each part into ADF Studio in the order of the build steps.</p>
+      </div>
+      <div id="outMsg" class="msgs" aria-live="polite"></div>
+      <div id="outWrap" style="display:flex;flex-direction:column;gap:14px">
+        <div class="stats" id="outStats"></div>
+        <div class="tablewrap"><table><thead><tr><th>#</th><th>Activity</th><th>Type</th><th>Runs after</th></tr></thead><tbody id="flowBody"></tbody></table></div>
+        <div class="tabset">
+          <div class="subtabs" role="tablist" id="outTabs">
+            <button type="button" role="tab" data-tab="pipeline" aria-selected="true">Pipeline JSON</button>
+            <button type="button" role="tab" data-tab="datasets" aria-selected="false">Datasets</button>
+            <button type="button" role="tab" data-tab="sql" aria-selected="false">Supporting SQL</button>
+            <button type="button" role="tab" data-tab="trigger" aria-selected="false">Trigger</button>
+            <button type="button" role="tab" data-tab="steps" aria-selected="false">Build steps</button>
+            <button type="button" role="tab" data-tab="objects" aria-selected="false">Objects</button>
+          </div>
+          <div data-pane="pipeline">
+            <div class="codebox"><div class="codebox-bar"><span class="t" id="plTitle">Pipeline JSON</span><span class="r"><button class="btn" type="button" data-save="pipeline">Download</button><button class="btn primary" type="button" data-copy="pipeline">Copy JSON</button></span></div><pre class="tall" id="plView"></pre></div>
+            <p class="note">In ADF Studio: new pipeline, code view <span class="mono">{}</span>, replace everything, OK. Create the datasets and run the SQL first, or Validate will flag them.</p>
+          </div>
+          <div data-pane="datasets" hidden><div id="dsList" style="display:flex;flex-direction:column;gap:12px"></div></div>
+          <div data-pane="sql" hidden>
+            <div class="codebox"><div class="codebox-bar"><span class="t">Supporting SQL</span><span class="r"><button class="btn" type="button" data-save="sql">Download</button><button class="btn primary" type="button" data-copy="sql">Copy SQL</button></span></div><pre class="tall" id="sqlView"></pre></div>
+            <p class="note">Have someone who knows the target database read this before it runs anywhere but dev.</p>
+          </div>
+          <div data-pane="trigger" hidden>
+            <div class="codebox" id="trBox"><div class="codebox-bar"><span class="t">Trigger JSON</span><span class="r"><button class="btn primary" type="button" data-copy="trigger">Copy JSON</button></span></div><pre class="short" id="trView"></pre></div>
+            <p class="note" id="trNote"></p>
+          </div>
+          <div data-pane="steps" hidden>
+            <div class="codebox"><div class="codebox-bar"><span class="t">Build steps and test plan</span><span class="r"><button class="btn primary" type="button" data-copy="steps">Copy steps</button></span></div><pre class="tall" id="stepsView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+          </div>
+          <div data-pane="objects" hidden>
+            <div class="tablewrap"><table><thead><tr><th>Type</th><th>Name</th><th>New or reuse</th><th>Purpose</th></tr></thead><tbody id="objBody"></tbody></table></div>
+          </div>
+        </div>
+        <div id="phMsg" class="msgs"></div>
+        <details class="extra">
+          <summary>Before it leaves dev</summary>
+          <div class="extra-body">
+            <ul class="checklist" id="checklist"></ul>
+            <p class="note">Not yet run in a real factory: confirm in Debug that the failure log row carries the failed activity&rsquo;s message. It reads <span class="mono">activity('name').error?.message</span> for each activity.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <!-- ================= CHECK ================= -->
+  <div class="pane" data-pane="check" id="paneCheck" hidden>
+  <section class="step" aria-labelledby="c1">
+    <div class="step-num">Step<b>1</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="c1">Paste the pipeline JSON</h2>
+        <p>In ADF Studio, open the pipeline and select the code view button <span class="mono">{}</span>, then copy everything. A pipeline Copilot wrote works too: paste its whole reply. Take out connection strings and keys first.</p>
+      </div>
+      <textarea class="big" id="checkInput" data-own spellcheck="false" aria-label="Pipeline JSON" placeholder='{ "name": "pl_...", "properties": { "activities": [ ... ] } }'></textarea>
+      <div class="reply-actions"><label class="btn filebtn">Open a JSON file<input type="file" id="checkFile" accept=".json,.txt,application/json"></label></div>
+      <div id="checkMsg" class="msgs" aria-live="polite"></div>
+    </div>
+  </section>
+  <section class="step" aria-labelledby="c2">
+    <div class="step-num">Step<b>2</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="c2">Read the findings</h2>
+        <p>Correctness first (a watermark that moves too early, loads that aren&rsquo;t safe to rerun, missing failure paths), then structure, then your team standards. No AI: the same checks every time.</p>
+      </div>
+      <div id="checkOut" style="display:flex;flex-direction:column;gap:14px" hidden>
+        <div class="stats" id="checkStats"></div>
+        <div class="tablewrap" id="findWrap"><table><thead><tr><th>Severity</th><th>Activity</th><th>Check</th><th>What&rsquo;s wrong and what to do</th></tr></thead><tbody id="findBody"></tbody></table></div>
+        <div class="reply-actions"><button type="button" class="btn" data-copy="review">Copy review as text</button></div>
+        <h3>Activity flow</h3>
+        <div class="tablewrap"><table><thead><tr><th>#</th><th>Activity</th><th>Type</th><th>Runs after</th></tr></thead><tbody id="checkFlow"></tbody></table></div>
+        <p class="note">These checks read the pipeline&rsquo;s structure. They can&rsquo;t see your data, linked services or SQL, so a clean result still needs a debug run on a small window.</p>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <footer>Everything runs in this page. Nothing is sent anywhere; your entries are saved only in this browser. Check everything before you use it: generated output can be wrong.</footer>
+</div>

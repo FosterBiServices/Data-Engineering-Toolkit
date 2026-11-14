@@ -1,0 +1,7 @@
+{
+  "name": "foster-bi-data-engineering-toolkit-tests",
+  "private": true,
+  "description": "Checks for the Foster BI Data Engineering Toolkit pages",
+  "scripts": { "test": "node run.js" },
+  "devDependencies": { "playwright": "^1.47.0" }
+}

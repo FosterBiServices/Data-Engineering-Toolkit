@@ -1,0 +1,191 @@
+<div class="wrap">
+
+  <header class="top">
+    <div class="brandbar">
+      <img src="@@ICON@@" alt="Foster BI Services">
+      <div class="txt">
+        <span class="eyebrow">Data engineering toolkit</span>
+        <h1>Python Notebook Generator</h1>
+        <p class="lede">Bronze, silver and gold PySpark notebooks for Databricks, written from your columns and rules and run by Azure Data Factory. No AI needed; Copilot is optional for logic in plain words.</p>
+      </div>
+      <button type="button" class="clear-btn" id="clearEntries" aria-controls="clearConfirm" aria-expanded="false">Clear entries</button>
+    </div>
+    <div class="clear-confirm" id="clearConfirm" role="alertdialog" aria-labelledby="clearMsg" hidden>
+      <span id="clearMsg"><b>Clear all entries?</b> This empties every box on this page and removes what this page saved in your browser. It can&rsquo;t be undone.</span>
+      <span class="btns"><button type="button" class="btn danger" id="clearYes">Clear entries</button><button type="button" class="btn" id="clearAllPages">Clear all pages</button><button type="button" class="btn" id="clearNo">Cancel</button></span>
+    </div>
+    <div class="clear-done msg ok" id="clearDone" role="status" hidden>Entries cleared. Start with the layer and entity in Step 1.</div>
+    <div class="banner" id="exampleBanner" hidden>
+      <span><strong>Example data loaded.</strong> An orders entity in all three layers, to show what the page makes. Typing in a main box replaces the whole example with your own.</span>
+      <span class="btns"><button class="btn" id="startOwn" type="button">Start with my own</button></span>
+    </div>
+  </header>
+
+  <section class="step" aria-labelledby="s1">
+    <div class="step-num">Step<b>1</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s1">Choose the layer and the entity</h2>
+        <p>One notebook per layer per entity. Each layer has one job: bronze keeps what arrived, silver makes it correct, gold makes it useful for reporting.</p>
+      </div>
+      <div class="tabbar" role="tablist" id="layerBar" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+        <button type="button" role="tab" data-layer="bronze"><span class="tn">Bronze</span><span class="td">Land the files as they are, with batch metadata</span></button>
+        <button type="button" role="tab" data-layer="silver"><span class="tn">Silver</span><span class="td">Type, clean, dedupe, check quality, merge on the key</span></button>
+        <button type="button" role="tab" data-layer="gold"><span class="tn">Gold</span><span class="td">Aggregate silver to a reporting grain and reconcile</span></button>
+      </div>
+      <div class="qgrid">
+        <label class="lab">Entity <span class="hint">what one row is</span><input type="text" data-k="entity" data-own spellcheck="false" autocomplete="off" placeholder="orders"></label>
+        <label class="lab">Subject area <span class="hint">the schema in each catalog</span><input type="text" data-k="subject" spellcheck="false" autocomplete="off" placeholder="sales"></label>
+        <label class="lab">Notebook folder<input type="text" data-k="folder" spellcheck="false" autocomplete="off" placeholder="/Shared/medallion"></label>
+      </div>
+      <details class="extra">
+        <summary>Catalog names <span class="muted">(Unity Catalog: catalog.schema.table)</span></summary>
+        <div class="extra-body">
+          <div class="qgrid">
+            <label class="lab">Bronze catalog<input type="text" data-k="cat.bronze" spellcheck="false"></label>
+            <label class="lab">Silver catalog<input type="text" data-k="cat.silver" spellcheck="false"></label>
+            <label class="lab">Gold catalog<input type="text" data-k="cat.gold" spellcheck="false"></label>
+          </div>
+          <p class="note">On the legacy Hive metastore, set a notebook&rsquo;s table widgets to <span class="mono">schema.table</span> after importing it.</p>
+        </div>
+      </details>
+      <div class="stats" id="nameStats"></div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s2">
+    <div class="step-num">Step<b>2</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s2">Read the input</h2>
+        <p id="s2p"></p>
+      </div>
+      <div id="inBronze" class="pane" style="gap:14px">
+        <div class="qgrid">
+          <label class="lab">File format<select data-k="bronze.format"><option value="parquet">Parquet</option><option value="csv">CSV with a header row</option><option value="json">JSON</option></select></label>
+          <label class="lab wide">Landing path <span class="hint">optional; only used in the context cell below. ADF passes the real path on every run</span><input type="text" data-k="bronze.path" spellcheck="false" autocomplete="off" placeholder="abfss://datalake@account.dfs.core.windows.net/raw/salesdb/orders/"></label>
+        </div>
+      </div>
+      <div id="inPaste" class="pane" style="gap:14px">
+        <ol class="how">
+          <li>Copy the cell and run it in a Databricks notebook.</li>
+          <li>Copy its printed output, at least the <b>SCHEMA</b> part, and paste it below.</li>
+        </ol>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Context cell</span><span class="r"><button class="btn primary" type="button" data-copy="context">Copy cell</button></span></div>
+          <pre class="short" id="contextView"></pre>
+        </div>
+        <div class="reply-actions" id="useSilverBox"><button type="button" class="btn" id="useSilver">Use the silver columns from this page</button><span class="note small">Or paste the context cell&rsquo;s output for the silver table.</span></div>
+        <textarea class="mid" id="schemaIn" data-own spellcheck="false" aria-label="Schema" placeholder="Paste the output here. The page reads the lines that look like  |-- OrderID: integer (nullable = true)"></textarea>
+        <div id="schemaStats" class="stats" aria-live="polite"></div>
+        <div id="schemaMsg" class="msgs"></div>
+        <p class="note">The schema query results from the <a href="adf-pipeline-generator.html">ADF Pipeline Generator</a> work here too, as does one <span class="mono">name type</span> per line. Mask or leave out the sample rows: the page only needs names and types.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s3">
+    <div class="step-num">Step<b>3</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s3">Set it up</h2>
+        <p id="s3p"></p>
+      </div>
+
+      <div id="setBronze" class="pane" style="gap:14px">
+        <p class="tip"><b>Nothing to set.</b> Bronze applies no business logic, filters or type changes. It adds <span class="mono">_source_file</span>, <span class="mono">_ingest_ts</span> and <span class="mono">_batch_id</span>, keeps rows that don&rsquo;t fit in <span class="mono">_rescued_data</span>, and lets new columns in.</p>
+      </div>
+
+      <div id="setSilver" class="pane" style="gap:16px">
+        <div class="tablewrap"><table class="maptable"><thead><tr><th class="ck">Use</th><th>Bronze column</th><th>Silver name</th><th>Type</th><th>Clean</th><th class="ck">Key</th><th class="ck">Not null</th></tr></thead><tbody id="mapBody"></tbody></table></div>
+        <div class="qgrid">
+          <label class="lab">Ordering column <span class="hint">picks the latest version of a key</span><select id="orderCol" data-k="silver.orderCol"></select></label>
+          <label class="lab" id="tzBox">Source time zone <span class="hint">for &ldquo;Local time to UTC&rdquo;</span><input type="text" data-k="silver.tz" spellcheck="false" autocomplete="off" placeholder="America/New_York"></label>
+          <label class="lab">Deleted flag <span class="hint">a true/false column; null counts as not deleted</span><select id="softDel" data-k="silver.softDelete"></select></label>
+          <label class="lab">Cluster the table by <span class="hint">optional; needs Databricks Runtime 13.3 or later</span><select id="clusterCol" data-k="silver.cluster"></select></label>
+        </div>
+        <div class="details-head"><h3>Quality rules</h3><button type="button" class="btn" id="addRule">Add a rule</button></div>
+        <p class="note small" style="margin-top:-8px">Rows that break a rule go to the quarantine table with the rule&rsquo;s name. <b>Not null</b> is ticked in the table above.</p>
+        <div class="rowlist" id="ruleList"></div>
+      </div>
+
+      <div id="setGold" class="pane" style="gap:16px">
+        <div class="qgrid">
+          <label class="lab">Gold table name<input type="text" data-k="gold.name" spellcheck="false" autocomplete="off" placeholder="fact_daily_sales"></label>
+          <label class="lab">Deleted flag <span class="hint">rows where it is true are left out</span><select id="goldDel" data-k="gold.softDelete"></select></label>
+        </div>
+        <div class="picker"><div class="picker-head"><h3>Grain</h3><span class="note small">The columns that make one row of the gold table.</span></div><div class="chips" id="grainChips"></div></div>
+        <div class="seg" role="radiogroup" aria-label="Rebuild mode">
+          <label><input type="radio" name="goldMode" value="dates" data-k="gold.mode"><span>Rebuild only the dates a batch touched</span></label>
+          <label><input type="radio" name="goldMode" value="full" data-k="gold.mode"><span>Rebuild the whole table each run</span></label>
+        </div>
+        <label class="lab" id="rebuildBox" style="max-width:340px">Date column to rebuild by <span class="hint">must be in the grain</span><select id="rebuildCol" data-k="gold.rebuildCol"></select></label>
+        <div class="details-head"><h3>Metrics</h3><button type="button" class="btn" id="addMetric">Add a metric</button></div>
+        <div class="rowlist" id="metricList"></div>
+        <div class="details-head"><h3>Calculated from metrics</h3><button type="button" class="btn" id="addDerived">Add a calculation</button></div>
+        <p class="note small" style="margin-top:-8px">A formula over the metric names above, in Spark SQL, for example <span class="mono">gross_sales_amount - cancelled_amount</span>.</p>
+        <div class="rowlist" id="derivedList"></div>
+      </div>
+      <div id="setupMsg" class="msgs" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s4" id="aiStep">
+    <div class="step-num">Step<b>4</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s4">Logic in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
+        <p id="s4p"></p>
+      </div>
+      <textarea class="req" id="aiReq" data-own aria-label="Logic in plain words"></textarea>
+      <div id="aiBox" style="display:flex;flex-direction:column;gap:14px" hidden>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="aiCount"></span><button class="btn" type="button" data-save="aiPrompt">Download file</button><button class="btn primary" type="button" data-copy="aiPrompt">Copy prompt</button></span></div>
+          <pre class="short" id="aiPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+        <p class="note">Paste the prompt into Copilot, or attach the downloaded file. It carries column names and types only, never data. In Copilot, use the <b>Copy</b> button on the code block, then paste the whole reply here.</p>
+        <textarea class="mid" id="aiReply" spellcheck="false" aria-label="Copilot reply" placeholder="Paste Copilot&rsquo;s reply here"></textarea>
+        <div id="aiMsg" class="msgs" aria-live="polite"></div>
+        <div class="tablewrap" id="aiReview" hidden>
+          <table><thead><tr><th>Name</th><th>Kind</th><th>Status</th><th>Expression and checks</th></tr></thead><tbody id="aiBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s5">
+    <div class="step-num">Step<b id="outNum">5</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s5">Get the notebook</h2>
+        <p>Import the file into your Databricks workspace (Workspace &gt; Import), or paste it into a new Python notebook. Run it in dev with a small batch before anything else.</p>
+      </div>
+      <div id="outMsg" class="msgs" aria-live="polite"></div>
+      <div id="outWrap" class="tabset">
+        <div class="stats" id="outStats"></div>
+        <div class="subtabs" role="tablist" id="outTabs">
+          <button type="button" role="tab" data-tab="code" aria-selected="true">Notebook</button>
+          <button type="button" role="tab" data-tab="adf" aria-selected="false">ADF activity</button>
+          <button type="button" role="tab" data-tab="checks" aria-selected="false">Checks to run</button>
+          <button type="button" role="tab" data-tab="list" aria-selected="false">Before production</button>
+        </div>
+        <div data-pane="code">
+          <div class="codebox"><div class="codebox-bar"><span class="t" id="codeTitle">Notebook</span><span class="r"><button class="btn" type="button" data-save="code">Download .py</button><button class="btn primary" type="button" data-copy="code">Copy notebook</button></span></div><pre class="tall" id="codeView"></pre></div>
+          <p class="note">Databricks source format: <span class="mono"># COMMAND ----------</span> separates cells when the file is imported. The table names are widget defaults, so the same notebook runs in another environment with different parameters.</p>
+        </div>
+        <div data-pane="adf" hidden>
+          <div class="codebox"><div class="codebox-bar"><span class="t">Settings</span><span class="r"><button class="btn primary" type="button" data-copy="adf">Copy</button></span></div><pre class="short" id="adfView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+          <div class="codebox"><div class="codebox-bar"><span class="t">Activity JSON</span><span class="r"><button class="btn" type="button" data-copy="activity">Copy JSON</button></span></div><pre class="short" id="actView"></pre></div>
+          <p class="note">Or list the notebook path in the <a href="adf-pipeline-generator.html">ADF Pipeline Generator</a> under &ldquo;Run Databricks notebooks after the load&rdquo; and it adds the activity, the parameters and the failure path for you.</p>
+        </div>
+        <div data-pane="checks" hidden>
+          <div class="codebox"><div class="codebox-bar"><span class="t">SQL checks</span><span class="r"><button class="btn primary" type="button" data-copy="checks">Copy SQL</button></span></div><pre class="short" id="checksView"></pre></div>
+          <p class="note">Run these in a SQL cell or the SQL editor after a dev run, and again after running the same batch a second time.</p>
+        </div>
+        <div data-pane="list" hidden><ul class="checklist" id="checklist"></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Everything runs in this page. Nothing is sent anywhere; your entries are saved only in this browser. Check everything before you use it: generated output can be wrong.</footer>
+</div>

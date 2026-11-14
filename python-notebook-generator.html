@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Python Notebook Generator</title>
+<meta name="description" content="Bronze, silver and gold PySpark notebooks for Databricks, built from your columns and rules and run by Azure Data Factory.">
+<link rel="icon" type="image/png" sizes="64x64" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAANwUlEQVR42uWbf4xc11XHP+fe92NmZ39lbSdx0sROiOPWrdMAbWgIEFSB0oq28AcrkUaggFRVSKhFIIEEKiZCIAGialEFqmijqGkVxCJB01ZpQQ0lKAoNBdqkSeMYQtwEJ65/rb07s/Peu/ce/nhvZufnesbxgk2u9LSrN2fe3HPu+fE933ufMDwEDgncFwAzc/AX7kL8z2jgdkT3CMyVMpfkUIU1VI6K4QnU/m3r6c98BQhwyMB9CuiAsr3jkKkUp3bL3T9nsL8O8jYRg2oADYPfvwSHgBi6c0a/EfB/0n7qob8c1HHAAMsWVvzsrcu7Qkj+Qkz802hAg1OUgKiAyCW8+l0vAFVUFMGIiQQxaCg+b0z+gfVvrpzo6NpjgNIq6S3LN1jSR8RE+9XlDlEDYrishwZUgkRJpMEd9mTvzp5a+a+OzlL9w9wbf/4KH4cnxET71OcFIjH/n4ZqITaJNbgjtjC3rz334Bk4hGH5WQGCi9wDYpOJlDdGsNYMX6bfWUTAGh15yUAiGis3EHBWRssZOU9uEonV54XYZJ+L3ANAYPnZ8vH1g/f8rLHJirrMIURbP0dobWRo4UZZhplGrat87gxFYYfTjSi1xHUnHVRo5xGo9IcyEMeeJApopV8rjyFI9fnmXxN56rHvym2RIZxEaRR8vrzx9Of+WrjzUFQ/feRfxUQHCS4Adivl87zgrW+6gZv37iZotUJaesXp1XX+4evPYC0UznLNQpMfuu4kQfu9ovCGf3zhalpFaeuZ2HHnja8S29CngBH4+ks7OXa2QRwFfBB+dO+r7GjkuLCpfmzg8Ik5nn51qc9YY4bHREaDe3pjad8Pyswtd98F9suoV4YcrncyQjvLuWnPbv7t4T+mniYj5e79zU/w4F99lcbCHI/84pe4Y99pQl4qA+AD2Dp8/NGb+dWH3wHAx973z3z4nc/jN8BWURQUTAKPH1ni3fffRbOdcPcP/Aefvedxgtt8nlKm6VPrlh/+s/fwwqk50tijKlvDBbEC/l2RBpaNtWgIAdl69V3hueaqJeppgnMeMdL1ROc8SRyxf+9uQqHM1wresNCk2RRyLwgKAt4LV4iyb+c5pAqBfTvPEdrC6oZgrZaFDCEplDcsNJmv5ayt17lp51lUhdMtIarkEAgB5lPP7vkNnj+xQA2/NVpRCWKsDd4vRwi3qwaqOn9ejOGcR1Wx1iA9DqNWyxApXDkpFQpvyiQV6CqLASNK7jYTZu4MRhRryiSHlJDOGqXwhlCtZu4MQr9clXrwCi5MCFFEpdSZ240g15cIb7J6LyJ9io/6vDfex8txceWmQmhi0IAg1xugMQ281RJnbfG59slu9ZyLKjc1SFeARjSV4RSiyJSZ3AVMz5I47zFiSOKorAqiRFZxQfBBuqvng+ADxLYLx4ltqO73hJQKLkBkN2t8bANBBRekb9JBoSZKZKbuUySafOUVG1tePXGGwnniqD9fWltWhRde/h4SC2tZzPH1GnuvakO+Ga8aFKnD0dXZbqY+ujqLnXmVJdHNQFSFBJ45XuNcO0Fs4OjqHCZSdjU2n4eWhfts03B8rU5kdCpPkJmD759YXkTIsoJ3fP/NvOn7riWEMvEpijWGU2fWeOSxfweUwlv2Lq1xx54T+J75CkoRLH9/5BrWshJwzqUFP7nvGLHxdDCiAlbg8aO7ePH0XNdjfuKmY+xoZF0vUIU4Ur5zfIFvvLxzEhxw4QZQwBrD+noLWu0eJFaNKKJxxRxaAaTMGVw+urLWagNIsD3aGaPEk/YiwSyGMEow0Ej8VMoDRNMIGxGyLGfn0gJX799TKSqoKsYY1pobvPTKSWppQlAljTxzNR2Z2HIXuunHSGBxzo3M8rkL3VBRVRZmCoyRoQpQeMX5rSvFazKAiFA4x5VLC3zlgY+wb+9uQlCMKQ2gQLPV5v2/9jG++k/fot6osbQwx8xMWlbZgdJ25myTc+stAOZnZ7hioTG0emKg1co4eWYNVaWWJly5Y758wCC8LjzHT63ivU5lBDPN6udZwf4br+XN+64jiSNqaUwSR6RJTBxZdizO8eO3vRnfzrHWUkuTsj5L/2WMUK9tQul6LcEYGZIToJaWnwVVamlcVqGBZwKkaUQU2amLYTRt3XA+EKrupvzxcgYhlOUqy4vurEpMIGM4G+3HDjoZrtAJ5LbVAJ0V7MR/7/3zocRLcVx0ukv1stJ/eg8wRggh4EPoW23nfQWIZBhwjkSh5783qS31NTC1kyNBQIyw3mpjjMEM0F+RLev9eiururly+taYofg0RvqUU8BEMlTfRQRPiQGkivPBEvha88DEBgghUK/VePq5o3z49+7n1gM3EHq8wIhw4sw5PvM3X6M2O4NznlOrazTq6ciVXFvf6CbLs+eahBBGdnjNjawqt4Zmq11xj/0GFCDLHUXhp85BUyHBzmg121C5/GCGrDXq3VUSAj4M77+IKEakC3sFJaiOYHHK3l97UlUIOjY5X0gCnioHiID3ARNb6rP1oc/ywuG8J7UxqkqzSEgjP8QAuyC4YJiJS2K1VcREJgw1Mgo0C9uVU+1Umv+LMiil9dMk5lN/8Mu89Y17y2aopySeObvOr9z3KQ7/58uoqfMbdz7F3bceZSPvMEJVuBjD7z/6Fr70nesBeO+Bo/z2O7/dEwalN9QTeOibe/joYwdJI0cUR+xYnMWIoddUHbL29Or61Bt3ExvAimFto8XbD97EPe/7sbFyy++6nd/5w89y1e6YD93xLNcu5hSb2AgfIJ2BD64f5uFn9gDwwdsOc9uNp8ham6SoKsQx7Go0+fS/7Odc27JzLqFRT/EjwiBNItZabbKsmCoULgAICT6EklgV0y1WzgesNV30Z0Rp5RGtrCB30uUEfSgJzdyb7r3cG3wmNHPBVqSGqpCE8hm9mx5lrrh4YCO6kC91Spv07JUa1aGdISNaXZukqEpJaA5yfbaS6yirPd+/rJDg5TYuyANGhUAIipf+Wh5Uupf03PM6THb6jpxucoJB6VLil4wBdMjVywkm1T2p9sqCCjOJYyZV4p5NTh8Um0JiN4mOxAZsqjS89iRBJY5hJnF9RjAijLLJhfZgExvAa6BeT/nWcy/yuYcfG1sGV778BMlsyulmxJ8+fmBsGfzkk/u7Ce+TT+5n52wxtgye3UhII0dzI6eWZmPLYJG77UWCHSCUOz+0N9gBQh2soKq0imhCIBSNBUKZ6wdC41Z7sD3flhBQLVcvFDnN9vpYKNwpU404H4LCCkRGSewmFJ6Ji5FQWFAase9CYanA2KgquO0h0JlS8J4P3ftTY5uhj97/BVbPNjHWkKbpls1Q7sp+Io4i5gagdW8ztNEuSiJGhMXFxthmaL3V3j4DlN3YBm87eBMf/8gvjZU7eWaNP/rECvM7FtixOEeSRCPbYWMMJ06dBWBhvsH8bG2o0RERamnCse+dwXvP3FyDpcXGyIZoDsiKgnzKPDA5K1zt6szO1MYSIpG1zM6koJudWVkyB3trhvJCcEoYFJRN7lErg4SgQwYoQdP/QjfYJT+NGcn/RdbivQ4bbpQ1R1r4/GLjFueSQYKXGSd6IUCol5TYrO1aUd16mbGiUxsgsmYkL1dubAhpEncL9tiYlMGDFDImVhhBvY/vUrc1BIIqSRpz+IX/5pkjL5EXjnZWkBeOLC8oKg7wa08+g60leO9pZ3l5cEH7rxCUjXbeffZGO+/W974LaGd5tekitLMC58LQMwGyzOGcnzojTL09nucFC3MNrt61uOXmaCcUosiORG3Ohe5qavfgxfDknfN934usLQ9nDUL1asdq2zZHO16QpgknT5/l5MvH2Wp7vDPhLCtGLkpvQ9WB0aO4+E5odRagqA5pIePlts0ARoR2O+dH3n5gywMSWk0qjixpmvT3vpXHtNs5obpvRJhp1EsFBmSzLKfo8ZZGPcVY0yfXOZ2W5W77PMCIsJHl7L/hGh598HeHjsh0xgd+68/59EN/x+ziLLuW5qnVkmEkKMLquRanVtcAWFyYZXF+pmuQXsXa7ZxXTqwSgjLXqHPlzvkRlabcrTp2/DSF89uEBEXwhefqXVcQR5bC+b5DUoV3JFHM3uuuRH3o7h6FMOLIipTVpLeyhKAjDKDVc0oeMqo4x2EkWNFp1oDzU3vA5FtrQpmFtZx030FJLMYIxahYZmR4j/x/0u9cJCSoBmhOdcRQznew8XKBggLQNIp+tzybpmFSSmwrtHd5IEENlKzSdw3KEyIGdAL+Wcu6LiJ4X3aEvX9VtXtQ8nyuOc0R2IveZ6hoqTNPGDGsqHrK94O2Xvkothw7fpqNLCeKLNZsvimSJjEiwvMvvoLEZfJzoUqGIn2XGKFwmw5XuIAYGZIzxuBC6JbbwpX0mhmUNVWb7MOE3q9G1SOGlW15YaLTK1hr+nqDTaJLaWdFN1xK4iNGBoGVCFle9KHGWhqXZxMG8EJRePJiIhzQ/8IEbM8rM70d4miGSYZ4hnG/16tUGHOgauLt8aFXZpaXLSsrvv6Wu79gotp71LUnemlq5I9pxQBdsrlPC4lqcXDtL258+6H3srxsDSsHyhMqLrpXfX5EbBKjWpyPFfI+DF+XuvI2idXnRyIX3QsYVg5o9RrpIdaee/CUl/wuVX9YojRGcZOWxku+5JVuH6v6w17yu9aee/AUHKJ6cbIzXtevznbG6/rl6d4nvH5en/8f0QHi4DsPnQIAAAAASUVORK5CYII=">
+<link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIyMCIgZmlsbD0iIzBBMkQ1QSI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSI0NCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjYwIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIiBmaWxsLW9wYWNpdHk9IjAuMTIiPjwvcmVjdD48cmVjdCB4PSI1MiIgeT0iNjAiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMC4xMiI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSI2MCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9Ijc2IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIiBmaWxsLW9wYWNpdHk9IjAuMTIiPjwvcmVjdD48cmVjdCB4PSI1MiIgeT0iNzYiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMC4xMiI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSI3NiIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjI4IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIiBmaWxsLW9wYWNpdHk9IjAuMTIiPjwvcmVjdD48cmVjdCB4PSI1MiIgeT0iMjgiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMC4xMiI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSIyOCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjI4IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjQ0IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjYwIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9Ijc2IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iNTIiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iNjgiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjQ0IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iNTIiIHk9IjQ0IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PC9zdmc+">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --brand:#0A2D5A;
+  --gold:#F2A900;
+  --gold-ink:#1A1300;
+  --bg:#F2F5FA;
+  --surface:#FFFFFF;
+  --surface-2:#EAF0F8;
+  --ink:#121B2B;
+  --muted:#51607A;
+  --line:#D3DCE9;
+  --accent:#0A2D5A;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E2ECF8;
+  --code-bg:#F6F8FC;
+  --ok:#23734A; --ok-soft:#E1F1E7;
+  --warn:#8F5200; --warn-soft:#FBEFD9;
+  --err:#AF2A22; --err-soft:#FBE4E1;
+  --info:#2F5B8A; --info-soft:#E3ECF6;
+  --ws:#A3B2C8;
+  --band:#0A2D5A; --band-ink:#FFFFFF; --band-muted:#BFD3EE;
+  --sans:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans","Arial Narrow",-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0A1220; --surface:#111C2E; --surface-2:#172538; --ink:#E6ECF6; --muted:#9AA8BF;
+    --line:#24334B; --accent:#F2A900; --accent-ink:#1A1300; --accent-soft:#2A2410; --code-bg:#0D1726;
+    --ok:#6FCF97; --ok-soft:#1A3326; --warn:#F0B35A; --warn-soft:#3A2C14; --err:#F08A80; --err-soft:#3C1E1B;
+    --info:#8DB6E6; --info-soft:#1A2A40; --ws:#3D4F6B;
+    --band:#0A2D5A; --band-ink:#FFFFFF; --band-muted:#BFD3EE;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0A1220; --surface:#111C2E; --surface-2:#172538; --ink:#E6ECF6; --muted:#9AA8BF;
+  --line:#24334B; --accent:#F2A900; --accent-ink:#1A1300; --accent-soft:#2A2410; --code-bg:#0D1726;
+  --ok:#6FCF97; --ok-soft:#1A3326; --warn:#F0B35A; --warn-soft:#3A2C14; --err:#F08A80; --err-soft:#3C1E1B;
+  --info:#8DB6E6; --info-soft:#1A2A40; --ws:#3D4F6B;
+  --band:#0A2D5A; --band-ink:#FFFFFF; --band-muted:#BFD3EE;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px;padding-block:28px 64px;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:var(--cond);font-weight:600;line-height:1.2;text-wrap:balance;margin:0}
+h1{font-size:30px;letter-spacing:-.01em}
+h2{font-size:21px}
+h3{font-size:15px;font-weight:600}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.9em}
+a{color:var(--accent)}
+
+/* header */
+.top{display:flex;flex-direction:column;gap:14px}
+.brandbar{display:flex;gap:18px;align-items:center;background:linear-gradient(90deg,var(--band) 30%,color-mix(in srgb,var(--band) 25%,transparent)),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='136' height='102'%3E%3Crect x='4' y='4' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.06'/%3E%3Crect x='38' y='4' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.09'/%3E%3Crect x='72' y='4' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.05'/%3E%3Crect x='106' y='4' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.07'/%3E%3Crect x='4' y='38' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.08'/%3E%3Crect x='38' y='38' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.05'/%3E%3Crect x='72' y='38' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.11'/%3E%3Crect x='106' y='38' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.06'/%3E%3Crect x='4' y='72' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.05'/%3E%3Crect x='38' y='72' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.07'/%3E%3Crect x='72' y='72' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.06'/%3E%3Crect x='106' y='72' width='26' height='26' rx='5' fill='%23fff' fill-opacity='0.09'/%3E%3C/svg%3E") right -4px top -4px/136px 102px,var(--band);color:var(--band-ink);border-radius:14px;padding:18px 22px;border-bottom:4px solid var(--gold)}
+.brandbar img{width:64px;height:64px;flex:none;border-radius:13px;box-shadow:0 0 0 1px rgba(255,255,255,.35),0 2px 6px rgba(0,0,0,.25)}
+.brandbar .txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.brandbar .eyebrow{font-family:var(--cond);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.brandbar h1{color:var(--band-ink)}
+.lede{color:var(--band-muted);max-width:62ch}
+@media (max-width:520px){.brandbar{padding:14px 16px;gap:12px}.brandbar img{width:48px;height:48px;border-radius:10px}h1{font-size:25px}}
+.dest{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.dest .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;width:100%}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12.5px;color:var(--muted);font-weight:500}
+input[type=text]{font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:210px;max-width:100%}
+input[type=text]:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+
+.banner{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;background:var(--info-soft);color:var(--ink);border:1px solid color-mix(in srgb,var(--info) 30%,transparent);border-radius:10px;padding:10px 14px;font-size:14px}
+.banner strong{color:var(--info)}
+.banner .btns{display:flex;gap:8px;flex-wrap:wrap}
+
+/* steps */
+.step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 22px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:4px 18px}
+.step-num{font-family:var(--cond);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding-top:5px}
+.step-num b{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--gold);color:#0A2D5A;font-size:22px;line-height:1;letter-spacing:0;margin-top:8px}
+.step-body{display:flex;flex-direction:column;gap:14px;min-width:0}
+.step-head{display:flex;flex-direction:column;gap:4px}
+.step-head p{color:var(--muted);max-width:70ch}
+@media (max-width:640px){
+  .step{grid-template-columns:1fr;padding:16px}
+  .step-num{display:flex;align-items:center;gap:8px;padding-top:0}
+  .step-num b{width:28px;height:28px;font-size:15px;margin-top:0}
+}
+
+ol.how{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:4px;max-width:70ch}
+ol.how li::marker{color:var(--muted);font-variant-numeric:tabular-nums}
+.note{font-size:13.5px;color:var(--muted);max-width:74ch}
+
+/* code blocks */
+.codebox{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--code-bg);min-width:0}
+.codebox-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:7px 8px 7px 12px;border-bottom:1px solid var(--line)}
+.codebox-bar .t{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.codebox-bar .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+pre{margin:0;padding:12px 14px;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.55;tab-size:4;-moz-tab-size:4;color:var(--ink);white-space:pre}
+pre.tall{max-height:420px}
+pre.short{max-height:260px}
+.ws-tab{color:var(--ws)}
+.tok-kw{color:var(--accent);font-weight:500}
+.tok-com{color:var(--muted);font-style:italic}
+.tok-str{color:var(--warn)}
+
+textarea{width:100%;font-family:var(--mono);font-size:13px;line-height:1.5;color:var(--ink);background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;resize:vertical;tab-size:4}
+textarea.big{min-height:170px}
+textarea.mid{min-height:120px}
+textarea.req{font-family:var(--sans);font-size:14.5px;min-height:118px}
+
+/* buttons */
+button{font:inherit;cursor:pointer}
+.btn{font-family:var(--sans);font-size:13.5px;font-weight:500;border-radius:6px;padding:6px 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn:focus-visible,.chip:focus-visible,.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.btn.done{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+
+/* summary chips */
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.stat{display:flex;align-items:baseline;gap:6px;background:var(--surface-2);border-radius:999px;padding:4px 12px;font-size:13.5px}
+.stat b{font-variant-numeric:tabular-nums;font-weight:600}
+.msg{font-size:13.5px;border-radius:8px;padding:8px 12px}
+.msg.err{background:var(--err-soft);color:var(--err)}
+.msg.warn{background:var(--warn-soft);color:var(--warn)}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}
+
+/* table picker */
+.picker{display:flex;flex-direction:column;gap:8px}
+.picker-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:12.5px;border-radius:999px;padding:4px 10px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.chip small{font-family:var(--sans);color:var(--muted);margin-left:4px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.chip.remote{border-style:dashed}
+.chip .src{font-family:var(--sans);font-size:11px;color:var(--info);margin-left:5px}
+details.extra{border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+details.extra summary{cursor:pointer;padding:9px 12px;font-size:14px;font-weight:500}
+details.extra summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.extra-body{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.stat.remote{background:var(--info-soft);color:var(--info)}
+.details-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.detail-list{display:flex;flex-direction:column;gap:12px}
+.detail-list:empty{display:none}
+.dcard{border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
+.dcard-head{display:flex;gap:10px;align-items:center}
+.dcard-head input{flex:1;width:auto;font-family:var(--sans);font-weight:500}
+.dtag{font-family:var(--cond);font-weight:600;font-size:13px;background:var(--gold);color:#0A2D5A;border-radius:6px;padding:3px 8px;flex:none}
+.dcard label.lab{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:500;color:var(--ink)}
+.dcard label.lab .hint{font-weight:400;color:var(--muted)}
+.dcard textarea{min-height:58px;font-family:var(--sans);font-size:14px}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.dbox{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--code-bg);min-width:0}
+.dbox .t{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.dbox select{width:100%}
+select{font-family:var(--sans);font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;max-width:100%}
+select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.addrow{display:flex;gap:6px}
+.addrow select{flex:1;min-width:0}
+.tchips{display:flex;flex-wrap:wrap;gap:5px}
+.tchip{font-family:var(--mono);font-size:12px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:2px 4px 2px 9px;display:inline-flex;gap:4px;align-items:center}
+.tchip button{border:0;background:none;color:var(--muted);font-size:14px;line-height:1;padding:0 4px;border-radius:50%}
+.tchip button:hover{color:var(--err)}
+.dpaths{font-size:13px;display:flex;flex-direction:column;gap:4px}
+.dpaths .no{color:var(--warn);font-weight:600}
+.dpaths .mono{font-size:12.5px}
+.tip{font-size:13.5px;color:var(--ink);background:var(--surface-2);border-radius:8px;padding:9px 12px;max-width:none}
+.tip b{color:var(--accent)}
+.vals{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.vals li{font-size:13px}
+.vals .mono{font-size:12.5px}
+.stat.limited{background:var(--warn-soft);color:var(--warn)}
+
+.opts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px}
+.opts label{display:flex;gap:7px;align-items:center}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
+.count{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.count.high{color:var(--warn)}
+
+/* segmented */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;padding:6px 12px;font-size:13.5px;color:var(--muted);cursor:pointer}
+.seg input:checked+span{background:var(--accent);color:var(--accent-ink)}
+
+/* review table */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+td.nm{font-family:var(--mono);font-size:13px;white-space:nowrap}
+td.fmt{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--muted)}
+td ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:2px}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.replace{background:var(--info-soft);color:var(--info)}
+.pill.err{background:var(--err-soft);color:var(--err)}
+.pill.skip{background:var(--surface-2);color:var(--muted);border:1px dashed var(--line)}
+.muted{color:var(--muted)}
+
+.out-head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.apply{font-size:14px;max-width:74ch}
+.apply ol{margin:6px 0 0;padding-left:1.3em;display:flex;flex-direction:column;gap:3px}
+.small{font-size:13px}
+footer{font-size:12.5px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+/* ---------- Measure Describer ---------- */
+.filters{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end}
+.field.grow{flex:1 1 220px}
+.field.grow input{width:100%}
+.chk{display:flex;gap:7px;align-items:center;font-size:14px;padding-bottom:7px}
+.list-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;margin-bottom:-6px}
+.list-actions{display:flex;gap:14px;flex-wrap:wrap}
+.mlist{border:1px solid var(--line);border-radius:8px;max-height:320px;overflow:auto;background:var(--surface)}
+.mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.mrow:last-child{border-bottom:0}
+.mrow:hover{background:var(--surface-2)}
+.mname{font-family:var(--mono);font-size:13px;overflow-wrap:anywhere}
+.mmeta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.mdesc{font-size:11px;color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:1px 8px}
+@media (max-width:560px){.mrow{grid-template-columns:auto minmax(0,1fr)}.mmeta,.mdesc{grid-column:2}}
+.style-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+label.lab{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:500;color:var(--ink)}
+label.lab .hint{font-weight:400;color:var(--muted)}
+#houseRules{font-family:var(--sans);font-size:14px;min-height:64px}
+.batchnav{display:inline-flex;gap:6px;align-items:center}
+.btn:disabled{opacity:.4;cursor:default}
+.coverage{display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--surface)}
+.cov-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.cov-num{font-family:var(--cond);font-size:30px;line-height:1;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.cov-label{font-size:14px;color:var(--muted)}
+.cov-bar{height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.cov-bar span{display:block;height:100%;background:var(--gold);border-radius:999px}
+.review-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.review td.ck,.review th.ck{width:34px;text-align:center}
+.review td{vertical-align:top}
+.review .nm .sub{font-family:var(--sans);font-size:11.5px;color:var(--muted);white-space:normal}
+.review .dcell{min-width:260px;width:62%}
+.review textarea{font-family:var(--sans);font-size:14px;min-height:54px;padding:7px 9px}
+.review textarea:disabled{opacity:.6}
+.review .dcell ul{margin-top:6px;font-size:12.5px;color:var(--muted)}
+.edited{display:inline-block;margin-top:4px;font-size:11.5px;color:var(--info)}
+.pill.new{background:var(--ok-soft);color:var(--ok)}
+.pill.same{background:var(--surface-2);color:var(--muted)}
+.progress{display:flex;flex-direction:column;gap:6px}
+.progress .cov-bar span{background:var(--accent)}
+.reply-actions{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.msg.info{background:var(--info-soft);color:var(--info)}
+.msg + .msg{margin-top:6px}
+.mdesc.drafted{color:var(--info);background:var(--info-soft)}
+.mdesc.skip{color:var(--muted);background:var(--surface-2);border:1px dashed var(--line)}
+.review .again{display:block;margin-top:6px;font-size:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- Prep for AI Writer ---------- */
+.ready{display:flex;flex-direction:column;gap:12px}
+.meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.meter{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.mhead{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.mpct{font-family:var(--cond);font-size:26px;line-height:1;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.mlabel{font-size:13.5px;color:var(--ink)}
+.mcount{font-size:12px;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+.flags{display:flex;flex-direction:column;gap:8px}
+details.flag{border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+details.flag summary{cursor:pointer;padding:8px 12px;font-size:14px}
+details.flag summary b{color:var(--warn)}
+details.flag p,details.flag ul{margin:0 12px 10px}
+details.flag ul{padding-left:1.2em;font-size:13px;columns:2 260px;column-gap:24px}
+.tabbar{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tabbar button{display:flex;flex-direction:column;gap:3px;text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:12px 16px;cursor:pointer}
+.tabbar button .tn{font-family:var(--cond);font-weight:600;font-size:18px}
+.tabbar button .td{font-size:13px;color:var(--muted)}
+.tabbar button[aria-selected="true"]{border:2px solid var(--accent);padding:11px 15px;background:var(--accent-soft);box-shadow:inset 0 -4px 0 var(--gold)}
+.tabbar button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:560px){.tabbar{grid-template-columns:1fr}}
+.pane{display:flex;flex-direction:column;gap:22px}
+.pane[hidden]{display:none!important}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.qgrid .wide{grid-column:1/-1}
+.qgrid textarea{font-family:var(--sans);font-size:14px;min-height:62px}
+.qgrid input[type=text],.qgrid select{width:100%;font-family:var(--sans)}
+.qgrid .lab{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:500}
+.qgrid .lab .hint{font-weight:400;color:var(--muted)}
+textarea.edit{font-family:var(--sans);font-size:14px;line-height:1.55;min-height:300px}
+.count.over{color:var(--err);font-weight:600}
+.review.syn input[type=text]{width:100%;font-family:var(--sans);font-size:14px}
+.review.syn td ul{margin-top:6px;font-size:12.5px;color:var(--warn)}
+.msg ul{margin:6px 0 0;padding-left:1.2em}
+.chk.small{font-size:13px;padding-bottom:0}
+
+/* ---------- Clear entries ---------- */
+.clear-btn{margin-left:auto;align-self:flex-start;flex:none;font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--band-ink);background:transparent;border:1px solid rgba(255,255,255,.55);border-radius:6px;padding:6px 12px;cursor:pointer}
+.clear-btn:hover{background:rgba(255,255,255,.12);border-color:#fff}
+.clear-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.clear-confirm{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;background:var(--err-soft);color:var(--ink);border:1px solid color-mix(in srgb,var(--err) 35%,transparent);border-radius:10px;padding:10px 14px;font-size:14px}
+.clear-confirm b{color:var(--err)}
+.clear-confirm .btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn.danger{background:var(--err);border-color:var(--err);color:#fff}
+.btn.danger:hover{filter:brightness(1.08);color:#fff}
+@media (max-width:520px){.brandbar{flex-wrap:wrap}.clear-btn{margin-left:0}}
+
+/* ---------- Data Engineering Toolkit additions ---------- */
+.suite-nav{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:-8px}
+.suite-nav a.home{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:14px;font-weight:600;color:var(--accent);text-decoration:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px}
+.suite-nav a.home:hover{border-color:var(--accent);background:var(--accent-soft)}
+.suite-nav a.home:focus-visible,.suite-nav select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.suite-nav .switch{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.suite-nav select{font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;max-width:60vw}
+.whatnext{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 22px;display:flex;flex-direction:column;gap:8px}
+.whatnext ul{margin:0;padding-left:1.2em}
+.sub{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:14px}
+.sub>h3{font-size:16px}
+.qgrid input[type=text],.qgrid input[type=time],.qgrid input[type=number]{width:100%;font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+.qgrid input.plain{font-family:var(--sans)}
+.qgrid select{padding:7px 8px}
+.qgrid .chk{padding-bottom:0}
+input[type=number]:focus,input[type=time]:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.subtabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.subtabs button{border:1px solid var(--line);border-bottom:0;background:var(--surface-2);color:var(--muted);border-radius:8px 8px 0 0;padding:7px 13px;font-size:13.5px;font-weight:500}
+.subtabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 3px 0 var(--gold)}
+.subtabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabset{display:flex;flex-direction:column;gap:12px;min-width:0}
+.tabset>[data-pane]{display:flex;flex-direction:column;gap:12px;min-width:0}
+.tabset>[data-pane][hidden]{display:none!important}
+td.flowname{font-family:var(--mono);font-size:13px}
+td.flowname .ind{color:var(--ws)}
+.cond{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:1px 7px;margin-left:4px;background:var(--surface-2);color:var(--muted)}
+.cond.Succeeded{background:var(--ok-soft);color:var(--ok)}
+.cond.Failed,.cond.Skipped{background:var(--err-soft);color:var(--err)}
+.cond.Completed{background:var(--info-soft);color:var(--info)}
+.pill.high{background:var(--err-soft);color:var(--err)}
+.pill.medium{background:var(--warn-soft);color:var(--warn)}
+.pill.low{background:var(--surface-2);color:var(--muted)}
+.msgs{display:flex;flex-direction:column;gap:6px}
+.msgs:empty{display:none}
+.chips .chip{cursor:pointer}
+.checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:14px}
+.checklist label{display:flex;gap:8px;align-items:flex-start}
+.checklist input{margin-top:4px;flex:none}
+.maptable input[type=text]{width:100%;min-width:120px;font-size:13px;padding:5px 7px}
+.maptable select{font-size:13px;padding:4px 6px}
+.maptable td{vertical-align:middle;padding:5px 8px}
+.maptable td.ck,.maptable th.ck{text-align:center;width:44px}
+.rowlist{display:flex;flex-direction:column;gap:8px}
+.rowlist:empty{display:none}
+.rrow{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(110px,.9fr) minmax(120px,1fr) minmax(140px,1.6fr) auto;gap:8px;align-items:center}
+.rrow input[type=text]{width:100%;font-size:13px;padding:6px 8px}
+.rrow select{width:100%}
+.rrow .x{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;padding:2px 6px;border-radius:50%}
+.rrow .x:hover{color:var(--err)}
+@media (max-width:700px){.rrow{grid-template-columns:1fr 1fr}.rrow .x{justify-self:end}}
+.home-logo{height:44px;width:auto;align-self:flex-start;margin-bottom:6px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;text-decoration:none;color:var(--ink);border-top:4px solid var(--gold)}
+.card:hover{border-color:var(--accent);border-top-color:var(--gold)}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card h3{font-size:19px;color:var(--accent)}
+.card p{font-size:14px;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 9px;background:var(--surface-2);color:var(--muted)}
+.tag.ai{background:var(--info-soft);color:var(--info)}
+.about{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:10px}
+.about ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brandbar">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIyMCIgZmlsbD0iIzBBMkQ1QSI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSI0NCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjYwIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIiBmaWxsLW9wYWNpdHk9IjAuMTIiPjwvcmVjdD48cmVjdCB4PSI1MiIgeT0iNjAiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMC4xMiI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSI2MCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9Ijc2IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIiBmaWxsLW9wYWNpdHk9IjAuMTIiPjwvcmVjdD48cmVjdCB4PSI1MiIgeT0iNzYiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMC4xMiI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSI3NiIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjI4IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIiBmaWxsLW9wYWNpdHk9IjAuMTIiPjwvcmVjdD48cmVjdCB4PSI1MiIgeT0iMjgiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMC4xMiI+PC9yZWN0PjxyZWN0IHg9IjY4IiB5PSIyOCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwLjEyIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjI4IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjQ0IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9IjYwIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMjAiIHk9Ijc2IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRkZGRkZGIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iNTIiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iNjgiIHk9IjEyIiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iMzYiIHk9IjQ0IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PHJlY3QgeD0iNTIiIHk9IjQ0IiB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjRjJBOTAwIj48L3JlY3Q+PC9zdmc+" alt="Foster BI Services">
+      <div class="txt">
+        <span class="eyebrow">Data engineering toolkit</span>
+        <h1>Python Notebook Generator</h1>
+        <p class="lede">Bronze, silver and gold PySpark notebooks for Databricks, written from your columns and rules and run by Azure Data Factory. No AI needed; Copilot is optional for logic in plain words.</p>
+      </div>
+      <button type="button" class="clear-btn" id="clearEntries" aria-controls="clearConfirm" aria-expanded="false">Clear entries</button>
+    </div>
+    <div class="clear-confirm" id="clearConfirm" role="alertdialog" aria-labelledby="clearMsg" hidden>
+      <span id="clearMsg"><b>Clear all entries?</b> This empties every box on this page and removes what this page saved in your browser. It can&rsquo;t be undone.</span>
+      <span class="btns"><button type="button" class="btn danger" id="clearYes">Clear entries</button><button type="button" class="btn" id="clearAllPages">Clear all pages</button><button type="button" class="btn" id="clearNo">Cancel</button></span>
+    </div>
+    <div class="clear-done msg ok" id="clearDone" role="status" hidden>Entries cleared. Start with the layer and entity in Step 1.</div>
+    <div class="banner" id="exampleBanner" hidden>
+      <span><strong>Example data loaded.</strong> An orders entity in all three layers, to show what the page makes. Typing in a main box replaces the whole example with your own.</span>
+      <span class="btns"><button class="btn" id="startOwn" type="button">Start with my own</button></span>
+    </div>
+  </header>
+
+  <section class="step" aria-labelledby="s1">
+    <div class="step-num">Step<b>1</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s1">Choose the layer and the entity</h2>
+        <p>One notebook per layer per entity. Each layer has one job: bronze keeps what arrived, silver makes it correct, gold makes it useful for reporting.</p>
+      </div>
+      <div class="tabbar" role="tablist" id="layerBar" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+        <button type="button" role="tab" data-layer="bronze"><span class="tn">Bronze</span><span class="td">Land the files as they are, with batch metadata</span></button>
+        <button type="button" role="tab" data-layer="silver"><span class="tn">Silver</span><span class="td">Type, clean, dedupe, check quality, merge on the key</span></button>
+        <button type="button" role="tab" data-layer="gold"><span class="tn">Gold</span><span class="td">Aggregate silver to a reporting grain and reconcile</span></button>
+      </div>
+      <div class="qgrid">
+        <label class="lab">Entity <span class="hint">what one row is</span><input type="text" data-k="entity" data-own spellcheck="false" autocomplete="off" placeholder="orders"></label>
+        <label class="lab">Subject area <span class="hint">the schema in each catalog</span><input type="text" data-k="subject" spellcheck="false" autocomplete="off" placeholder="sales"></label>
+        <label class="lab">Notebook folder<input type="text" data-k="folder" spellcheck="false" autocomplete="off" placeholder="/Shared/medallion"></label>
+      </div>
+      <details class="extra">
+        <summary>Catalog names <span class="muted">(Unity Catalog: catalog.schema.table)</span></summary>
+        <div class="extra-body">
+          <div class="qgrid">
+            <label class="lab">Bronze catalog<input type="text" data-k="cat.bronze" spellcheck="false"></label>
+            <label class="lab">Silver catalog<input type="text" data-k="cat.silver" spellcheck="false"></label>
+            <label class="lab">Gold catalog<input type="text" data-k="cat.gold" spellcheck="false"></label>
+          </div>
+          <p class="note">On the legacy Hive metastore, set a notebook&rsquo;s table widgets to <span class="mono">schema.table</span> after importing it.</p>
+        </div>
+      </details>
+      <div class="stats" id="nameStats"></div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s2">
+    <div class="step-num">Step<b>2</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s2">Read the input</h2>
+        <p id="s2p"></p>
+      </div>
+      <div id="inBronze" class="pane" style="gap:14px">
+        <div class="qgrid">
+          <label class="lab">File format<select data-k="bronze.format"><option value="parquet">Parquet</option><option value="csv">CSV with a header row</option><option value="json">JSON</option></select></label>
+          <label class="lab wide">Landing path <span class="hint">optional; only used in the context cell below. ADF passes the real path on every run</span><input type="text" data-k="bronze.path" spellcheck="false" autocomplete="off" placeholder="abfss://datalake@account.dfs.core.windows.net/raw/salesdb/orders/"></label>
+        </div>
+      </div>
+      <div id="inPaste" class="pane" style="gap:14px">
+        <ol class="how">
+          <li>Copy the cell and run it in a Databricks notebook.</li>
+          <li>Copy its printed output, at least the <b>SCHEMA</b> part, and paste it below.</li>
+        </ol>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Context cell</span><span class="r"><button class="btn primary" type="button" data-copy="context">Copy cell</button></span></div>
+          <pre class="short" id="contextView"></pre>
+        </div>
+        <div class="reply-actions" id="useSilverBox"><button type="button" class="btn" id="useSilver">Use the silver columns from this page</button><span class="note small">Or paste the context cell&rsquo;s output for the silver table.</span></div>
+        <textarea class="mid" id="schemaIn" data-own spellcheck="false" aria-label="Schema" placeholder="Paste the output here. The page reads the lines that look like  |-- OrderID: integer (nullable = true)"></textarea>
+        <div id="schemaStats" class="stats" aria-live="polite"></div>
+        <div id="schemaMsg" class="msgs"></div>
+        <p class="note">The schema query results from the <a href="adf-pipeline-generator.html">ADF Pipeline Generator</a> work here too, as does one <span class="mono">name type</span> per line. Mask or leave out the sample rows: the page only needs names and types.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s3">
+    <div class="step-num">Step<b>3</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s3">Set it up</h2>
+        <p id="s3p"></p>
+      </div>
+
+      <div id="setBronze" class="pane" style="gap:14px">
+        <p class="tip"><b>Nothing to set.</b> Bronze applies no business logic, filters or type changes. It adds <span class="mono">_source_file</span>, <span class="mono">_ingest_ts</span> and <span class="mono">_batch_id</span>, keeps rows that don&rsquo;t fit in <span class="mono">_rescued_data</span>, and lets new columns in.</p>
+      </div>
+
+      <div id="setSilver" class="pane" style="gap:16px">
+        <div class="tablewrap"><table class="maptable"><thead><tr><th class="ck">Use</th><th>Bronze column</th><th>Silver name</th><th>Type</th><th>Clean</th><th class="ck">Key</th><th class="ck">Not null</th></tr></thead><tbody id="mapBody"></tbody></table></div>
+        <div class="qgrid">
+          <label class="lab">Ordering column <span class="hint">picks the latest version of a key</span><select id="orderCol" data-k="silver.orderCol"></select></label>
+          <label class="lab" id="tzBox">Source time zone <span class="hint">for &ldquo;Local time to UTC&rdquo;</span><input type="text" data-k="silver.tz" spellcheck="false" autocomplete="off" placeholder="America/New_York"></label>
+          <label class="lab">Deleted flag <span class="hint">a true/false column; null counts as not deleted</span><select id="softDel" data-k="silver.softDelete"></select></label>
+          <label class="lab">Cluster the table by <span class="hint">optional; needs Databricks Runtime 13.3 or later</span><select id="clusterCol" data-k="silver.cluster"></select></label>
+        </div>
+        <div class="details-head"><h3>Quality rules</h3><button type="button" class="btn" id="addRule">Add a rule</button></div>
+        <p class="note small" style="margin-top:-8px">Rows that break a rule go to the quarantine table with the rule&rsquo;s name. <b>Not null</b> is ticked in the table above.</p>
+        <div class="rowlist" id="ruleList"></div>
+      </div>
+
+      <div id="setGold" class="pane" style="gap:16px">
+        <div class="qgrid">
+          <label class="lab">Gold table name<input type="text" data-k="gold.name" spellcheck="false" autocomplete="off" placeholder="fact_daily_sales"></label>
+          <label class="lab">Deleted flag <span class="hint">rows where it is true are left out</span><select id="goldDel" data-k="gold.softDelete"></select></label>
+        </div>
+        <div class="picker"><div class="picker-head"><h3>Grain</h3><span class="note small">The columns that make one row of the gold table.</span></div><div class="chips" id="grainChips"></div></div>
+        <div class="seg" role="radiogroup" aria-label="Rebuild mode">
+          <label><input type="radio" name="goldMode" value="dates" data-k="gold.mode"><span>Rebuild only the dates a batch touched</span></label>
+          <label><input type="radio" name="goldMode" value="full" data-k="gold.mode"><span>Rebuild the whole table each run</span></label>
+        </div>
+        <label class="lab" id="rebuildBox" style="max-width:340px">Date column to rebuild by <span class="hint">must be in the grain</span><select id="rebuildCol" data-k="gold.rebuildCol"></select></label>
+        <div class="details-head"><h3>Metrics</h3><button type="button" class="btn" id="addMetric">Add a metric</button></div>
+        <div class="rowlist" id="metricList"></div>
+        <div class="details-head"><h3>Calculated from metrics</h3><button type="button" class="btn" id="addDerived">Add a calculation</button></div>
+        <p class="note small" style="margin-top:-8px">A formula over the metric names above, in Spark SQL, for example <span class="mono">gross_sales_amount - cancelled_amount</span>.</p>
+        <div class="rowlist" id="derivedList"></div>
+      </div>
+      <div id="setupMsg" class="msgs" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s4" id="aiStep">
+    <div class="step-num">Step<b>4</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s4">Logic in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
+        <p id="s4p"></p>
+      </div>
+      <textarea class="req" id="aiReq" data-own aria-label="Logic in plain words"></textarea>
+      <div id="aiBox" style="display:flex;flex-direction:column;gap:14px" hidden>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="aiCount"></span><button class="btn" type="button" data-save="aiPrompt">Download file</button><button class="btn primary" type="button" data-copy="aiPrompt">Copy prompt</button></span></div>
+          <pre class="short" id="aiPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+        <p class="note">Paste the prompt into Copilot, or attach the downloaded file. It carries column names and types only, never data. In Copilot, use the <b>Copy</b> button on the code block, then paste the whole reply here.</p>
+        <textarea class="mid" id="aiReply" spellcheck="false" aria-label="Copilot reply" placeholder="Paste Copilot&rsquo;s reply here"></textarea>
+        <div id="aiMsg" class="msgs" aria-live="polite"></div>
+        <div class="tablewrap" id="aiReview" hidden>
+          <table><thead><tr><th>Name</th><th>Kind</th><th>Status</th><th>Expression and checks</th></tr></thead><tbody id="aiBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s5">
+    <div class="step-num">Step<b id="outNum">5</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s5">Get the notebook</h2>
+        <p>Import the file into your Databricks workspace (Workspace &gt; Import), or paste it into a new Python notebook. Run it in dev with a small batch before anything else.</p>
+      </div>
+      <div id="outMsg" class="msgs" aria-live="polite"></div>
+      <div id="outWrap" class="tabset">
+        <div class="stats" id="outStats"></div>
+        <div class="subtabs" role="tablist" id="outTabs">
+          <button type="button" role="tab" data-tab="code" aria-selected="true">Notebook</button>
+          <button type="button" role="tab" data-tab="adf" aria-selected="false">ADF activity</button>
+          <button type="button" role="tab" data-tab="checks" aria-selected="false">Checks to run</button>
+          <button type="button" role="tab" data-tab="list" aria-selected="false">Before production</button>
+        </div>
+        <div data-pane="code">
+          <div class="codebox"><div class="codebox-bar"><span class="t" id="codeTitle">Notebook</span><span class="r"><button class="btn" type="button" data-save="code">Download .py</button><button class="btn primary" type="button" data-copy="code">Copy notebook</button></span></div><pre class="tall" id="codeView"></pre></div>
+          <p class="note">Databricks source format: <span class="mono"># COMMAND ----------</span> separates cells when the file is imported. The table names are widget defaults, so the same notebook runs in another environment with different parameters.</p>
+        </div>
+        <div data-pane="adf" hidden>
+          <div class="codebox"><div class="codebox-bar"><span class="t">Settings</span><span class="r"><button class="btn primary" type="button" data-copy="adf">Copy</button></span></div><pre class="short" id="adfView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+          <div class="codebox"><div class="codebox-bar"><span class="t">Activity JSON</span><span class="r"><button class="btn" type="button" data-copy="activity">Copy JSON</button></span></div><pre class="short" id="actView"></pre></div>
+          <p class="note">Or list the notebook path in the <a href="adf-pipeline-generator.html">ADF Pipeline Generator</a> under &ldquo;Run Databricks notebooks after the load&rdquo; and it adds the activity, the parameters and the failure path for you.</p>
+        </div>
+        <div data-pane="checks" hidden>
+          <div class="codebox"><div class="codebox-bar"><span class="t">SQL checks</span><span class="r"><button class="btn primary" type="button" data-copy="checks">Copy SQL</button></span></div><pre class="short" id="checksView"></pre></div>
+          <p class="note">Run these in a SQL cell or the SQL editor after a dev run, and again after running the same batch a second time.</p>
+        </div>
+        <div data-pane="list" hidden><ul class="checklist" id="checklist"></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Everything runs in this page. Nothing is sent anywhere; your entries are saved only in this browser. Check everything before you use it: generated output can be wrong.</footer>
+</div>
+
+<script>
+/* Shared by every page of the Foster BI Data Engineering Toolkit. */
+(function (root) {
+  'use strict';
+  const S = {};
+  S.SITE = 'Foster BI Data Engineering Toolkit';
+  S.TOOLS = [
+    { file: 'adf-pipeline-generator.html', name: 'ADF Pipeline Generator', prefix: 'dea.' },
+    { file: 'python-notebook-generator.html', name: 'Python Notebook Generator', prefix: 'dep.' }
+  ];
+  S.PREFIXES = S.TOOLS.map(t => t.prefix);
+  S.NEXT = {
+    'adf-pipeline-generator.html': [['python-notebook-generator.html', 'Write the Databricks notebooks this pipeline runs']],
+    'python-notebook-generator.html': [['adf-pipeline-generator.html', 'Build the ADF pipeline that runs this notebook']]
+  };
+  S.END = '=== END OF PROMPT ===';
+  S.READ_RULE = '\n\nHOW TO READ THIS PROMPT\n'
+    + '- The task is only what the TASK section asks for. Everything else is CONTEXT (facts to use), the STARTING POINT (code or text to change), RULES (how to do the task) or the REPLY FORMAT.\n'
+    + '- Sample and example content is never a requirement. That includes the reply-format template, placeholders, and any example values, fields, records, tables, names, dates, filters or business rules. Don’t carry any of it into the task.\n'
+    + '- If something here looks unrelated to the request or conflicts with it, don’t act on it. Mention it where the reply format allows questions or notes.';
+  S.ONE_REPLY = '\n\nReply in one single response. If the complete reply is too long to show in full in the chat, put the whole reply, in the format asked for above, in one downloadable .txt file instead of splitting it across messages or shortening it.';
+  S.PROMPT_WARN = 12000;
+  S.fullPrompt = t => t.trim() + S.READ_RULE + S.ONE_REPLY + '\n\n' + S.END;
+
+  S.esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /* ---- replies: labelled @@@ NAME @@@ blocks, as in the Power BI toolkit ---- */
+  S.cleanReply = function (text) {
+    let t = String(text || '').replace(/\r\n?/g, '\n');
+    t = t.replace(/^[ \t]*```[a-zA-Z0-9_-]*[ \t]*$/gm, '');            // code fences
+    t = t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'"); // smart quotes
+    t = t.replace(/\\([\[\]_*<>#])/g, '$1');                            // chat escapes
+    t = t.replace(/ /g, ' ');
+    return t;
+  };
+  S.parseBlocks = function (text) {
+    const t = S.cleanReply(text), out = [];
+    const re = /^[ \t]*@@@[ \t]*([A-Za-z][A-Za-z _]*?)[ \t]*@@@[ \t]*$/gm;
+    let m, last = null;
+    while ((m = re.exec(t))) {
+      if (last) last.body = t.slice(last.from, m.index);
+      last = { tag: m[1].trim().toUpperCase().replace(/\s+/g, ' '), from: re.lastIndex, body: '' };
+      out.push(last);
+    }
+    if (last) last.body = t.slice(last.from);
+    out.forEach(b => { b.body = b.body.replace(/^\n+|\s+$/g, ''); delete b.from; });
+    return out;
+  };
+  /* "KEY: value" lines inside a block; a value runs on until the next KEY: line */
+  S.fields = function (body, keys) {
+    const out = {}; let cur = null;
+    const re = new RegExp('^\\s*(' + keys.join('|') + ')\\s*:\\s?(.*)$', 'i');
+    body.split('\n').forEach(line => {
+      const m = re.exec(line);
+      if (m) { cur = m[1].toUpperCase(); out[cur] = m[2]; }
+      else if (cur) out[cur] += '\n' + line;
+    });
+    Object.keys(out).forEach(k => { out[k] = out[k].trim(); });
+    return out;
+  };
+
+  if (typeof document === 'undefined') { if (typeof module !== 'undefined') module.exports = S; root.DE_SUITE = S; return; }
+
+  S.$ = id => document.getElementById(id);
+
+  /* ---- storage: one prefix per page ---- */
+  S.store = function (prefix) {
+    const ok = (() => { try { localStorage.setItem(prefix + 't', '1'); localStorage.removeItem(prefix + 't'); return true; } catch (e) { return false; } })();
+    return {
+      get(k, def) { if (!ok) return def; try { const v = localStorage.getItem(prefix + k); return v == null ? def : JSON.parse(v); } catch (e) { return def; } },
+      set(k, v) { if (!ok) return; try { localStorage.setItem(prefix + k, JSON.stringify(v)); } catch (e) { } },
+      del(k) { if (!ok) return; try { localStorage.removeItem(prefix + k); } catch (e) { } },
+      clear() { if (!ok) return; try { Object.keys(localStorage).filter(k => k.indexOf(prefix) === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { } }
+    };
+  };
+  S.clearAll = function () {
+    S.PREFIXES.forEach(p => { const st = S.store(p); st.clear(); st.set('blank', true); });
+  };
+
+  /* ---- copy and download ---- */
+  S.copyText = function (text, btn) {
+    const done = () => { if (!btn) return; const old = btn.textContent; btn.textContent = 'Copied'; btn.classList.add('done'); setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1400); };
+    const fallback = () => {
+      const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { } ta.remove(); done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  };
+  S.saveText = function (name, text) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  };
+  /* buttons: data-copy="key" / data-save="key" read the text from getters[key]() */
+  S.wireCopy = function (getters) {
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-copy],[data-save]'); if (!b) return;
+      const key = b.dataset.copy || b.dataset.save, g = getters[key]; if (!g) return;
+      const v = g(); if (v == null || v === '') return;
+      if (b.dataset.copy) S.copyText(typeof v === 'string' ? v : v.text, b);
+      else S.saveText(v.name, v.text);
+    });
+  };
+  S.readFile = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || '')); r.onerror = rej; r.readAsText(file); });
+
+  /* ---- small render helpers ---- */
+  S.msg = (kind, html) => '<div class="msg ' + kind + '">' + html + '</div>';
+  S.pill = (kind, text) => '<span class="pill ' + kind + '">' + S.esc(text) + '</span>';
+  S.count = function (el, text) {
+    if (!el) return;
+    const n = text.length; el.textContent = n.toLocaleString('en-US') + ' characters';
+    el.classList.toggle('high', n > S.PROMPT_WARN);
+    el.title = n > S.PROMPT_WARN ? 'Long prompt: download it and send it to Copilot as a file' : '';
+  };
+  /* tabs: buttons [data-tab=x] inside bar, panes [data-pane=x] */
+  S.tabs = function (bar, onChange) {
+    const btns = Array.from(bar.querySelectorAll('[data-tab]'));
+    const scope = bar.parentElement;
+    const show = name => {
+      btns.forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'));
+      scope.querySelectorAll(':scope > [data-pane]').forEach(p => { p.hidden = p.dataset.pane !== name; });
+      if (onChange) onChange(name);
+    };
+    btns.forEach(b => b.addEventListener('click', () => show(b.dataset.tab)));
+    return show;
+  };
+
+  /* ---- nav, what next, footer ---- */
+  S.page = () => (location.pathname.split('/').pop() || 'index.html');
+  S.nav = function () {
+    const top = document.querySelector('header.top'); if (!top || S.$('suiteNav')) return;
+    const here = S.page();
+    const nav = document.createElement('nav'); nav.id = 'suiteNav'; nav.className = 'suite-nav'; nav.setAttribute('aria-label', 'Toolkit');
+    nav.innerHTML = '<a class="home" href="index.html">&larr; All tools</a>'
+      + '<label class="switch"><span>Switch tool</span><select id="suiteSwitch">'
+      + S.TOOLS.map(t => '<option value="' + t.file + '"' + (t.file === here ? ' selected' : '') + '>' + S.esc(t.name) + '</option>').join('')
+      + '</select></label>';
+    top.insertBefore(nav, top.firstChild);
+    S.$('suiteSwitch').addEventListener('change', e => { location.href = e.target.value; });
+    const next = S.NEXT[here], foot = document.querySelector('footer');
+    if (next && foot) {
+      const d = document.createElement('section'); d.className = 'whatnext';
+      d.innerHTML = '<h2>What next</h2><ul>' + next.map(n => '<li><a href="' + n[0] + '">' + S.esc(n[1]) + '</a></li>').join('') + '</ul>';
+      foot.parentElement.insertBefore(d, foot);
+    }
+  };
+
+  /* ---- Clear entries: confirm inline, then empty the page and what it saved ---- */
+  S.clearSetup = function (cfg) {
+    const btn = S.$('clearEntries'), box = S.$('clearConfirm'), done = S.$('clearDone');
+    if (!btn || !box) return;
+    const open = v => { box.hidden = !v; btn.setAttribute('aria-expanded', v ? 'true' : 'false'); if (v && done) done.hidden = true; };
+    btn.addEventListener('click', () => open(box.hidden));
+    S.$('clearNo').addEventListener('click', () => open(false));
+    S.$('clearYes').addEventListener('click', () => { open(false); cfg.onClear(); if (done) done.hidden = false; });
+    const all = S.$('clearAllPages');
+    if (all) all.addEventListener('click', () => { open(false); S.clearAll(); cfg.onClear(); if (done) { done.hidden = false; done.textContent = 'Every page of the toolkit was cleared.'; } });
+  };
+
+  /* ---- example handling: the first entry of your own replaces the whole example ----
+     Fields marked data-own trigger it. cfg.isExample() says whether the example is showing;
+     cfg.toBlank(keepEl) must empty every field except the one being edited. */
+  S.ownEntry = function (cfg) {
+    const hit = el => el && el.closest && el.closest('[data-own]');
+    document.addEventListener('beforeinput', e => {
+      if (!cfg.isExample() || !hit(e.target)) return;
+      const el = e.target;
+      if (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && /^(text|search|number|time|)$/.test(el.type))) { el.value = ''; cfg.toBlank(el); }
+    }, true);
+    document.addEventListener('change', e => {
+      if (!cfg.isExample() || !hit(e.target)) return;
+      cfg.toBlank(e.target);
+    }, true);
+  };
+
+  root.DE_SUITE = S;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Python Notebook Generator: bronze, silver and gold PySpark notebooks for Databricks. No DOM in this file. */
+(function (root) {
+  'use strict';
+  const P = {};
+  const py = s => JSON.stringify(String(s));
+  const snake = s => String(s || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
+  const col = n => 'F.col(' + py(/[^A-Za-z0-9_]/.test(n) ? '`' + n.replace(/`/g, '``') + '`' : n) + ')';
+  const CELL = '\n# COMMAND ----------\n';
+  const md = t => CELL + '\n# MAGIC %md ## ' + t + '\n' + CELL + '\n';
+  P.snake = snake;
+
+  P.TYPES = ['string', 'int', 'bigint', 'decimal(18,2)', 'double', 'boolean', 'date', 'timestamp'];
+  P.CLEAN = { string: [['trim', 'Trim spaces'], ['trim_null', 'Trim, empty to null'], ['trim_upper', 'Trim, upper case'], ['none', 'As is']], timestamp: [['none', 'As is'], ['utc', 'Local time to UTC']] };
+  P.AGGS = [['sum', 'Sum'], ['count', 'Count rows'], ['countDistinct', 'Count distinct'], ['avg', 'Average'], ['min', 'Minimum'], ['max', 'Maximum']];
+  P.RULES = [['min', 'is at least', 'number'], ['max', 'is at most', 'number'], ['inlist', 'is one of', 'A, B, C'], ['regex', 'matches pattern', '^[A-Z]{2}$'], ['notfuture', 'is not in the future', ''], ['expr', 'fails when (Spark SQL)', 'ship_date < order_date']];
+
+  P.blank = () => ({
+    layer: 'silver', entity: '', subject: '', folder: '/Shared/medallion',
+    cat: { bronze: 'bronze', silver: 'silver', gold: 'gold' },
+    bronze: { format: 'parquet', path: '' },
+    silver: { schemaText: '', cols: [], orderCol: '', tz: 'America/New_York', rules: [], softDelete: '', cluster: '', aiReq: '', aiReply: '' },
+    gold: { name: '', schemaText: '', cols: [], grain: [], mode: 'dates', rebuildCol: '', metrics: [], derived: [], softDelete: '', aiReq: '', aiReply: '' }
+  });
+
+  /* ---------- names ---------- */
+  P.names = function (cfg) {
+    const e = snake(cfg.entity) || '<entity>', s = snake(cfg.subject) || '<subject>', c = cfg.cat, g = snake(cfg.gold.name) || 'fact_' + e;
+    const n = { entity: e, subject: s,
+      bronze: c.bronze + '.' + s + '.' + e + '_raw', silver: c.silver + '.' + s + '.' + e, gold: c.gold + '.' + s + '.' + g,
+      nbBronze: 'nb_bronze_' + e, nbSilver: 'nb_silver_' + e, nbGold: 'nb_gold_' + g.replace(/^(fact|dim|agg)_/, '') };
+    n.quarantine = n.silver + '_quarantine';
+    n.nb = { bronze: n.nbBronze, silver: n.nbSilver, gold: n.nbGold }[cfg.layer];
+    n.path = (cfg.folder || '').replace(/\/+$/, '') + '/' + n.nb;
+    return n;
+  };
+
+  /* ---------- reading a pasted schema ---------- */
+  const SQL2SPARK = { int: 'int', integer: 'int', smallint: 'int', tinyint: 'int', bigint: 'bigint', long: 'bigint', short: 'int', byte: 'int', bit: 'boolean', boolean: 'boolean', float: 'double', real: 'double', double: 'double', money: 'decimal(19,4)', smallmoney: 'decimal(10,4)',
+    date: 'date', datetime: 'timestamp', datetime2: 'timestamp', smalldatetime: 'timestamp', datetimeoffset: 'timestamp', timestamp: 'timestamp', timestamp_ntz: 'timestamp', time: 'string',
+    varchar: 'string', nvarchar: 'string', char: 'string', nchar: 'string', text: 'string', ntext: 'string', string: 'string', uniqueidentifier: 'string', xml: 'string', binary: 'string', varbinary: 'string' };
+  P.sparkType = function (t, prec, scale) {
+    t = String(t || '').toLowerCase().trim();
+    const m = /^(decimal|numeric)\s*(?:\(\s*(\d+)\s*(?:,\s*(\d+))?\s*\))?$/.exec(t);
+    if (m) return 'decimal(' + (m[2] || prec || 18) + ',' + (m[3] != null ? m[3] : (scale != null ? scale : (m[2] ? 0 : 2))) + ')';
+    return SQL2SPARK[t.replace(/\(.*$/, '')] || 'string';
+  };
+  P.parseSchema = function (text) {
+    const out = { cols: [], errors: [], kind: '' }, seen = new Set();
+    const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    const add = (name, type, extra) => { if (!name || seen.has(name.toLowerCase())) return; seen.add(name.toLowerCase()); out.cols.push(Object.assign({ name, type }, extra || {})); };
+    const tree = lines.filter(l => /^\s*\|--\s/.test(l));
+    if (tree.length) {                       // df.printSchema()
+      out.kind = 'printSchema';
+      tree.forEach(l => { const m = /^\s*\|--\s+(.+?):\s+([a-z_]+(?:\([^)]*\))?)/i.exec(l); if (m && !/^\s*\|\s+\|--/.test(l)) add(m[1].trim(), P.sparkType(m[2])); });
+      return out;
+    }
+    const rows = lines.filter(l => l.trim()).map(l => l.indexOf('\t') >= 0 ? l.split('\t') : l.trim().split(/\s*\|\s*|\s{2,}/)).map(r => r.map(s => s.trim()));
+    if (!rows.length) return out;
+    const head = rows[0].map(s => s.toUpperCase()), ci = head.indexOf('COLUMN_NAME'), ti = head.indexOf('DATA_TYPE');
+    if (ci >= 0 && ti >= 0) {                // the ADF generator's schema query
+      out.kind = 'sql'; const pi = head.indexOf('PREC'), si = head.indexOf('SCALE'), ki = head.indexOf('KEY_FLAG');
+      rows.slice(1).forEach(r => add(r[ci], P.sparkType(r[ti], parseInt(r[pi], 10) || null, isNaN(parseInt(r[si], 10)) ? null : parseInt(r[si], 10)), { pk: ki >= 0 && /pk/i.test(r[ki] || '') }));
+      return out;
+    }
+    out.kind = 'list';                       // "name type" per line, or DESCRIBE output
+    rows.forEach(r => { const parts = r.length > 1 ? r : r[0].split(/\s+/); const name = parts[0].replace(/[:,]$/, ''), type = parts.slice(1).join('').replace(/,$/, '') || 'string';
+      if (/^(col_name$|#)/i.test(name) || !/^[A-Za-z_][\w .]*$/.test(name)) return; add(name, P.sparkType(type)); });
+    if (!out.cols.length) out.errors.push('No columns were read. Paste the SCHEMA part of the context cell’s output, or one “name type” per line.');
+    return out;
+  };
+  /* turn pasted bronze columns into a silver mapping, keeping any edits already made */
+  P.mapCols = function (parsed, old) {
+    const prev = {}; (old || []).forEach(c => { prev[c.src.toLowerCase()] = c; });
+    return parsed.cols.filter(c => !/^_/.test(c.name)).map(c => {
+      const p = prev[c.name.toLowerCase()]; if (p) return Object.assign({}, p, { src: c.name });
+      const type = c.type;
+      return { src: c.name, name: snake(c.name), type, clean: type === 'string' ? 'trim' : 'none', on: true, key: !!c.pk, notnull: !!c.pk };
+    });
+  };
+  P.suggestOrder = cols => { const c = cols.filter(x => x.on && x.type === 'timestamp'); return ((c.find(x => /modif|updat|chang/.test(x.name)) || c[0] || {}).name) || ''; };
+
+  /* ---------- context cell ---------- */
+  P.contextCell = function (cfg) {
+    const n = P.names(cfg), L = cfg.layer;
+    const table = L === 'silver' ? n.bronze : (L === 'gold' ? n.silver : null);
+    const keys = L === 'gold' ? cfg.silver.cols.filter(c => c.key && c.on).map(c => c.name) : [];
+    return ['# ---- Context cell: run it, then paste the printed output into the page ----', 'from pyspark.sql import functions as F', '',
+      'INPUT_TABLE = ' + (table ? py(table) : 'None'), 'INPUT_PATH  = ' + (table ? 'None' : py(cfg.bronze.path || 'abfss://<container>@<account>.dfs.core.windows.net/<folder>/')), 'INPUT_FMT   = ' + py(cfg.bronze.format),
+      'KEY_COLS    = ' + JSON.stringify(keys) + '          # business key(s), if known', 'MASK_COLS   = ["email", "phone"]   # columns to hide in the sample', '',
+      'df = spark.table(INPUT_TABLE) if INPUT_TABLE else spark.read.format(INPUT_FMT).option("header", "true").load(INPUT_PATH)', '',
+      'print("=== SCHEMA ===")', 'df.printSchema()', '', 'print("=== ROW COUNT ===", df.count())', '',
+      'if KEY_COLS:', '    dupes = df.groupBy(*KEY_COLS).count().filter("count > 1").count()', '    print("=== KEYS WITH DUPLICATES ===", dupes)', '',
+      'print("=== NULL COUNTS ===")', 'df.select([F.sum(F.col(f"`{c}`").isNull().cast("int")).alias(c) for c in df.columns]).show(vertical=True, truncate=False)', '',
+      'print("=== SAMPLE (masked) ===")', 'sample = df.limit(5)', 'for c in MASK_COLS:', '    if c in sample.columns:', '        sample = sample.withColumn(c, F.lit("***"))', 'sample.show(truncate=40, vertical=True)'].join('\n');
+  };
+
+  /* ---------- Copilot: extra columns, rules and metrics in plain words ---------- */
+  const SPARK_TYPE = /^(string|int|bigint|double|float|boolean|date|timestamp|decimal\(\s*\d+\s*,\s*\d+\s*\))$/i;
+  const FORBID = /\b(import|lambda|eval|exec|open|udf|pandas_udf|spark|dbutils|collect|toPandas|display|os|sys|subprocess|__\w+__|globals|locals|getattr|setattr)\b/;
+  const strip = e => e.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+  P.vetExpr = function (what, e, known) {
+    const f = [], bare = strip(e);
+    if (!e) return [what + ' is empty.'];
+    if (/[;\n]/.test(bare)) f.push(what + ' has more than one statement.');
+    const bad = FORBID.exec(bare); if (bad) f.push(what + ' uses ' + bad[1] + ', which isn’t allowed here.');
+    let d = 0; for (const ch of bare) { if ('([{'.indexOf(ch) >= 0) d++; if (')]}'.indexOf(ch) >= 0) d--; if (d < 0) break; }
+    if (d !== 0) f.push(what + ' has brackets that don’t balance.');
+    const refs = []; const re = /F\.col\(\s*(["'])(.*?)\1\s*\)/g; let m; while ((m = re.exec(e))) refs.push(m[2].replace(/`/g, ''));
+    refs.filter(r => !known.has(r.toLowerCase())).forEach(r => f.push(what + ' uses the column ' + r + ', which doesn’t exist at that point.'));
+    const ids = bare.match(/(^|[^.\w])([A-Za-z_]\w*)\s*\(/g) || [];
+    ids.map(s => s.replace(/^[^A-Za-z_]+/, '').replace(/\s*\($/, '')).filter(s => !/^(F|Window|int|float|str|bool)$/.test(s)).forEach(s => f.push(what + ' calls ' + s + '(), which isn’t a pyspark.sql.functions call. Write it as F.' + s + '(...) if it is one.'));
+    return f;
+  };
+  P.aiPrompt = function (cfg) {
+    const L = cfg.layer, n = P.names(cfg), gold = L === 'gold', req = gold ? cfg.gold.aiReq : cfg.silver.aiReq, T = [];
+    const cols = gold ? cfg.gold.cols : cfg.silver.cols.filter(c => c.on);
+    T.push('You are writing PySpark column expressions for a Databricks ' + L + ' notebook in a medallion architecture. You cannot see the data: use only the columns listed under CONTEXT.');
+    T.push('', 'TASK (the user’s request: all the expressions have to do)', (req || '(not given)').trim());
+    T.push('', 'CONTEXT', gold ? 'Input: the silver table ' + n.silver + '. Output: ' + n.gold + ', one row per ' + (cfg.gold.grain.join(', ') || '(grain not set)') + '.' : 'Input: one batch of ' + n.bronze + ', already renamed, typed and cleaned into the columns below. Output: ' + n.silver + '.',
+      'Columns available (name | type):');
+    cols.forEach(c => T.push('- ' + c.name + ' | ' + c.type));
+    if (gold && cfg.gold.metrics.length) T.push('Metrics already defined (use them by name in a DERIVED block; do not define them again): ' + cfg.gold.metrics.map(m => m.name).filter(Boolean).join(', '));
+    T.push('', 'STARTING POINT', gold ? 'The notebook groups by the grain and computes the metrics already defined. You only add METRIC and DERIVED blocks.' : 'The notebook already selects, casts, cleans and dedupes the columns above, and checks the rules set on the page. You only add COLUMN and RULE blocks.');
+    T.push('', 'RULES', '- Use only pyspark.sql.functions through the alias F, and columns as F.col("name") with the exact names listed. No Python UDFs, no spark.sql, no collect, no imports.',
+      '- One expression per EXPR line: no assignments, no semicolons, no line breaks.');
+    if (gold) T.push('- METRIC: an aggregate expression evaluated per grain row, for example F.sum(F.when(F.col("status") == "CANCELLED", F.col("amount")).otherwise(0)).', '- DERIVED: an expression over metric names (as F.col("metric_name")), evaluated after the aggregation.');
+    else T.push('- COLUMN: a new silver column, or a replacement for a listed one (same NAME). Give its Spark SQL type: string, int, bigint, double, decimal(p,s), boolean, date or timestamp.', '- RULE: FAILS_WHEN is a boolean column expression that is true for a bad row. Bad rows go to the quarantine table; they are never dropped.', '- Do not change the business key' + (cfg.silver.orderCol ? ' or ' + cfg.silver.orderCol : '') + '.');
+    T.push('- Names in snake_case.', '- If the TASK can’t be done with the listed columns, write a SKIPPED block that says why instead of guessing.');
+    T.push('', 'REPLY FORMAT (a template: replace the placeholder lines with your answer)', 'Reply inside one code block, with these labelled blocks and nothing else:');
+    if (gold) T.push('@@@ METRIC @@@', 'NAME: metric_name', 'EXPR: pyspark aggregate expression', '@@@ DERIVED @@@', 'NAME: metric_name', 'EXPR: pyspark expression over metrics');
+    else T.push('@@@ COLUMN @@@', 'NAME: column_name', 'TYPE: spark type', 'EXPR: pyspark expression', '@@@ RULE @@@', 'NAME: rule_name', 'FAILS_WHEN: pyspark boolean expression');
+    T.push('@@@ SKIPPED @@@', 'what could not be done and why', '@@@ NOTES @@@', 'assumptions to confirm, one per line');
+    return T.join('\n');
+  };
+  P.aiParse = function (reply, cfg, parseBlocks, fields) {
+    const gold = cfg.layer === 'gold', res = { items: [], notes: [], skipped: [], any: false };
+    const blocks = parseBlocks(reply); if (!blocks.length) return res;
+    const base = gold ? cfg.gold.cols.map(c => c.name) : cfg.silver.cols.filter(c => c.on).map(c => c.name);
+    const known = new Set(base.map(s => s.toLowerCase())), metricNames = new Set(cfg.gold.metrics.map(m => (m.name || '').toLowerCase()).filter(Boolean));
+    const taken = new Set(), keys = new Set(cfg.silver.cols.filter(c => c.key).map(c => c.name.toLowerCase()).concat(cfg.silver.orderCol ? [cfg.silver.orderCol.toLowerCase()] : []));
+    const one = s => (s || '').replace(/\s*\n\s*/g, ' ').trim();
+    blocks.forEach(b => {
+      const kind = b.tag;
+      if (kind === 'NOTES') { b.body.split('\n').map(s => s.replace(/^[-*]\s*/, '').trim()).filter(s => s && !/^assumptions to confirm/i.test(s)).forEach(s => res.notes.push(s)); if (res.notes.length) res.any = true; return; }
+      if (kind === 'SKIPPED') { if (b.body && !/^what could not be done/i.test(b.body)) { res.skipped.push(b.body); res.any = true; } return; }
+      if (!/^(COLUMN|RULE|METRIC|DERIVED)$/.test(kind)) return;
+      const f = fields(b.body, ['NAME', 'TYPE', 'EXPR', 'FAILS_WHEN']);
+      const name = one(f.NAME), expr = one(kind === 'RULE' ? f.FAILS_WHEN : f.EXPR), type = one(f.TYPE).toLowerCase().replace(/\s+/g, '');
+      if (/^(column_name|metric_name|rule_name)$/.test(name) && /^pyspark /.test(expr)) return;     // the template repeated back
+      res.any = true;
+      const it = { kind, name, type, expr, problems: [] };
+      if ((kind === 'COLUMN' || kind === 'RULE') === gold) it.problems.push('A ' + kind + ' block doesn’t belong in a ' + cfg.layer + ' notebook.');
+      if (!/^[a-z][a-z0-9_]*$/.test(name)) it.problems.push('The name must be snake_case: lower-case letters, digits and underscores.');
+      if (taken.has(kind + ':' + name)) it.problems.push('The name is used twice.'); taken.add(kind + ':' + name);
+      if (kind === 'COLUMN' && !SPARK_TYPE.test(type)) it.problems.push('TYPE “' + type + '” isn’t one of the Spark types asked for.');
+      if (kind === 'COLUMN' && keys.has(name)) it.problems.push('It replaces the key or ordering column ' + name + '.');
+      if (kind === 'METRIC' && metricNames.has(name)) it.problems.push('A metric with this name is already set on the page.');
+      const scope = kind === 'DERIVED' ? new Set(Array.from(metricNames).concat(cfg.gold.grain.map(g => g.toLowerCase()), res.items.filter(x => (x.kind === 'METRIC' || x.kind === 'DERIVED') && !x.problems.length).map(x => x.name))) : known;
+      P.vetExpr('The expression', expr, scope).forEach(p => it.problems.push(p));
+      if (kind === 'METRIC' && !/F\.(sum|count|countDistinct|count_distinct|avg|mean|min|max|first|last|approx_count_distinct|sum_distinct|stddev|collect_set|collect_list|max_by|min_by|median|percentile_approx)\s*\(/.test(expr)) it.problems.push('A metric must be an aggregate (F.sum, F.count, F.avg ...).');
+      if (kind === 'COLUMN' && !it.problems.length) { it.replaces = known.has(name); known.add(name); }
+      res.items.push(it);
+    });
+    res.ok = res.items.filter(i => !i.problems.length);
+    return res;
+  };
+
+  /* ---------- checks on the setup ---------- */
+  P.problems = function (cfg) {
+    const R = [], add = (sev, msg) => R.push({ sev, msg }), L = cfg.layer;
+    if (!cfg.entity.trim()) add('err', 'Name the entity (for example orders). It names the notebook and the tables.');
+    if (!cfg.subject.trim()) add('warn', 'No subject area: table names use the placeholder <subject>.');
+    if (L === 'silver') {
+      const on = cfg.silver.cols.filter(c => c.on), names = on.map(c => c.name);
+      if (!cfg.silver.cols.length) { add('err', 'Paste the bronze table’s schema in Step 2 so the page knows the columns.'); return R; }
+      if (!on.some(c => c.key)) add('err', 'Tick the business key: the column or columns that identify one row. Silver merges on it.');
+      names.filter((n, i) => names.indexOf(n) !== i).forEach(n => add('err', 'Two columns are both named ' + n + ' in silver. Rename one.'));
+      on.filter(c => !/^[a-z][a-z0-9_]*$/.test(c.name)).forEach(c => add('err', 'The silver name “' + c.name + '” isn’t snake_case.'));
+      if (!cfg.silver.orderCol) add('warn', 'No ordering column: when a key arrives twice, the row kept is the one ingested last, and a late-arriving older version can overwrite a newer one.');
+      else if (names.indexOf(cfg.silver.orderCol) < 0) add('err', 'The ordering column ' + cfg.silver.orderCol + ' isn’t one of the silver columns.');
+      if (on.some(c => c.clean === 'utc') && !cfg.silver.tz.trim()) add('err', 'Give the time zone the source writes timestamps in.');
+      cfg.silver.rules.forEach((r, i) => { if (!r.col && r.kind !== 'expr') add('err', 'Quality rule ' + (i + 1) + ' has no column.'); else if (r.kind !== 'expr' && names.indexOf(r.col) < 0) add('err', 'Quality rule ' + (i + 1) + ' uses ' + r.col + ', which isn’t a silver column.'); if (/^(min|max|inlist|regex|expr)$/.test(r.kind) && !String(r.val || '').trim()) add('err', 'Quality rule ' + (i + 1) + ' needs a value.'); if (/^(min|max)$/.test(r.kind) && String(r.val || '').trim() && isNaN(Number(r.val))) add('err', 'Quality rule ' + (i + 1) + ': “' + r.val + '” isn’t a number.'); });
+      if (cfg.silver.softDelete && names.indexOf(cfg.silver.softDelete) < 0) add('err', 'The deleted flag ' + cfg.silver.softDelete + ' isn’t one of the silver columns.');
+    }
+    if (L === 'gold') {
+      const g = cfg.gold, names = g.cols.map(c => c.name);
+      if (!g.cols.length) { add('err', 'Give the silver table’s columns in Step 2.'); return R; }
+      if (!g.grain.length) add('err', 'Choose the grain: the columns that make one row of the gold table (for example order_date and store_id).');
+      g.grain.filter(x => names.indexOf(x) < 0).forEach(x => add('err', 'The grain column ' + x + ' isn’t in the silver columns.'));
+      if (!g.metrics.length) add('err', 'Add at least one metric.');
+      const mn = g.metrics.map(m => m.name);
+      g.metrics.forEach((m, i) => { if (!/^[a-z][a-z0-9_]*$/.test(m.name || '')) add('err', 'Metric ' + (i + 1) + ' needs a snake_case name.'); if (m.agg !== 'count' && names.indexOf(m.col) < 0) add('err', 'Metric ' + (m.name || i + 1) + ' needs a column.'); if (mn.indexOf(m.name) !== i) add('err', 'Two metrics are named ' + m.name + '.'); if (g.grain.indexOf(m.name) >= 0) add('err', 'The metric ' + m.name + ' has the same name as a grain column.'); });
+      g.derived.forEach((d, i) => { if (!/^[a-z][a-z0-9_]*$/.test(d.name || '')) add('err', 'Calculated metric ' + (i + 1) + ' needs a snake_case name.'); if (!String(d.expr || '').trim()) add('err', 'Calculated metric ' + (d.name || i + 1) + ' needs a formula.'); });
+      if (g.mode === 'dates') {
+        if (!g.rebuildCol) add('err', 'Choose the date column to rebuild by, or switch to rebuilding the whole table.');
+        else if (g.grain.indexOf(g.rebuildCol) < 0) add('err', 'The rebuild column ' + g.rebuildCol + ' must be part of the grain, so replacing its dates replaces whole rows.');
+        else if ((g.cols.find(c => c.name === g.rebuildCol) || {}).type !== 'date') add('warn', g.rebuildCol + ' isn’t a date column. Rebuilding by a timestamp rebuilds almost nothing each run; add a date column in silver and use that.');
+      }
+      if (!g.metrics.some(m => m.agg === 'sum' && !String(m.filter || '').trim())) add('info', 'No plain Sum metric to reconcile on, so the notebook reconciles row counts only. Add an unfiltered Sum to check totals against silver.');
+      if (g.softDelete && names.indexOf(g.softDelete) < 0) add('err', 'The deleted flag ' + g.softDelete + ' isn’t in the silver columns.');
+    }
+    return R;
+  };
+
+  /* ---------- notebook pieces ---------- */
+  const head = (name, lines) => '# Databricks notebook source\n# MAGIC %md\n# MAGIC # ' + name + '\n' + lines.map(l => '# MAGIC ' + l).join('\n') + '\n';
+  const widgets = (list) => {
+    const pad = Math.max.apply(null, list.map(w => w[0].length));
+    const L = list.map(w => 'dbutils.widgets.text(' + py(w[0]) + ', ' + py(w[1]) + ')');
+    L.push(''); list.forEach(w => L.push(w[0].padEnd(pad) + ' = dbutils.widgets.get(' + py(w[0]) + ')' + (w[3] || '')));
+    const req = list.filter(w => w[2]).map(w => w[0]);
+    L.push('', 'missing = [k for k, v in {' + req.map(k => py(k) + ': ' + k).join(', ') + '}.items() if not v]', 'if missing:', '    raise ValueError(f"Missing required parameters: {missing}")');
+    return L.join('\n');
+  };
+  const EXIT = (pairs) => 'dbutils.notebook.exit(json.dumps({\n    ' + pairs.join(',\n    ') + ',\n}))';
+
+  P.bronze = function (cfg) {
+    const n = P.names(cfg), fmt = cfg.bronze.format;
+    let s = head(n.nbBronze, ['Lands one batch of ' + n.entity + ' files into bronze exactly as received. Called by ADF.', 'Rerunning the same batch_id replaces that batch; it never duplicates.']);
+    s += md('1. Parameters') + widgets([['source_path', '', true], ['file_format', fmt, false, '.lower()'], ['target_table', n.bronze, true], ['batch_id', '', true]]) + '\n';
+    s += md('2. Imports') + 'import json\nfrom pyspark.sql import functions as F\n';
+    s += md('3. Read') + ['reader = spark.read.format(file_format)', 'if file_format in ("csv", "json"):', '    # Keep every row: anything that doesn\'t fit the schema lands in _rescued_data instead of being dropped',
+      '    reader = reader.option("mode", "PERMISSIVE").option("rescuedDataColumn", "_rescued_data")', '    if file_format == "csv":', '        reader = reader.option("header", "true")', '', 'raw = reader.load(source_path)'].join('\n') + '\n';
+    s += md('4. Add metadata (no business logic in bronze)') + ['bronze = (', '    raw.withColumn("_source_file", F.col("_metadata.file_path"))', '       .withColumn("_ingest_ts", F.current_timestamp())', '       .withColumn("_batch_id", F.lit(batch_id))', ')'].join('\n') + '\n';
+    s += md('6. Write: idempotent per batch') + ['if spark.catalog.tableExists(target_table):', '    # A rerun of the same batch replaces its rows instead of adding them again', '    (bronze.write.format("delta").mode("overwrite")',
+      '        .option("replaceWhere", f"_batch_id = \'{batch_id}\'")', '        .option("mergeSchema", "true")', '        .saveAsTable(target_table))', 'else:', '    bronze.write.format("delta").saveAsTable(target_table)',
+      '    spark.sql(f"COMMENT ON TABLE {target_table} IS \'Bronze: ' + n.entity + ' as received, one batch per ADF run\'")'].join('\n') + '\n';
+    s += md('7. Metrics and exit') + ['rows_written = spark.table(target_table).filter(F.col("_batch_id") == batch_id).count()',
+      EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"rows_read": rows_written', '"rows_written": rows_written', '"rows_quarantined": 0'])].join('\n') + '\n';
+    return s;
+  };
+
+  const cleanExpr = function (c, softDelete) {
+    const s = col(c.src);
+    if (c.name === softDelete) return 'F.coalesce(' + s + '.cast("boolean"), F.lit(False))';
+    if (c.type === 'string') return c.clean === 'trim' ? 'F.trim(' + s + '.cast("string"))' : c.clean === 'trim_upper' ? 'F.upper(F.trim(' + s + '.cast("string")))' : c.clean === 'trim_null' ? 'F.when(F.trim(' + s + '.cast("string")) != "", F.trim(' + s + '.cast("string")))' : s + '.cast("string")';
+    if (c.type === 'date') return 'F.to_date(' + s + ')';
+    if (c.type === 'timestamp') return c.clean === 'utc' ? 'F.to_utc_timestamp(' + s + '.cast("timestamp"), SOURCE_TZ)' : s + '.cast("timestamp")';
+    return s + '.cast(' + py(c.type) + ')';
+  };
+  const ruleExpr = function (r) {
+    const c = col(r.col), v = String(r.val || '').trim();
+    if (r.kind === 'min') return [r.col + '_below_' + v.replace(/[^0-9a-z]+/gi, '_').replace(/^_|_$/g, ''), c + ' < ' + Number(v)];
+    if (r.kind === 'max') return [r.col + '_above_' + v.replace(/[^0-9a-z]+/gi, '_').replace(/^_|_$/g, ''), c + ' > ' + Number(v)];
+    if (r.kind === 'inlist') return [r.col + '_invalid', c + '.isNull() | ~' + c + '.isin(' + v.split(',').map(x => x.trim()).filter(Boolean).map(py).join(', ') + ')'];
+    if (r.kind === 'regex') return [r.col + '_bad_format', c + '.isNotNull() & ~' + c + '.rlike(' + py(v) + ')'];
+    if (r.kind === 'notfuture') return [r.col + '_in_future', c + ' > F.current_timestamp()'];
+    return [(snake(r.name) || 'custom_rule'), 'F.expr(' + py(v) + ')'];
+  };
+
+  P.silver = function (cfg, ai) {
+    const n = P.names(cfg), sv = cfg.silver, cols = sv.cols.filter(c => c.on), keys = cols.filter(c => c.key).map(c => c.name);
+    const extra = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN'), aiRules = ((ai && ai.ok) || []).filter(i => i.kind === 'RULE');
+    const outCols = cols.map(c => ({ name: c.name, type: c.type })); extra.forEach(e => { const i = outCols.findIndex(c => c.name === e.name); if (i >= 0) outCols[i].type = e.type; else outCols.push({ name: e.name, type: e.type }); });
+    const utc = cols.some(c => c.clean === 'utc' && c.type === 'timestamp' && c.name !== sv.softDelete);
+    let s = head(n.nbSilver, ['Cleans one bronze batch of ' + n.entity + ' and merges it into silver on ' + (keys.join(', ') || '<key>') + '. Called by ADF.', 'Bad rows go to the quarantine table with the reason; nothing is dropped silently.']);
+    s += md('1. Parameters') + widgets([['source_table', n.bronze, true], ['target_table', n.silver, true], ['quarantine_table', n.quarantine, true], ['batch_id', '', true]]) + '\n';
+    const pad = Math.max.apply(null, outCols.map(c => c.name.length).concat([11]));
+    const conf = ['import json', 'from pyspark.sql import functions as F', 'from pyspark.sql.window import Window', 'from delta.tables import DeltaTable', '',
+      'KEY_COLS  = ' + JSON.stringify(keys), 'ORDER_COL = ' + (sv.orderCol ? py(sv.orderCol) : 'None') + (sv.orderCol ? '' : '   # no ordering column: the row ingested last wins')];
+    if (utc) conf.push('SOURCE_TZ = ' + py(sv.tz) + '   # time zone the source writes timestamps in');
+    conf.push('', '# Explicit silver schema: a new source column never reaches silver by accident', 'TARGET_COLUMNS = """', outCols.map(c => '    ' + c.name.padEnd(pad) + ' ' + c.type.toUpperCase()).concat(['    ' + '_batch_id'.padEnd(pad) + ' STRING', '    ' + '_updated_ts'.padEnd(pad) + ' TIMESTAMP']).join(',\n'), '"""');
+    s += md('2. Imports and config') + conf.join('\n') + '\n';
+    s += md('3. Read this batch only') + 'src = spark.table(source_table).filter(F.col("_batch_id") == batch_id)\nrows_read = src.count()\n';
+    const T = ['def standardize(df):', '    """Every silver column is named, typed and cleaned here."""', '    return df.select('];
+    cols.forEach(c => T.push('        ' + cleanExpr(c, sv.softDelete) + '.alias(' + py(c.name) + '),'));
+    T.push('        F.col("_ingest_ts"),', '    )', '');
+    if (extra.length) { T.push('def add_columns(df):', '    """Derived columns (written with Copilot, checked on the page)."""', '    return (df'); extra.forEach(e => T.push('        .withColumn(' + py(e.name) + ', (' + e.expr + ').cast(' + py(e.type) + '))')); T.push('    )', ''); }
+    T.push('def dedupe(df):', '    """Keep the latest version of each key within the batch."""',
+      '    order = ([F.col(ORDER_COL).desc_nulls_last()] if ORDER_COL else []) + [F.col("_ingest_ts").desc()]', '    w = Window.partitionBy(*KEY_COLS).orderBy(*order)', '    return df.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn")', '',
+      'clean = dedupe(' + (extra.length ? 'add_columns(standardize(src))' : 'standardize(src)') + ')');
+    s += md('4. Transform') + T.join('\n') + '\n';
+    const rules = [];
+    cols.filter(c => c.notnull || c.key).forEach(c => rules.push([c.name + '_null', col(c.name) + '.isNull()']));
+    sv.rules.forEach(r => rules.push(ruleExpr(r)));
+    aiRules.forEach(r => rules.push([r.name, r.expr]));
+    const seen = {}; rules.forEach(r => { seen[r[0]] = (seen[r[0]] || 0) + 1; if (seen[r[0]] > 1) r[0] += '_' + seen[r[0]]; });
+    const rp = Math.max.apply(null, rules.map(r => py(r[0]).length).concat([4]));
+    const Q = ['# A rule is true for a BAD row. Add rules here; never filter rows out anywhere else.', 'DQ_RULES = {'].concat(rules.map(r => '    ' + (py(r[0]) + ':').padEnd(rp + 1) + ' ' + r[1] + ','), ['}', '',
+      'checked = clean.withColumn(', '    "_dq_failures",', '    F.concat_ws(",", *[F.when(F.coalesce(cond, F.lit(False)), F.lit(name)) for name, cond in DQ_RULES.items()]),', ').cache()',
+      'valid   = checked.filter(F.col("_dq_failures") == "")', 'invalid = checked.filter(F.col("_dq_failures") != "")', '',
+      'quarantine = (invalid.withColumn("_batch_id", F.lit(batch_id))', '                     .withColumn("_quarantine_ts", F.current_timestamp()))', 'if spark.catalog.tableExists(quarantine_table):', '    # A rerun replaces this batch\'s quarantined rows',
+      '    (quarantine.write.format("delta").mode("overwrite")', '        .option("replaceWhere", f"_batch_id = \'{batch_id}\'")', '        .option("mergeSchema", "true")', '        .saveAsTable(quarantine_table))', 'else:', '    quarantine.write.format("delta").saveAsTable(quarantine_table)',
+      'rows_quarantined = invalid.count()', 'rows_deduped     = rows_read - checked.count()']);
+    s += md('5. Data quality: quarantine, never drop') + Q.join('\n') + '\n';
+    const W = ['spark.sql(f"""', '    CREATE TABLE IF NOT EXISTS {target_table} ({TARGET_COLUMNS})', '    USING DELTA' + (sv.cluster ? '\n    CLUSTER BY (' + sv.cluster + ')' : ''), "    COMMENT 'Silver: one clean, current row per " + n.entity.replace(/'/g, '') + " key'", '""")', '',
+      'out = (valid.select(' + outCols.map(c => py(c.name)).join(', ') + ')', '            .withColumn("_batch_id", F.lit(batch_id))', '            .withColumn("_updated_ts", F.current_timestamp()))', '',
+      'on = " AND ".join(f"t.{k} = s.{k}" for k in KEY_COLS)', '(DeltaTable.forName(spark, target_table).alias("t")', '    .merge(out.alias("s"), on)',
+      '    # >= so an older version never overwrites a newer one, and a rerun re-stamps _batch_id for gold', '    .whenMatchedUpdateAll(condition=(f"s.{ORDER_COL} >= t.{ORDER_COL} OR t.{ORDER_COL} IS NULL" if ORDER_COL else None))', '    .whenNotMatchedInsertAll()', '    .execute())'];
+    s += md('6. Merge into silver') + W.join('\n') + '\n';
+    s += md('7. Metrics and exit') + ['rows_written = out.count()', 'checked.unpersist()',
+      EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_quarantined": rows_quarantined', '"rows_deduped": rows_deduped'])].join('\n') + '\n';
+    return { code: s, outCols, rules: rules.map(r => r[0]), keys };
+  };
+
+  const aggExpr = function (m) {
+    const f = String(m.filter || '').trim(), c = m.agg === 'count' && !m.col ? null : col(m.col);
+    const inner = f ? (c ? 'F.when(F.expr(' + py(f) + '), ' + c + ')' : 'F.when(F.expr(' + py(f) + '), F.lit(1))') : (c || 'F.lit(1)');
+    if (m.agg === 'count') return 'F.count(' + inner + ')';
+    if (m.agg === 'sum' && f) return 'F.coalesce(F.sum(' + inner + '), F.lit(0))';
+    return 'F.' + m.agg + '(' + inner + ')';
+  };
+  P.gold = function (cfg, ai) {
+    const n = P.names(cfg), g = cfg.gold, dates = g.mode === 'dates', rc = g.rebuildCol;
+    const aiM = ((ai && ai.ok) || []).filter(i => i.kind === 'METRIC'), aiD = ((ai && ai.ok) || []).filter(i => i.kind === 'DERIVED');
+    const recon = g.metrics.find(m => m.agg === 'sum' && !String(m.filter || '').trim());
+    let s = head(n.nbGold, ['Grain: one row per ' + g.grain.join(', ') + '. ' + (dates ? 'Rebuilds only the ' + rc + ' values this batch touched.' : 'Rebuilds the whole table each run.') + ' Called by ADF.', 'Reads silver only, and reconciles to it before finishing.']);
+    s += md('1. Parameters') + widgets([['source_table', n.silver, true], ['target_table', n.gold, true], ['batch_id', '', true]]) + '\n';
+    s += md('2. Imports and config') + ['import json', 'from pyspark.sql import functions as F', '', 'GRAIN = ' + JSON.stringify(g.grain)].join('\n') + '\n';
+    const live = g.softDelete ? '\n               .filter(~F.coalesce(' + col(g.softDelete) + ', F.lit(False)))' : '';
+    if (dates) s += md('3. Find what changed, then read only those dates from silver') + ['# Distinct dates only, so collect() stays small', 'dates = [r[0] for r in (', '    spark.table(source_table).filter(F.col("_batch_id") == batch_id)', '         .select(' + py(rc) + ').distinct().collect()', ') if r[0] is not None]', '',
+      'if not dates:', '    dbutils.notebook.exit(json.dumps({"status": "succeeded", "batch_id": batch_id,', '                                      "rows_read": 0, "rows_written": 0, "rows_quarantined": 0, "dates_rebuilt": 0}))', '',
+      'silver = (spark.table(source_table)', '               .filter(' + col(rc) + '.isin(dates))' + live + ')', 'rows_read = silver.count()'].join('\n') + '\n';
+    else s += md('3. Read silver') + ['silver = (spark.table(source_table)' + live + ')', 'rows_read = silver.count()'].join('\n') + '\n';
+    const M = g.metrics.map(m => aggExpr(m) + '.alias(' + py(m.name) + ')').concat(aiM.map(m => '(' + m.expr + ').alias(' + py(m.name) + ')'));
+    const B = ['gold = (', '    silver.groupBy(*GRAIN)', '          .agg('].concat(M.map(x => '              ' + x + ','), ['              F.count(F.lit(1)).alias("_silver_rows"),', '          )']);
+    g.derived.forEach(d => B.push('          .withColumn(' + py(d.name) + ', F.expr(' + py(String(d.expr).trim()) + '))'));
+    aiD.forEach(d => B.push('          .withColumn(' + py(d.name) + ', ' + d.expr + ')'));
+    B.push('          .withColumn("_updated_ts", F.current_timestamp())', ')');
+    s += md('4. Business logic') + B.join('\n') + '\n';
+    const W = [];
+    if (dates) W.push('# replaceWhere (not merge), so a date whose rows were all deleted disappears from gold too', 'date_list = ", ".join(f"DATE\'{d}\'" for d in dates)', 'if spark.catalog.tableExists(target_table):', '    (gold.write.format("delta").mode("overwrite")', '        .option("replaceWhere", f"' + rc + ' IN ({date_list})")', '        .saveAsTable(target_table))', 'else:', '    gold.write.format("delta").saveAsTable(target_table)');
+    else W.push('# Small table: rebuilt in full, so a rerun always gives the same result', 'gold.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(target_table)');
+    s += md('6. Write' + (dates ? ': replace the affected dates' : ': replace the table')) + W.join('\n') + '\n';
+    const R = ['written = spark.table(target_table)' + (dates ? '.filter(' + col(rc) + '.isin(dates))' : ''), 'rows_written = written.count()', '',
+      '# Every silver row must be counted exactly once', 'gold_rows = written.agg(F.sum("_silver_rows")).first()[0] or 0', 'if gold_rows != rows_read:', '    raise ValueError(f"Reconciliation failed: {rows_read} silver rows, {gold_rows} counted in gold")'];
+    if (recon) R.push('', '# Totals must match silver', 'silver_total = silver.agg(F.sum(' + py(recon.col) + ')).first()[0] or 0', 'gold_total   = written.agg(F.sum(' + py(recon.name) + ')).first()[0] or 0', 'if silver_total != gold_total:', '    raise ValueError(f"Reconciliation failed on ' + recon.name + ': silver {silver_total} vs gold {gold_total}")');
+    R.push('', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_quarantined": 0'].concat(dates ? ['"dates_rebuilt": len(dates)'] : [])));
+    s += md('7. Reconcile, metrics and exit') + R.join('\n') + '\n';
+    return { code: s, recon };
+  };
+
+  /* ---------- everything for the current layer ---------- */
+  P.build = function (cfg, ai) {
+    const n = P.names(cfg), L = cfg.layer, o = { names: n, layer: L };
+    if (L === 'bronze') o.code = P.bronze(cfg);
+    else if (L === 'silver') { const r = P.silver(cfg, ai); o.code = r.code; o.silver = r; }
+    else { const r = P.gold(cfg, ai); o.code = r.code; o.gold = r; }
+    /* ADF */
+    const bp = { batch_id: { value: '@pipeline().RunId', type: 'Expression' } };
+    if (L === 'bronze') bp.source_path = { value: "abfss://<container>@<storage_account>.dfs.core.windows.net/<folder landed by this run>", type: 'Expression' };
+    o.activity = { name: n.nb, type: 'DatabricksNotebook', dependsOn: [], policy: { timeout: '0.02:00:00', retry: 0, retryIntervalInSeconds: 60, secureOutput: false, secureInput: false }, userProperties: [], typeProperties: { notebookPath: n.path, baseParameters: bp }, linkedServiceName: { referenceName: '<LS_DATABRICKS>', type: 'LinkedServiceReference' } };
+    const exits = ['status', 'rows_read', 'rows_written', 'rows_quarantined'].concat(L === 'silver' ? ['rows_deduped'] : [], L === 'gold' && cfg.gold.mode === 'dates' ? ['dates_rebuilt'] : []);
+    o.adf = ['Databricks Notebook activity', '  Name:            ' + n.nb, '  Notebook path:   ' + n.path, '  Base parameters:', '    batch_id     = @pipeline().RunId'].concat(L === 'bronze' ? ['    source_path  = the folder or file this run landed (the ADF Pipeline Generator fills this in)'] : [],
+      ['', 'Reading what the notebook returns, in a later activity:'], exits.map(e => "  @activity('" + n.nb + "').output.runOutput." + e), ['', 'Run the layers in order in one pipeline so they share the same batch_id: ' + n.nbBronze + ', then ' + n.nbSilver + ', then ' + n.nbGold + '.',
+        'The other parameters (table names' + (L === 'bronze' ? ', file_format' : '') + ') have defaults in the notebook. Pass them from ADF only to point a run at another environment.']).join('\n');
+    /* checks */
+    const C = [], k = (o.silver && o.silver.keys) || [];
+    if (L === 'bronze') C.push('-- Rows per batch: should equal the rows in the files ADF landed', 'SELECT _batch_id, COUNT(*) AS row_count, COUNT(DISTINCT _source_file) AS files, MIN(_ingest_ts) AS loaded_at', 'FROM ' + n.bronze, 'GROUP BY _batch_id ORDER BY loaded_at DESC LIMIT 20;', '', '-- Metadata filled on every row: expect 0', 'SELECT COUNT(*) AS missing_metadata FROM ' + n.bronze, 'WHERE _batch_id IS NULL OR _ingest_ts IS NULL OR _source_file IS NULL;');
+    if (L === 'silver') C.push('-- Duplicate keys: expect no rows', 'SELECT ' + k.join(', ') + ', COUNT(*) AS n', 'FROM ' + n.silver, 'GROUP BY ' + k.join(', ') + ' HAVING COUNT(*) > 1;', '', '-- What was quarantined, and why', 'SELECT _batch_id, _dq_failures, COUNT(*) AS row_count', 'FROM ' + n.quarantine, 'GROUP BY _batch_id, _dq_failures ORDER BY _batch_id DESC, row_count DESC;', '',
+      '-- Rows per batch in silver (rows last touched by each batch)', 'SELECT _batch_id, COUNT(*) AS row_count, MAX(_updated_ts) AS updated_at', 'FROM ' + n.silver, 'GROUP BY _batch_id ORDER BY updated_at DESC LIMIT 20;');
+    if (L === 'gold') { const g = cfg.gold; C.push('-- Grain holds: expect no rows', 'SELECT ' + g.grain.join(', ') + ', COUNT(*) AS n', 'FROM ' + n.gold, 'GROUP BY ' + g.grain.join(', ') + ' HAVING COUNT(*) > 1;');
+      if (o.gold.recon) C.push('', '-- Totals against silver: expect difference = 0', 'SELECT (SELECT SUM(' + o.gold.recon.name + ') FROM ' + n.gold + ') - (SELECT SUM(' + o.gold.recon.col + ') FROM ' + n.silver + (g.softDelete ? ' WHERE NOT COALESCE(' + g.softDelete + ', false)' : '') + ') AS difference;'); }
+    o.checks = C.join('\n');
+    o.placeholders = Array.from(new Set((o.code.match(/<[a-z_]+>/g) || [])));
+    return o;
+  };
+  P.CHECKLIST = {
+    all: ['The notebook runs interactively with the widget defaults, and from ADF with base parameters', 'Running the same batch_id twice leaves the same row counts', 'A forced error makes the ADF activity fail', 'ADF can read the exit values through output.runOutput', 'No hard-coded paths, secrets or environment names were added'],
+    bronze: ['Row count equals the source files’ row count; nothing filtered or changed', '_source_file, _ingest_ts and _batch_id are filled on every row', 'A file with an extra column loads without failing'],
+    silver: ['No duplicate business keys', 'rows_read = rows_written + rows_quarantined + rows_deduped', 'An older version of a record doesn’t overwrite a newer one', 'Timestamps convert to UTC correctly, including on a daylight saving date'],
+    gold: ['Totals reconcile to silver for the rebuilt dates', 'One row per grain key', 'A deleted or cancelled record changes the numbers the way the business expects', 'Power BI numbers match a hand-checked sample']
+  };
+
+  root.PYG = P;
+  if (typeof module !== 'undefined') module.exports = P;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Example for the Python Notebook Generator: generic customers-and-sales data only. */
+(function (root) {
+  const BRONZE = ['=== SCHEMA ===', 'root', ' |-- OrderID: integer (nullable = true)', ' |-- CustomerID: integer (nullable = true)', ' |-- OrderDate: timestamp (nullable = true)', ' |-- Status: string (nullable = true)',
+    ' |-- Amount: decimal(18,2) (nullable = true)', ' |-- SalesRegion: string (nullable = true)', ' |-- IsDeleted: boolean (nullable = true)', ' |-- ModifiedDate: timestamp (nullable = true)',
+    ' |-- _source_file: string (nullable = true)', ' |-- _ingest_ts: timestamp (nullable = true)', ' |-- _batch_id: string (nullable = true)', '', '=== ROW COUNT === 61250'].join('\n');
+  root.PYG_EX = function (P) {
+    const c = P.blank();
+    c.layer = 'silver'; c.entity = 'orders'; c.subject = 'sales';
+    c.bronze.path = 'abfss://datalake@<account>.dfs.core.windows.net/raw/salesdb/orders/';
+    const s = c.silver; s.schemaText = BRONZE; s.cols = P.mapCols(P.parseSchema(BRONZE), []);
+    s.cols.forEach(x => { if (x.name === 'order_id') { x.key = true; x.notnull = true; x.type = 'bigint'; } if (x.name === 'customer_id') { x.type = 'bigint'; x.notnull = true; } if (x.name === 'order_date') { x.type = 'date'; x.notnull = true; } if (x.name === 'status') x.clean = 'trim_upper'; if (x.name === 'modified_date') { x.name = 'modified_ts'; x.clean = 'utc'; } });
+    s.orderCol = 'modified_ts'; s.softDelete = 'is_deleted'; s.cluster = 'order_date';
+    s.rules = [{ kind: 'min', col: 'amount', val: '0', name: '' }, { kind: 'inlist', col: 'status', val: 'OPEN, SHIPPED, CANCELLED', name: '' }];
+    s.aiReq = 'Add a column order_size: Small when the amount is under 100, Medium under 1000, otherwise Large.';
+    s.aiReply = ['```', '@@@ COLUMN @@@', 'NAME: order_size', 'TYPE: string', 'EXPR: F.when(F.col("amount") < 100, "Small").when(F.col("amount") < 1000, "Medium").otherwise("Large")', '@@@ NOTES @@@', 'A null amount gives Large; the amount rule sends negative amounts to quarantine first.', '```'].join('\n');
+    const g = c.gold; g.name = 'fact_daily_sales';
+    g.cols = [['order_id', 'bigint'], ['customer_id', 'bigint'], ['order_date', 'date'], ['status', 'string'], ['amount', 'decimal(18,2)'], ['sales_region', 'string'], ['is_deleted', 'boolean'], ['modified_ts', 'timestamp'], ['order_size', 'string']].map(a => ({ name: a[0], type: a[1] }));
+    g.grain = ['order_date', 'sales_region']; g.mode = 'dates'; g.rebuildCol = 'order_date'; g.softDelete = 'is_deleted';
+    g.metrics = [{ name: 'order_count', agg: 'countDistinct', col: 'order_id', filter: '' }, { name: 'gross_sales_amount', agg: 'sum', col: 'amount', filter: '' }, { name: 'cancelled_amount', agg: 'sum', col: 'amount', filter: "status = 'CANCELLED'" }];
+    g.derived = [{ name: 'net_sales_amount', expr: 'gross_sales_amount - cancelled_amount' }];
+    return c;
+  };
+  if (typeof module !== 'undefined') module.exports = root.PYG_EX;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Python Notebook Generator: page wiring. */
+(function () {
+  'use strict';
+  const S = window.DE_SUITE, P = window.PYG, $ = S.$, esc = S.esc;
+  const store = S.store('dep.');
+  let cfg, st, out = null, ai = null;
+
+  const get = (o, path) => path.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+  const set = (o, path, v) => { const ks = path.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
+  const str = v => (typeof v === 'string' ? v : '');
+  /* saved data can be anything: rebuild it field by field */
+  function restore(saved) {
+    const c = P.blank(); if (!saved || typeof saved !== 'object') return c;
+    const copy = (to, from, keys) => keys.forEach(k => { if (from && typeof from[k] === typeof to[k] && !Array.isArray(to[k])) to[k] = from[k]; });
+    copy(c, saved, ['entity', 'subject', 'folder']); if (/^(bronze|silver|gold)$/.test(saved.layer)) c.layer = saved.layer;
+    copy(c.cat, saved.cat, ['bronze', 'silver', 'gold']); copy(c.bronze, saved.bronze, ['format', 'path']);
+    const sv = saved.silver || {}, g = saved.gold || {}, arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);
+    copy(c.silver, sv, ['schemaText', 'orderCol', 'tz', 'softDelete', 'cluster', 'aiReq', 'aiReply']);
+    c.silver.cols = arr(sv.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: P.TYPES.indexOf(x.type) >= 0 || /^decimal\(\d+,\d+\)$/.test(x.type) ? x.type : 'string', clean: str(x.clean) || 'none', on: x.on !== false, key: !!x.key, notnull: !!x.notnull }));
+    c.silver.rules = arr(sv.rules).map(x => ({ kind: P.RULES.some(r => r[0] === x.kind) ? x.kind : 'min', col: str(x.col), val: str(x.val), name: str(x.name) }));
+    copy(c.gold, g, ['name', 'schemaText', 'mode', 'rebuildCol', 'softDelete', 'aiReq', 'aiReply']); if (!/^(dates|full)$/.test(c.gold.mode)) c.gold.mode = 'dates';
+    c.gold.cols = arr(g.cols).filter(x => str(x.name)).map(x => ({ name: str(x.name), type: str(x.type) || 'string' }));
+    c.gold.grain = (Array.isArray(g.grain) ? g.grain : []).filter(x => typeof x === 'string');
+    c.gold.metrics = arr(g.metrics).map(x => ({ name: str(x.name), agg: P.AGGS.some(a => a[0] === x.agg) ? x.agg : 'sum', col: str(x.col), filter: str(x.filter) }));
+    c.gold.derived = arr(g.derived).map(x => ({ name: str(x.name), expr: str(x.expr) }));
+    return c;
+  }
+  function load() {
+    const s = store.get('st', null); st = { example: !!(s && s.example), done: (s && Array.isArray(s.done) ? s.done : []).filter(x => typeof x === 'string') };
+    const saved = store.get('cfg', null);
+    if (saved) cfg = restore(saved); else if (store.get('blank', false)) { cfg = P.blank(); st.example = false; } else { cfg = window.PYG_EX(P); st.example = true; }
+  }
+  const save = () => { store.set('cfg', cfg); store.set('st', st); };
+  const L = () => cfg.layer, sub = () => cfg[cfg.layer];
+
+  function fill(skip) {
+    document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || el.tagName === 'SELECT' && el.id) return; const v = get(cfg, el.dataset.k); if (el.type === 'radio') el.checked = el.value === v; else el.value = v == null ? '' : v; });
+    if ($('schemaIn') !== skip) $('schemaIn').value = L() === 'bronze' ? '' : sub().schemaText;
+    if ($('aiReq') !== skip) $('aiReq').value = L() === 'bronze' ? '' : sub().aiReq;
+    $('aiReply').value = L() === 'bronze' ? '' : sub().aiReply;
+  }
+
+  const opts = (list, cur, emptyLabel) => (emptyLabel != null ? '<option value="">' + esc(emptyLabel) + '</option>' : '') + list.map(o => { const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('');
+  const silverNames = () => cfg.silver.cols.filter(c => c.on).map(c => c.name).filter(Boolean);
+
+  /* the parts of the form that are built from the data */
+  function renderForm() {
+    const layer = L();
+    document.querySelectorAll('#layerBar [data-layer]').forEach(b => b.setAttribute('aria-selected', b.dataset.layer === layer ? 'true' : 'false'));
+    $('exampleBanner').hidden = !st.example;
+    $('inBronze').hidden = layer !== 'bronze'; $('inPaste').hidden = false; $('useSilverBox').hidden = layer !== 'gold'; $('schemaIn').hidden = layer === 'bronze';
+    $('setBronze').hidden = layer !== 'bronze'; $('setSilver').hidden = layer !== 'silver'; $('setGold').hidden = layer !== 'gold';
+    $('aiStep').hidden = layer === 'bronze'; $('outNum').textContent = layer === 'bronze' ? '4' : '5';
+    $('s2p').textContent = layer === 'bronze' ? 'Bronze takes the files as they are, so the page only needs the format. The context cell is optional: it shows what the files hold before you land them.' : layer === 'silver' ? 'The page can’t see your workspace. Run one cell against the bronze table and paste what it prints, so every column name and type is exact.' : 'Gold reads silver. Take the columns from the silver setup on this page, or run the cell against the silver table and paste what it prints.';
+    $('s3p').textContent = layer === 'silver' ? 'Every silver column is named, typed and cleaned on purpose. Names are suggested in snake_case; change anything.' : layer === 'gold' ? 'Say what one row is and what to measure. The notebook recomputes only what changed and checks its totals against silver.' : 'Bronze is a faithful, replayable copy of the source.';
+    $('s4p').textContent = layer === 'gold' ? 'For metrics the boxes above can’t express. Copilot writes the PySpark expressions; the page checks them against your columns before using them.' : 'For derived columns and quality rules the boxes above can’t express. Copilot writes the PySpark expressions; the page checks them against your columns before using them.';
+    $('aiReq').placeholder = layer === 'gold' ? 'Count the orders where order_size is Large, and give their share of all orders.' : 'Add a column order_size: Small when the amount is under 100, Medium under 1000, otherwise Large.\nFlag rows where the ship date is before the order date.';
+    if (layer === 'silver') {
+      const sv = cfg.silver;
+      $('mapBody').innerHTML = sv.cols.map((c, i) => '<tr data-i="' + i + '"><td class="ck"><input type="checkbox" data-f="on"' + (c.on ? ' checked' : '') + ' aria-label="Use ' + esc(c.src) + '"></td><td class="nm">' + esc(c.src) + '</td>'
+        + '<td><input type="text" data-f="name" value="' + esc(c.name) + '" spellcheck="false" aria-label="Silver name for ' + esc(c.src) + '"></td>'
+        + '<td><select data-f="type" aria-label="Type">' + opts(P.TYPES.indexOf(c.type) >= 0 ? P.TYPES : P.TYPES.concat([c.type]), c.type) + '</select></td>'
+        + '<td>' + (P.CLEAN[c.type] ? '<select data-f="clean" aria-label="Clean">' + opts(P.CLEAN[c.type], c.clean) + '</select>' : '<span class="muted small">Cast</span>') + '</td>'
+        + '<td class="ck"><input type="checkbox" data-f="key"' + (c.key ? ' checked' : '') + ' aria-label="Key"></td><td class="ck"><input type="checkbox" data-f="notnull"' + (c.notnull || c.key ? ' checked' : '') + (c.key ? ' disabled' : '') + ' aria-label="Not null"></td></tr>').join('')
+        || '<tr><td colspan="7" class="muted">Paste the bronze schema in Step 2 and its columns appear here.</td></tr>';
+      const on = sv.cols.filter(c => c.on);
+      $('orderCol').innerHTML = opts(on.filter(c => /^(timestamp|date|bigint|int)$/.test(c.type)).map(c => c.name), sv.orderCol, 'None (the row ingested last wins)');
+      $('softDel').innerHTML = opts(on.filter(c => c.type === 'boolean').map(c => c.name), sv.softDelete, 'None');
+      $('clusterCol').innerHTML = opts(on.map(c => c.name), sv.cluster, 'No clustering');
+      $('tzBox').hidden = !on.some(c => c.clean === 'utc');
+      $('ruleList').innerHTML = sv.rules.map((r, i) => '<div class="rrow" data-list="rules" data-i="' + i + '">'
+        + (r.kind === 'expr' ? '<input type="text" data-f="name" value="' + esc(r.name) + '" placeholder="rule_name" spellcheck="false" aria-label="Rule name">' : '<select data-f="col" aria-label="Column">' + opts(silverNames(), r.col, 'Column') + '</select>')
+        + '<select data-f="kind" aria-label="Rule">' + opts(P.RULES.map(x => [x[0], x[1]]), r.kind) + '</select>'
+        + (r.kind === 'notfuture' ? '<span></span>' : '<input type="text" data-f="val" value="' + esc(r.val) + '" placeholder="' + esc((P.RULES.find(x => x[0] === r.kind) || [])[2] || '') + '" spellcheck="false" aria-label="Value" style="grid-column:span 2">')
+        + (r.kind === 'notfuture' ? '<span></span>' : '') + '<button type="button" class="x" data-del aria-label="Remove rule">&times;</button></div>').join('');
+    }
+    if (layer === 'gold') {
+      const g = cfg.gold, names = g.cols.map(c => c.name);
+      $('goldDel').innerHTML = opts(g.cols.filter(c => c.type === 'boolean').map(c => c.name), g.softDelete, 'None');
+      $('grainChips').innerHTML = g.cols.length ? g.cols.filter(c => !/^_/.test(c.name)).map(c => '<button type="button" class="chip" data-grain="' + esc(c.name) + '" aria-pressed="' + (g.grain.indexOf(c.name) >= 0 ? 'true' : 'false') + '">' + esc(c.name) + '<small>' + esc(c.type) + '</small></button>').join('') : '<span class="note small">Give the silver columns in Step 2 first.</span>';
+      $('rebuildBox').hidden = g.mode !== 'dates';
+      $('rebuildCol').innerHTML = opts(g.cols.filter(c => g.grain.indexOf(c.name) >= 0 && /^(date|timestamp)$/.test(c.type)).map(c => c.name), g.rebuildCol, g.grain.length ? 'Choose a date column' : 'Choose the grain first');
+      $('metricList').innerHTML = g.metrics.map((m, i) => '<div class="rrow" data-list="metrics" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(m.name) + '" placeholder="metric_name" spellcheck="false" aria-label="Metric name">'
+        + '<select data-f="agg" aria-label="Aggregation">' + opts(P.AGGS, m.agg) + '</select><select data-f="col" aria-label="Column">' + opts(names, m.col, m.agg === 'count' ? 'All rows' : 'Column') + '</select>'
+        + '<input type="text" data-f="filter" value="' + esc(m.filter) + '" placeholder="only where (optional): status = \'CANCELLED\'" spellcheck="false" aria-label="Only where"><button type="button" class="x" data-del aria-label="Remove metric">&times;</button></div>').join('');
+      $('derivedList').innerHTML = g.derived.map((d, i) => '<div class="rrow" data-list="derived" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(d.name) + '" placeholder="metric_name" spellcheck="false" aria-label="Name">'
+        + '<input type="text" data-f="expr" value="' + esc(d.expr) + '" placeholder="gross_sales_amount - cancelled_amount" spellcheck="false" aria-label="Formula" style="grid-column:span 3"><button type="button" class="x" data-del aria-label="Remove calculation">&times;</button></div>').join('');
+    }
+    $('checklist').innerHTML = P.CHECKLIST.all.concat(P.CHECKLIST[layer]).map((t, i) => '<li><label><input type="checkbox" data-done="' + layer + i + '"' + (st.done.indexOf(layer + i) >= 0 ? ' checked' : '') + '> <span>' + esc(t) + '</span></label></li>').join('');
+    renderOut();
+  }
+
+  /* everything computed from the form; safe to call on every keystroke */
+  function renderOut() {
+    const layer = L(), n = P.names(cfg);
+    $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span>' + (layer === 'bronze' ? '<span class="stat">Writes <b>' + esc(n.bronze) + '</b></span>' : layer === 'silver' ? '<span class="stat">Reads <b>' + esc(n.bronze) + '</b></span><span class="stat">Writes <b>' + esc(n.silver) + '</b></span><span class="stat">Quarantine <b>' + esc(n.quarantine) + '</b></span>' : '<span class="stat">Reads <b>' + esc(n.silver) + '</b></span><span class="stat">Writes <b>' + esc(n.gold) + '</b></span>');
+    $('contextView').textContent = P.contextCell(cfg);
+    if (layer !== 'bronze') {
+      const s = sub(), parsed = P.parseSchema(s.schemaText), have = layer === 'silver' ? s.cols.length : s.cols.length;
+      $('schemaStats').innerHTML = have ? '<span class="stat"><b>' + have + '</b> columns</span>' + (layer === 'silver' && parsed.cols.length > have ? '<span class="stat">' + (parsed.cols.length - have) + ' metadata columns (starting with _) are carried by the notebook itself</span>' : '') : '';
+      $('schemaMsg').innerHTML = s.schemaText.trim() ? parsed.errors.map(e => S.msg('warn', esc(e))).join('') : '';
+    } else { $('schemaStats').innerHTML = ''; $('schemaMsg').innerHTML = ''; }
+    const probs = P.problems(cfg);
+    $('setupMsg').innerHTML = probs.map(p => S.msg(p.sev, esc(p.msg))).join('');
+    /* Copilot */
+    ai = null;
+    const want = layer !== 'bronze' && sub().aiReq.trim().length > 0;
+    $('aiBox').hidden = !want;
+    if (want) {
+      const prompt = S.fullPrompt(P.aiPrompt(cfg)); $('aiPromptView').textContent = prompt; S.count($('aiCount'), prompt);
+      const msgs = [];
+      if (sub().aiReply.trim()) {
+        ai = P.aiParse(sub().aiReply, cfg, S.parseBlocks, S.fields);
+        if (!ai.any) msgs.push(S.msg('err', 'No labelled blocks were found in the reply. Ask Copilot to answer in the reply format, inside one code block, and paste the whole reply.'));
+        ai.skipped.forEach(s => msgs.push(S.msg('warn', '<b>Not written:</b> ' + esc(s))));
+        if (ai.notes.length) msgs.push(S.msg('info', '<b>Confirm these assumptions:</b><ul>' + ai.notes.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>'));
+        $('aiBody').innerHTML = ai.items.map(c => '<tr><td class="nm">' + esc(c.name) + '</td><td>' + esc(c.kind.charAt(0) + c.kind.slice(1).toLowerCase()) + (c.type ? ' <span class="muted">' + esc(c.type) + '</span>' : '') + '</td><td>' + (c.problems.length ? S.pill('err', 'Not used') : S.pill(c.replaces ? 'replace' : 'ok', c.replaces ? 'Replaces' : 'Added')) + '</td><td><span class="mono" style="overflow-wrap:anywhere">' + esc(c.expr) + '</span>' + (c.problems.length ? '<ul>' + c.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : '') + '</td></tr>').join('');
+        $('aiReview').hidden = !ai.items.length;
+      } else $('aiReview').hidden = true;
+      $('aiMsg').innerHTML = msgs.join('');
+    }
+    /* output */
+    const errs = probs.filter(p => p.sev === 'err');
+    if (errs.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (errs.length === 1 ? 'item' : errs.length + ' items') + ' marked in red in Step 3 and the notebook appears here.'); }
+    else {
+      out = P.build(cfg, ai); $('outWrap').hidden = false; $('outMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you run it:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
+      const lines = out.code.split('\n').length, used = ai ? ai.ok.length : 0;
+      $('outStats').innerHTML = '<span class="stat"><b>' + esc(out.names.nb) + '</b></span><span class="stat"><b>' + lines + '</b> lines</span>'
+        + (layer === 'silver' ? '<span class="stat"><b>' + out.silver.outCols.length + '</b> columns</span><span class="stat"><b>' + out.silver.rules.length + '</b> quality rules</span>' : '')
+        + (layer === 'gold' ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '');
+      $('codeTitle').textContent = out.names.nb + '.py'; $('codeView').textContent = out.code;
+      $('adfView').textContent = out.adf; $('actView').textContent = JSON.stringify(out.activity, null, 4); $('checksView').textContent = out.checks;
+    }
+    save();
+  }
+
+  function onSchema(text) {
+    const s = sub(); s.schemaText = text; const parsed = P.parseSchema(text);
+    if (L() === 'silver') {
+      const sv = cfg.silver; sv.cols = P.mapCols(parsed, sv.cols); const names = sv.cols.map(c => c.name);
+      if (names.indexOf(sv.orderCol) < 0) sv.orderCol = P.suggestOrder(sv.cols);
+      if (names.indexOf(sv.softDelete) < 0) sv.softDelete = (sv.cols.find(c => c.type === 'boolean' && /delet/.test(c.name)) || {}).name || '';
+      if (names.indexOf(sv.cluster) < 0) sv.cluster = '';
+      if (!sv.cols.some(c => c.key)) { const e = P.snake(cfg.entity).replace(/s$/, ''); const k = sv.cols.find(c => c.name === e + '_id') || sv.cols.find(c => c.name === 'id'); if (k) { k.key = true; k.notnull = true; } }
+    } else if (L() === 'gold') { cfg.gold.cols = parsed.cols.map(c => ({ name: c.name, type: c.type })); pruneGold(); }
+  }
+  function pruneGold() { const g = cfg.gold, names = g.cols.map(c => c.name); g.grain = g.grain.filter(x => names.indexOf(x) >= 0); if (g.grain.indexOf(g.rebuildCol) < 0) g.rebuildCol = (g.cols.find(c => g.grain.indexOf(c.name) >= 0 && c.type === 'date') || {}).name || ''; if (names.indexOf(g.softDelete) < 0) g.softDelete = ''; }
+
+  function toBlank(keep) { cfg = Object.assign(P.blank(), { layer: cfg.layer }); st.example = false; ai = null; fill(keep); renderForm(); }
+
+  function init() {
+    load(); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
+    $('layerBar').addEventListener('click', e => { const b = e.target.closest('[data-layer]'); if (!b) return; cfg.layer = b.dataset.layer; fill(); renderForm(); });
+    document.addEventListener('input', e => {
+      const el = e.target;
+      if (el.id === 'schemaIn') { onSchema(el.value); renderForm(); return; }
+      if (el.id === 'aiReq') { sub().aiReq = el.value; renderOut(); return; }
+      if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
+      const row = el.closest('[data-i]');
+      if (row && el.dataset.f && el.tagName === 'INPUT' && el.type === 'text') { const list = row.dataset.list ? (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]) : cfg.silver.cols; list[Number(row.dataset.i)][el.dataset.f] = el.value; renderOut(); return; }
+      if (el.dataset && el.dataset.k && el.tagName !== 'SELECT' && el.type !== 'radio') { set(cfg, el.dataset.k, el.value); renderOut(); }
+    });
+    document.addEventListener('change', e => {
+      const el = e.target;
+      if (el.dataset && el.dataset.done != null) { st.done = st.done.filter(x => x !== el.dataset.done).concat(el.checked ? [el.dataset.done] : []); save(); return; }
+      const row = el.closest('[data-i]');
+      if (row && el.dataset.f) {
+        const list = row.dataset.list ? (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]) : cfg.silver.cols, item = list[Number(row.dataset.i)];
+        if (!item) return;
+        if (el.type === 'checkbox') item[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') item[el.dataset.f] = el.value;
+        if (!row.dataset.list) {     // column mapping: keep dependants consistent
+          if (el.dataset.f === 'type') item.clean = item.type === 'string' ? 'trim' : 'none';
+          if (el.dataset.f === 'key' && item.key) item.notnull = true;
+          const names = silverNames(), sv = cfg.silver; ['orderCol', 'softDelete', 'cluster'].forEach(k => { if (names.indexOf(sv[k]) < 0) sv[k] = ''; });
+        }
+        renderForm(); return;
+      }
+      if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
+    });
+    document.addEventListener('click', e => {
+      const del = e.target.closest('[data-del]'), gr = e.target.closest('[data-grain]');
+      if (del) { const row = del.closest('[data-i]'); (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]).splice(Number(row.dataset.i), 1); renderForm(); }
+      else if (gr) { const g = cfg.gold, i = g.grain.indexOf(gr.dataset.grain); if (i >= 0) g.grain.splice(i, 1); else g.grain.push(gr.dataset.grain); pruneGold(); renderForm(); }
+    });
+    $('addRule').addEventListener('click', () => { cfg.silver.rules.push({ kind: 'min', col: '', val: '', name: '' }); renderForm(); });
+    $('addMetric').addEventListener('click', () => { cfg.gold.metrics.push({ name: '', agg: 'sum', col: '', filter: '' }); renderForm(); });
+    $('addDerived').addEventListener('click', () => { cfg.gold.derived.push({ name: '', expr: '' }); renderForm(); });
+    $('useSilver').addEventListener('click', () => {
+      const r = P.silver(cfg, cfg.silver.aiReply.trim() ? (() => { const keep = cfg.layer; cfg.layer = 'silver'; const a = P.aiParse(cfg.silver.aiReply, cfg, S.parseBlocks, S.fields); cfg.layer = keep; return a; })() : null);
+      if (!r.outCols.length) { $('schemaMsg').innerHTML = S.msg('warn', 'There is no silver setup on this page yet. Set up the silver notebook first, or paste the silver table’s schema.'); return; }
+      cfg.gold.schemaText = r.outCols.map(c => c.name + ' ' + c.type).join('\n'); cfg.gold.cols = r.outCols.map(c => ({ name: c.name, type: c.type })); pruneGold(); fill(); renderForm();
+    });
+    $('startOwn').addEventListener('click', () => toBlank(null));
+    S.ownEntry({ isExample: () => st.example, toBlank });
+    S.clearSetup({ onClear: () => { const layer = cfg.layer; store.clear(); store.set('blank', true); st = { example: false, done: [] }; cfg = Object.assign(P.blank(), { layer }); fill(); renderForm(); } });
+    S.wireCopy({
+      context: () => $('contextView').textContent, aiPrompt: () => ({ name: 'notebook-logic-prompt.txt', text: $('aiPromptView').textContent }),
+      code: () => out && ({ name: out.names.nb + '.py', text: out.code }), adf: () => out && out.adf, activity: () => out && JSON.stringify(out.activity, null, 4), checks: () => out && out.checks
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+</script>
+</body>
+</html>
