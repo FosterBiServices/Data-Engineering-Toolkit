@@ -36,8 +36,9 @@
         <p>The page can&rsquo;t see your database, so you run one query and paste the result. Real column names and types are what make the output exact.</p>
       </div>
       <div class="seg" role="radiogroup" aria-label="Source kind">
+        <label><input type="radio" name="srcKind" value="medallion" data-k="src.kind"><span>Files through bronze, silver and gold</span></label>
         <label><input type="radio" name="srcKind" value="sql" data-k="src.kind"><span>A database table</span></label>
-        <label><input type="radio" name="srcKind" value="files" data-k="src.kind"><span>Files arriving in a data lake</span></label>
+        <label><input type="radio" name="srcKind" value="files" data-k="src.kind"><span>Copy or move files</span></label>
       </div>
 
       <div id="srcSql" class="pane" style="gap:14px">
@@ -64,14 +65,14 @@
 
       <div id="srcFiles" class="pane" style="gap:14px" hidden>
         <div class="qgrid">
-          <label class="lab">Landing container<input type="text" data-k="src.container" spellcheck="false" autocomplete="off" placeholder="landing"></label>
-          <label class="lab">Landing folder<input type="text" data-k="src.folder" data-own spellcheck="false" autocomplete="off" placeholder="sales/orders"></label>
+          <label class="lab">Container<input type="text" data-k="src.container" spellcheck="false" autocomplete="off" placeholder="landing"></label>
+          <label class="lab">Folder the files arrive in <span class="hint">{yyyy} {MM} {dd} allowed</span><input type="text" data-k="src.folder" data-own spellcheck="false" autocomplete="off" placeholder="yourproject/landing"></label>
           <label class="lab">File name starts with <span class="hint">optional</span><input type="text" data-k="src.starts" spellcheck="false" autocomplete="off" placeholder="orders_"></label>
           <label class="lab">File name ends with<input type="text" data-k="src.ends" spellcheck="false" autocomplete="off" placeholder=".csv"></label>
-          <label class="lab">After copying<select data-k="src.after"><option value="leave">Leave the originals where they are (a plain copy)</option><option value="delete">Delete the originals (a move)</option><option value="archive">Move the originals to archive; failures to quarantine</option></select></label>
-          <label class="lab wide">Destination folder <span class="hint">in the data lake container; {yyyy} {MM} {dd} and {run} are filled in. Empty = the raw zone path from team standards, one folder per run</span><input type="text" data-k="src.dest" spellcheck="false" autocomplete="off" placeholder="bronze/orders" id="destIn"></label>
+          <label class="lab" data-not="medallion">After copying<select data-k="src.after"><option value="leave">Leave the originals where they are (a plain copy)</option><option value="delete">Delete the originals (a move)</option><option value="archive">Move the originals to archive; failures to quarantine</option></select></label>
+          <label class="lab wide" data-not="medallion">Destination folder <span class="hint">in the data lake container; {yyyy} {MM} {dd} and {run} are filled in. Empty = the raw zone path from team standards, one folder per run</span><input type="text" data-k="src.dest" spellcheck="false" autocomplete="off" placeholder="bronze/orders" id="destIn"></label>
         </div>
-        <p class="note" id="fileNote"></p>
+        <p class="note" id="fileNote" data-not="medallion"></p>
       </div>
     </div>
   </section>
@@ -90,7 +91,7 @@
         <label class="lab wide">Goal <span class="hint">one or two sentences, in business terms; becomes the pipeline description</span><textarea data-k="goal" data-own aria-label="Goal"></textarea></label>
       </div>
 
-      <div class="sub">
+      <div class="sub" data-not="medallion">
         <h3>Source connection</h3>
         <div class="qgrid">
           <label class="lab">Linked service <span class="hint">exact name from Manage &gt; Linked services</span><input type="text" data-k="src.ls" spellcheck="false" autocomplete="off" placeholder="ls_sqlserver_salesdb_prod"></label>
@@ -99,7 +100,64 @@
         </div>
       </div>
 
-      <div class="sub">
+
+      <div class="sub" id="medSub" hidden>
+        <div class="qgrid">
+          <label class="lab">Databricks linked service <span class="hint">runs every notebook below</span><input type="text" data-k="nbLs" spellcheck="false" autocomplete="off" placeholder="ls_databricks"></label>
+          <label class="lab">Storage linked service <span class="hint">only for datasets the page creates</span><input type="text" data-k="med.ls" spellcheck="false" autocomplete="off" placeholder="ls_yourstorage"></label>
+        </div>
+        <h3>Objects</h3>
+        <div class="opts">
+          <label><input type="checkbox" data-k="med.obj.stripExt"> Object name = file name without its extension</label>
+          <label><input type="checkbox" data-k="med.obj.dash"> Replace - with _ in the object name</label>
+        </div>
+        <label class="chk"><input type="checkbox" data-k="med.lookup.on"> <b>Look up each object in a list</b>&nbsp;returned by a notebook (for its id)</label>
+        <div class="qgrid" id="lookupBox">
+          <label class="lab wide">Notebook that returns the list <span class="hint">it ends with dbutils.notebook.exit(json.dumps(rows))</span><input type="text" data-k="med.lookup.nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/platform/object_list"></label>
+          <label class="lab">Id field<input type="text" data-k="med.lookup.idField" spellcheck="false" autocomplete="off" placeholder="id"></label>
+          <label class="lab">Name field <span class="hint">matched to the object name</span><input type="text" data-k="med.lookup.nameField" spellcheck="false" autocomplete="off" placeholder="object_name"></label>
+          <label class="lab">A file whose object isn&rsquo;t in the list<select data-k="med.lookup.unknown"><option value="stop">Fails with a clear message</option><option value="continue">Is loaded anyway, with an empty id</option></select></label>
+        </div>
+
+        <h3>Bronze</h3>
+        <div class="qgrid">
+          <label class="lab">Each file is<select data-k="med.action"><option value="copy">Copied to bronze by ADF</option><option value="notebook">Loaded to bronze by a notebook</option></select></label>
+        </div>
+        <div id="medCopy" style="display:flex;flex-direction:column;gap:12px">
+          <div class="qgrid">
+            <label class="lab wide">Bronze folder<input type="text" data-k="med.bronzeFolder" spellcheck="false" autocomplete="off" placeholder="yourproject/bronze/{object}"></label>
+            <label class="lab">Bronze file name<input type="text" data-k="med.bronzeFile" spellcheck="false" autocomplete="off" placeholder="{object}.parquet"></label>
+          </div>
+          <label class="chk"><input type="checkbox" data-k="med.archive"> Archive the bronze file that&rsquo;s already there before replacing it</label>
+          <div class="qgrid" id="archiveBox">
+            <label class="lab wide">Archive folder<input type="text" data-k="med.archiveFolder" spellcheck="false" autocomplete="off" placeholder="yourproject/archive/{object}"></label>
+            <label class="lab">Archive file name<input type="text" data-k="med.archiveFile" spellcheck="false" autocomplete="off" placeholder="{yyyy}-{MM}-{dd}_{object}.parquet"></label>
+          </div>
+        </div>
+        <div id="medNb" style="display:flex;flex-direction:column;gap:10px">
+          <label class="lab">Bronze notebook path<input type="text" data-k="med.bronzeNb.path" spellcheck="false" autocomplete="off" placeholder="/Shared/yourproject/to_bronze" style="width:100%"></label>
+          <div class="details-head"><h3>Parameters it reads</h3><button type="button" class="btn" data-addp="bronze">Add a parameter</button></div>
+          <div class="rowlist" data-plist="bronze"></div>
+        </div>
+
+        <div class="details-head"><h3>Layers after bronze</h3><button type="button" class="btn" id="addStage">Add a layer</button></div>
+        <p class="note small" style="margin-top:-8px">One notebook per layer, run once per object folder (like your silver and gold), once per file, or once for the whole run (like a union into gold).</p>
+        <div id="stageList" style="display:flex;flex-direction:column;gap:12px"></div>
+
+        <p class="note small"><b>In folders and names</b> type the structure you use, with tokens where the value changes: <span class="mono" id="tokenList"></span>. Fixed text is kept as typed, slashes included.</p>
+        <div class="opts">
+          <label><input type="checkbox" data-k="med.vars"> Keep paths in pipeline variables (edit them later on the Variables tab)</label>
+          <label><input type="checkbox" data-k="med.logEach"> Log each file and layer run with my logging setup below</label>
+          <label><input type="checkbox" data-k="med.failOnError"> A file that fails makes the run fail (after it is logged)</label>
+          <label><input type="checkbox" data-k="med.sequential"> One file at a time</label>
+        </div>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Where things go, for one example file</span><span class="r"><label class="small" style="display:flex;gap:6px;align-items:center">Example file <input type="text" data-k="med.example" spellcheck="false" autocomplete="off" placeholder="orders-2026.csv" style="width:180px"></label></span></div>
+          <div id="medPreview" style="padding:10px 14px;display:flex;flex-direction:column;gap:4px;font-size:13.5px"></div>
+        </div>
+      </div>
+
+      <div class="sub" data-not="medallion">
         <h3>Target</h3>
         <div class="seg" role="radiogroup" aria-label="Target kind" data-only="sql">
           <label><input type="radio" name="tgtKind" value="sql" data-k="tgt.kind"><span>A database table</span></label>
@@ -126,6 +184,65 @@
       <div class="sub" id="dsSub">
         <h3>Datasets</h3>
         <p class="note small" style="margin-top:-6px">Use the datasets your factory already has, and the pipeline works as soon as it is pasted. Or let the page create parameterized ones.</p>
+        <div id="dsMed" style="display:flex;flex-direction:column;gap:12px">
+        <div class="dcard" data-role="list">
+          <div class="dcard-head"><span class="dtag">Lists the incoming files</span>
+            <div class="seg" role="radiogroup" aria-label="Lists the incoming files">
+              <label><input type="radio" name="dsModelist" value="new" data-dsmode="list"><span>Use the file dataset below</span></label>
+              <label><input type="radio" name="dsModelist" value="own" data-dsmode="list"><span>Use one I already have</span></label>
+            </div></div>
+          <p class="note small">Used by Get Metadata to list the folder. A folder parameter is enough (like ds_csv_folder).</p>
+          <div data-dsown="list" style="display:flex;flex-direction:column;gap:10px" hidden>
+            <textarea class="mid" data-dsjson="list" spellcheck="false" aria-label="Lists the incoming files JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
+            <div class="stats" id="dsInfolist"></div>
+            <div class="msgs" id="dsMsglist"></div>
+            <div class="rowlist" id="dsMaplist"></div>
+          </div>
+        </div>
+        <div class="dcard" data-role="read">
+          <div class="dcard-head"><span class="dtag">Reads one incoming file</span>
+            <div class="seg" role="radiogroup" aria-label="Reads one incoming file">
+              <label><input type="radio" name="dsModeread" value="new" data-dsmode="read"><span>Create one for me</span></label>
+              <label><input type="radio" name="dsModeread" value="own" data-dsmode="read"><span>Use one I already have</span></label>
+            </div></div>
+          <p class="note small">Used as the Copy source. It needs a file name parameter.</p>
+          <div data-dsown="read" style="display:flex;flex-direction:column;gap:10px" hidden>
+            <textarea class="mid" data-dsjson="read" spellcheck="false" aria-label="Reads one incoming file JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
+            <div class="stats" id="dsInforead"></div>
+            <div class="msgs" id="dsMsgread"></div>
+            <div class="rowlist" id="dsMapread"></div>
+          </div>
+        </div>
+        <div class="dcard" data-role="sink">
+          <div class="dcard-head"><span class="dtag">Bronze dataset</span>
+            <div class="seg" role="radiogroup" aria-label="Bronze dataset">
+              <label><input type="radio" name="dsModesink" value="new" data-dsmode="sink"><span>Create one for me</span></label>
+              <label><input type="radio" name="dsModesink" value="own" data-dsmode="sink"><span>Use one I already have</span></label>
+            </div></div>
+          <p class="note small">Where each file is written, and checked before archiving. Needs folder and file name parameters (like ds_parquet_file).</p>
+          <div data-dsown="sink" style="display:flex;flex-direction:column;gap:10px" hidden>
+            <textarea class="mid" data-dsjson="sink" spellcheck="false" aria-label="Bronze dataset JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
+            <div class="stats" id="dsInfosink"></div>
+            <div class="msgs" id="dsMsgsink"></div>
+            <div class="rowlist" id="dsMapsink"></div>
+          </div>
+        </div>
+        <div class="dcard" data-role="meta">
+          <div class="dcard-head"><span class="dtag">Lists layer folders</span>
+            <div class="seg" role="radiogroup" aria-label="Lists layer folders">
+              <label><input type="radio" name="dsModemeta" value="new" data-dsmode="meta"><span>Use the bronze dataset</span></label>
+              <label><input type="radio" name="dsModemeta" value="own" data-dsmode="meta"><span>Use one I already have</span></label>
+            </div></div>
+          <p class="note small">Used by Get Metadata to list the object folders before each layer. A folder parameter is enough (like ds_parquet_folder).</p>
+          <div data-dsown="meta" style="display:flex;flex-direction:column;gap:10px" hidden>
+            <textarea class="mid" data-dsjson="meta" spellcheck="false" aria-label="Lists layer folders JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
+            <div class="stats" id="dsInfometa"></div>
+            <div class="msgs" id="dsMsgmeta"></div>
+            <div class="rowlist" id="dsMapmeta"></div>
+          </div>
+        </div>
+        </div>
+        <div id="dsClassic" style="display:flex;flex-direction:column;gap:12px">
         <div class="dcard" data-role="src">
           <div class="dcard-head"><span class="dtag" id="dsTagsrc">Source</span>
             <div class="seg" role="radiogroup" aria-label="Source dataset">
@@ -153,6 +270,7 @@
             <div class="msgs" id="dsMsgtgt"></div>
             <div class="rowlist" id="dsMaptgt"></div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -217,7 +335,7 @@
           <label class="lab">Alert on failure<select data-k="alert"><option value="none">No alert</option><option value="web">Post to a URL (Logic App or Teams workflow)</option></select></label>
           <label class="lab" id="ctlBox">Control database linked service <span class="hint">where the watermark table and logging procedure live; empty = the target database</span><input type="text" data-k="ctlLs" spellcheck="false" autocomplete="off" placeholder="ls_azuresql_dw_prod"></label>
         </div>
-        <details class="extra" id="nbWrap">
+        <details class="extra" id="nbWrap" data-not="medallion">
           <summary>Run Databricks notebooks after the load <span class="muted" id="nbCount">(optional)</span></summary>
           <div class="extra-body">
             <p class="note">One notebook path per line, in the order they run (bronze, silver, gold). Each gets <span class="mono">batch_id = @pipeline().RunId</span>; a path containing &ldquo;bronze&rdquo; also gets <span class="mono">source_path</span>, pointing at what this run landed. The <a href="python-notebook-generator.html">Python Notebook Generator</a> writes notebooks that take exactly these.</p>
@@ -344,7 +462,7 @@
         <p>In ADF Studio, open the pipeline and select the code view button <span class="mono">{}</span>, then copy everything. A pipeline Copilot wrote works too: paste its whole reply. Take out connection strings and keys first.</p>
       </div>
       <div class="qgrid">
-        <label class="lab">How is this pipeline run?<select id="runBy"><option value="auto">By a trigger, a schedule or another pipeline</option><option value="manual">By hand, by someone watching it</option></select></label>
+        <label class="lab">How is this pipeline run?<select id="runBy"><option value="auto">By a trigger, a schedule or another pipeline</option><option value="manual">By hand, by someone watching it</option><option value="child">By another pipeline (Execute Pipeline)</option></select></label>
       </div>
       <div class="picker"><div class="picker-head"><h3>Checks to run</h3><span class="note small">Turn off a group that doesn&rsquo;t apply to how you work. Saved with your team standards.</span></div><div class="chips" id="offChips"></div></div>
       <textarea class="big" id="checkInput" data-own spellcheck="false" aria-label="Pipeline JSON" placeholder='{ "name": "pl_...", "properties": { "activities": [ ... ] } }'></textarea>

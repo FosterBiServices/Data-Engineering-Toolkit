@@ -19,7 +19,7 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel
 # page file -> (title, description, body part, script parts in order)
 PAGES = {
     'index.html': ('Foster BI Data Engineering Toolkit', 'Tools for building Azure Data Factory pipelines and Databricks notebooks, with or without Copilot.', 'home_body.html', ['suite.js', 'home_ui.js']),
-    'adf-pipeline-generator.html': ('ADF Pipeline Generator', 'Describe a load and get an Azure Data Factory pipeline as JSON, with datasets, supporting SQL and build steps.', 'adf_body.html', ['suite.js', 'adf_core.js', 'adf_ex.js', 'adf_ui.js']),
+    'adf-pipeline-generator.html': ('ADF Pipeline Generator', 'Describe a load and get an Azure Data Factory pipeline as JSON, with datasets, supporting SQL and build steps.', 'adf_body.html', ['suite.js', 'adf_core.js', 'adf_med.js', 'adf_ex.js', 'adf_ui.js']),
     'python-script-generator.html': ('Python Script Generator', 'A pandas script for cleaning, checking and reshaping a file, as a Jupyter notebook or a .py script.', 'ps_body.html', ['suite.js', 'ps_core.js', 'ps_ex.js', 'ps_ui.js']),
     'python-notebook-generator.html': ('Python Notebook Generator', 'Bronze, silver and gold PySpark notebooks for Databricks, built from your columns and rules and run by Azure Data Factory.', 'py_body.html', ['suite.js', 'py_core.js', 'py_ex.js', 'py_ui.js']),
 }

@@ -25,7 +25,7 @@ described in plain words, and the page checks its reply before using it.
 ## Build
 
 ```
-src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_*, py_* and ps_* (body.html, core.js, ex.js, ui.js)
+src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion), py_* and ps_* (body.html, core.js, ex.js, ui.js)
 src/brand/   logo files
 src/build.py builds every page into the repo root:  python src/build.py   (Python 3, no packages)
 src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest, pycoretest and pscoretest need only Node and
@@ -75,6 +75,30 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   (`st.runBy`) makes the failure-path findings low and optional for a pipeline run by hand; "Checks to run" turns rule
   groups off (`std.off`). `A.fixPrompt` writes a Copilot prompt with the findings and the JSON that asks for the whole
   corrected pipeline, which is pasted back into the same box and checked again.
+
+- **Files through bronze, silver and gold** (`adf_med.js`, `src.kind: 'medallion'`, the default and the example). Built in
+  Nov 2026 from the owner's real pipelines (yourproject, yourproject, pipeline three) and datasets (ds_csv_folder, ds_parquet_folder,
+  ds_parquet_file): his main process, kept general.
+  - Every folder and file name is a pattern the user types, with `{object} {file} {name} {yyyy} {MM} {dd} {HH}
+    {yesterday} {run} {pipeline}` (`A.compilePattern` -> `concat(...)`); a live preview (`A.medPreview`) shows where an
+    example file goes. With "Keep paths in pipeline variables" the fixed start of each pattern becomes a variable.
+    (Owner: "the naming is too strict... I struggled providing the correct structure to pull data from my bronze".)
+  - Object name from the file name (strip extension, `-` to `_`). Optional object list: a notebook returns rows through
+    `dbutils.notebook.exit`; per item Set Variable + Filter (item() inside a Filter is the list row, hence the variable,
+    hence sequential loops), unknown object fails clearly or loads with an empty id. Ids are read with `coalesce(first(...)?.id, '')`.
+  - Bronze: ADF Copy (optionally archive the existing bronze file first: Get Metadata `exists` on the SAME dataset
+    values the copy writes, If, Copy to archive) or a notebook per file. Then any number of layers, each a notebook run
+    once per object folder (Get Metadata + Filter Folder + ForEach), once per file, or once.
+  - Four dataset roles (`cfg.ds.list/read/sink/meta`), each the user's own or created. Logging per file and per layer
+    run uses the shared logging setup (`std.log`), with values for object id/name, file, duration, layer, global
+    parameter and ADF expression. `med.ls` is the storage linked service for created datasets; `nbLs` for notebooks.
+- Checker rules from real pipelines: default values that start with @ (never evaluated), wildcards inside a ForEach
+  that ignore item(), an existence check pointing at a different file than the copy writes, first item of a Filter with
+  no empty-check, notebook parameter names differing only by case, notebooks in /Users folders, typed-in environment
+  values. Naming/retry checks ("Standards") are off by default (`std.v = 2` migrates saved standards). "How is this
+  pipeline run?" has "By another pipeline" for Execute Pipeline children. Default logging method is none.
+- `adfmedtest.js` sets up the owner's yourproject pipeline through the page with his datasets (`/home/claude/samples`,
+  not in the repo) and expects no findings; it then runs the checker on his samples.
 
 ## Python Notebook Generator (`py_core.js`)
 

@@ -17,12 +17,18 @@
     s.log.params = rows || A.defaultLogParams();
     if (!A.LOG_METHODS.some(m => m[0] === s.log.method)) s.log.method = 'sp_new';
     s.off = s.off.filter(x => A.CHECK_GROUPS.indexOf(x) >= 0);
+    if (!(isObj(saved) && saved.v === 2)) { if (s.off.indexOf('Standards') < 0) s.off.push('Standards'); s.v = 2; }
     return s;
   }
   function readCfg(saved) {
     const c = merge(A.blank(), saved);
-    ['src', 'tgt'].forEach(k => { const d = c.ds[k], sv = isObj(saved) && isObj(saved.ds) && isObj(saved.ds[k]) ? saved.ds[k] : {}; d.mode = d.mode === 'own' ? 'own' : 'new'; d.map = {};
+    ['src', 'tgt', 'list', 'read', 'sink', 'meta'].forEach(k => { const d = c.ds[k], sv = isObj(saved) && isObj(saved.ds) && isObj(saved.ds[k]) ? saved.ds[k] : {}; d.mode = d.mode === 'own' ? 'own' : 'new'; d.map = {};
       if (isObj(sv.map)) Object.keys(sv.map).slice(0, 40).forEach(n => { const m = sv.map[n]; if (isObj(m) && typeof m.use === 'string') d.map[n] = { use: m.use, value: String(m.value == null ? '' : m.value) }; }); });
+    const sm = isObj(saved) && isObj(saved.med) ? saved.med : {}, uses = A.NB_VALUES.map(v => v[0]);
+    const rows = a => (Array.isArray(a) ? a : []).filter(isObj).slice(0, 40).map(r => ({ name: String(r.name == null ? '' : r.name).slice(0, 100), use: uses.indexOf(r.use) >= 0 ? r.use : 'text', value: String(r.value == null ? '' : r.value).slice(0, 400) }));
+    c.med.bronzeNb.params = isObj(sm.bronzeNb) && Array.isArray(sm.bronzeNb.params) ? rows(sm.bronzeNb.params) : A.medDefaults().bronzeNb.params;
+    c.med.stages = (Array.isArray(sm.stages) ? sm.stages : []).filter(isObj).slice(0, 12).map(s => ({ label: String(s.label || '').slice(0, 40), loop: ['folders', 'files', 'once'].indexOf(s.loop) >= 0 ? s.loop : 'folders', path: String(s.path || '').slice(0, 300), nbPath: String(s.nbPath || '').slice(0, 300), params: rows(s.params), log: s.log === true }));
+    if (['medallion', 'sql', 'files'].indexOf(c.src.kind) < 0) c.src.kind = 'medallion';
     return c;
   }
   function load() {
@@ -46,7 +52,7 @@
     document.querySelectorAll('[data-l]').forEach(el => { if (el !== skip && el.tagName !== 'SELECT') el.value = std.log[el.dataset.l] || ''; });
     document.querySelectorAll('[data-dsjson]').forEach(el => { if (el !== skip) el.value = cfg.ds[el.dataset.dsjson].json; });
     document.querySelectorAll('[data-dsmode]').forEach(el => { el.checked = cfg.ds[el.dataset.dsmode].mode === el.value; });
-    $('runBy').value = st.runBy === 'manual' ? 'manual' : 'auto';
+    $('runBy').value = /^(manual|child)$/.test(st.runBy) ? st.runBy : 'auto';
     if ($('checkInput') !== skip) $('checkInput').value = st.check || '';
   }
   function readEl(el) {
@@ -90,7 +96,10 @@
     'The failure path fires: a log row is written and the alert arrives', 'The trigger time and time zone are right, including daylight saving', 'No secrets or connection strings are in the pipeline JSON'];
 
   function render() {
-    const files = cfg.src.kind === 'files', sqlT = cfg.tgt.kind === 'sql' && !files, inc = !files && cfg.load.type === 'incremental';
+    const kind = cfg.src.kind, med = kind === 'medallion', files = kind !== 'sql', sqlT = cfg.tgt.kind === 'sql' && !files, inc = !files && cfg.load.type === 'incremental';
+    document.querySelectorAll('[data-not="medallion"]').forEach(el => { el.hidden = med; });
+    $('medSub').hidden = !med; $('dsMed').hidden = !med; $('dsClassic').hidden = med;
+    if (med) renderMed();
     $('exampleBanner').hidden = !st.example;
     $('srcSql').hidden = files; $('srcFiles').hidden = !files;
     document.querySelectorAll('[data-only="sql"]').forEach(el => { el.hidden = files; });
@@ -99,11 +108,12 @@
     $('overlapBox').hidden = !(inc && sqlT && cfg.load.wmType !== 'integer' && (cfg.tgt.write === 'merge' || cfg.tgt.write === 'scd2'));
     $('timeBox').hidden = cfg.sched.freq !== 'daily'; $('tzBox').hidden = cfg.sched.freq === 'none';
     $('aiStep').hidden = files;
-    renderDatasets(files, sqlT); renderLogging(files, sqlT, inc);
+    renderDatasets(files, sqlT, med); renderLogging(files, sqlT, inc);
+    if (med) $('ctlBox').hidden = !/^sp_/.test(std.log.method);
     const mode = cfg.src.after, nm0 = A.names(cfg, std);
     $('fileNote').textContent = (mode === 'leave' ? 'Each run copies every matching file to the destination folder and leaves the originals. Running it again copies them again, so give each run its own folder with {run} or dates if the next step shouldn\u2019t see a file twice.' : mode === 'delete' ? 'Each run copies every matching file to the destination folder, then deletes the original once its copy succeeded.' : 'Each run lands every matching file exactly as it arrived, moves the original to the archive, and moves a file that can\u2019t be copied to quarantine.') + ' Cleaning and loading happen in the next layer (a bronze notebook, for example).';
     $('destIn').placeholder = std.rawPath.replace('{source}', nm0.srcShort).replace('{object}', nm0.obj) + '/{run}';
-    $('ctlBox').hidden = !(inc || std.log.method === 'sp_new' || std.log.method === 'sp_own');
+    if (!med) $('ctlBox').hidden = !(inc || std.log.method === 'sp_new' || std.log.method === 'sp_own');
     /* step 1 */
     $('schemaQueryView').textContent = A.schemaQuery(cfg.src.schema, [cfg.src.table.trim()]);
     const parsed = A.parseSchema(cfg.schemaText), cols = A.tableCols(cfg);
@@ -158,7 +168,7 @@
       const own = A.check(out.pipeline, std, { off: out.names.noHandler ? ['Failure path'] : [] }).filter(f => f.sev !== 'low');
       $('outWrap').hidden = false; $('outMsg').innerHTML = own.length ? S.msg('warn', 'The page’s own checks found something in this pipeline:<ul>' + own.map(f => '<li>' + esc((f.activity ? f.activity + ': ' : '') + f.msg) + '</li>').join('') + '</ul>') : '';
       const flow = A.flow(out.pipeline);
-      const pattern = files ? 'File landing' : (inc ? 'Watermark incremental' : 'Full load') + (out.staged ? (out.write === 'scd2' ? ' + SCD Type 2' : ' + merge') : '');
+      const pattern = med ? 'Files through ' + ['bronze'].concat(cfg.med.stages.map(s => s.label || 'layer')).join(', ') : files ? 'File landing' : (inc ? 'Watermark incremental' : 'Full load') + (out.staged ? (out.write === 'scd2' ? ' + SCD Type 2' : ' + merge') : '');
       $('outStats').innerHTML = '<span class="stat">Pattern <b>' + esc(pattern) + '</b></span><span class="stat"><b>' + flow.length + '</b> activities</span><span class="stat"><b>' + out.datasets.length + '</b> datasets</span>' + (own.length ? '' : '<span class="stat" style="background:var(--ok-soft);color:var(--ok)">Structure checks passed</span>') + (out.placeholders.length ? '<span class="stat limited"><b>' + out.placeholders.length + '</b> placeholders to replace</span>' : '');
       $('flowBody').innerHTML = flowRows(flow);
       $('plTitle').textContent = 'Pipeline JSON · ' + out.names.pipeline; $('plView').textContent = out.json;
@@ -176,11 +186,12 @@
   }
 
   const optsHtml = (list, cur) => list.map(o => '<option value="' + esc(o[0]) + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('');
-  const typing = box => box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
-  function renderDatasets(files, sqlT) {
-    [['src', 'Source'], ['tgt', files ? 'Destination' : 'Target']].forEach(([k, label]) => {
+  let fromInput = false;   /* only an input event keeps the box being typed in from redrawing */
+  const typing = box => fromInput && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+  function renderDatasets(files, sqlT, med) {
+    (med ? [['list'], ['read'], ['sink'], ['meta']] : [['src', 'Source'], ['tgt', files ? 'Destination' : 'Target']]).forEach(([k, label]) => {
       const d = cfg.ds[k], wantFile = files || (k === 'tgt' && !sqlT);
-      $('dsTag' + k).textContent = label;
+      if (label) $('dsTag' + k).textContent = label;
       document.querySelector('[data-dsown="' + k + '"]').hidden = d.mode !== 'own';
       if (d.mode !== 'own') return;
       const r = A.readDataset(d.json), own = A.ownDs(cfg, k), map = $('dsMap' + k);
@@ -192,6 +203,24 @@
       map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
         + (m.use === 'fixed' ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="value to pass" spellcheck="false" aria-label="Fixed value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
     });
+  }
+  const NBV = A.NB_VALUES;
+  const paramRows = (list, key) => list.map((r, i) => '<div class="rrow log4" data-pkey="' + key + '" data-pi="' + i + '"><input type="text" data-pf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-pf="use" aria-label="Value">' + optsHtml(NBV, r.use) + '</select>'
+    + (/^(text|global|expr)$/.test(r.use) ? '<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')" }[r.use]) + '" spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
+  const listFor = key => (key === 'bronze' ? cfg.med.bronzeNb.params : (cfg.med.stages[Number(key.slice(1))] || {}).params);
+  function renderMed() {
+    const m = cfg.med;
+    $('lookupBox').hidden = !m.lookup.on; $('medCopy').hidden = m.action !== 'copy'; $('medNb').hidden = m.action !== 'notebook'; $('archiveBox').hidden = !m.archive;
+    $('tokenList').textContent = A.TOKENS.map(t => '{' + t[0] + '}').join(' ');
+    const pb = document.querySelector('[data-plist="bronze"]'); if (!typing(pb)) pb.innerHTML = paramRows(m.bronzeNb.params, 'bronze');
+    const sl = $('stageList');
+    if (!typing(sl)) sl.innerHTML = m.stages.map((s, i) => '<div class="dcard" data-si="' + i + '"><div class="dcard-head"><span class="dtag">Layer ' + (i + 2) + '</span><input type="text" data-sf="label" value="' + esc(s.label) + '" placeholder="silver" spellcheck="false" aria-label="Layer name" style="max-width:160px"><button type="button" class="linkbtn" data-delstage style="margin-left:auto">Remove</button></div>'
+      + '<div class="qgrid"><label class="lab">Runs<select data-sf="loop">' + optsHtml([['folders', 'Once per object folder'], ['files', 'Once per file'], ['once', 'Once for the whole run']], s.loop) + '</select></label>'
+      + (s.loop === 'folders' ? '<label class="lab wide">Folder that holds the object folders<input type="text" data-sf="path" value="' + esc(s.path) + '" placeholder="yourproject/bronze" spellcheck="false"></label>' : '')
+      + '<label class="lab wide">Notebook path<input type="text" data-sf="nbPath" value="' + esc(s.nbPath) + '" placeholder="/Shared/yourproject/to_silver" spellcheck="false"></label></div>'
+      + '<div class="details-head"><h3>Parameters it reads</h3><button type="button" class="btn" data-addp="s' + i + '">Add a parameter</button></div><div class="rowlist" data-plist="s' + i + '">' + paramRows(s.params, 's' + i) + '</div>'
+      + '<label class="chk small"><input type="checkbox" data-sf="log"' + (s.log ? ' checked' : '') + '> Log each run of this notebook with my logging setup</label></div>').join('') || '<p class="note small">No layers yet. Bronze only, or add silver and gold.</p>';
+    $('medPreview').innerHTML = A.medPreview(cfg).map(r => '<div><span class="muted">' + esc(r[0]) + ':</span> <span class="mono" style="overflow-wrap:anywhere">' + esc(r[1]) + '</span></div>').join('');
   }
   function renderLogging(files, sqlT, inc) {
     const lg = std.log, m = lg.method;
@@ -205,7 +234,7 @@
           : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
     const box = $('logRows'); if (typing(box)) return;
     box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(A.LOG_VALUES, r.use) + '</select>'
-      + (r.use === 'fixed' ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="text to pass" spellcheck="false" aria-label="Fixed text">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+      + (/^(fixed|global|expr)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')" }[r.use]) + '" spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
   }
 
   function renderCheck() {
@@ -213,7 +242,7 @@
     const r = A.readPipeline(st.check); checkRes = null;
     if (r.empty) { $('checkOut').hidden = true; $('checkMsg').innerHTML = ''; return; }
     if (r.error) { $('checkOut').hidden = true; $('checkMsg').innerHTML = S.msg('err', esc(r.error)); return; }
-    const manual = st.runBy === 'manual', F = A.check(r.pipeline, std, { manual, off: std.off }), flow = A.flow(r.pipeline), ph = A.placeholders(JSON.stringify(r.pipeline));
+    const manual = st.runBy === 'manual', F = A.check(r.pipeline, std, { manual, child: st.runBy === 'child', off: std.off }), flow = A.flow(r.pipeline), ph = A.placeholders(JSON.stringify(r.pipeline));
     checkRes = { F, name: r.pipeline.name || '(no name)' };
     const n = s => F.filter(f => f.sev === s).length;
     $('checkMsg').innerHTML = ph.length ? S.msg('warn', '<b>Placeholders still in the JSON:</b> ' + ph.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
@@ -227,7 +256,7 @@
   }
 
   function toBlank(keep) {
-    cfg = A.blank(); st.example = false; st.check = ''; ai = null;
+    const kind = cfg.src.kind; cfg = A.blank(); cfg.src.kind = kind; st.example = false; st.check = ''; ai = null;
     if (keep && keep.dataset && keep.dataset.k && (keep.tagName === 'SELECT' || keep.type === 'radio' || keep.type === 'checkbox')) readEl(keep);
     fill(keep); render();
   }
@@ -245,15 +274,27 @@
     document.querySelectorAll('[data-done]').forEach(el => { el.checked = st.done.indexOf(el.dataset.done) >= 0; });
 
     const ownField = el => el.dataset && (el.dataset.k || el.dataset.s || el.dataset.l || el.dataset.dsjson);
-    document.addEventListener('input', e => {
+    document.addEventListener('input', e => { fromInput = true; try {
+      const el = e.target; if (!el.dataset) return;
+      const pr = el.closest('[data-pi]'), sc = el.closest('[data-si]');
+      if (pr && el.dataset.pf && el.tagName === 'INPUT') { const r = (listFor(pr.dataset.pkey) || [])[Number(pr.dataset.pi)]; if (r) r[el.dataset.pf] = el.value; render(); e.stopImmediatePropagation(); return; }
+      if (sc && el.dataset.sf && el.tagName === 'INPUT' && el.type === 'text') { const s = cfg.med.stages[Number(sc.dataset.si)]; if (s) s[el.dataset.sf] = el.value; render(); e.stopImmediatePropagation(); }
+    } finally { fromInput = false; }
+    }, true);
+    document.addEventListener('input', e => { fromInput = true; try {
       const el = e.target, row = el.closest && el.closest('[data-logrow]');
       if (row && el.dataset.lf && el.tagName === 'INPUT') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; render(); return; }
       if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed]; d.map[el.dataset.p] = { use: 'fixed', value: el.value }; render(); return; }
+      if (el.closest('[data-pi]') || el.closest('[data-si]')) return;
       if (!ownField(el) && el.id !== 'checkInput') return; readEl(el); render();
+    } finally { fromInput = false; }
     });
     document.addEventListener('change', e => {
       const el = e.target;
       if (el.dataset && el.dataset.done != null) { st.done = Array.from(document.querySelectorAll('[data-done]')).filter(x => x.checked).map(x => x.dataset.done); save(); return; }
+      const pr = el.closest && el.closest('[data-pi]'), sc = el.closest && el.closest('[data-si]');
+      if (pr && el.dataset.pf === 'use') { const r = (listFor(pr.dataset.pkey) || [])[Number(pr.dataset.pi)]; if (r) r.use = el.value; render(); return; }
+      if (sc && el.dataset.sf && (el.tagName === 'SELECT' || el.type === 'checkbox')) { const s = cfg.med.stages[Number(sc.dataset.si)]; if (s) s[el.dataset.sf] = el.type === 'checkbox' ? el.checked : el.value; render(); return; }
       const row = el.closest && el.closest('[data-logrow]');
       if (row && el.dataset.lf === 'use') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r.use = el.value; render(); return; }
       if (el.dataset && el.dataset.dsmap) { const own = A.ownDs(cfg, el.dataset.dsmap); const prev = own && own.map[el.dataset.p]; cfg.ds[el.dataset.dsmap].map[el.dataset.p] = { use: el.value, value: prev ? prev.value : '' }; render(); return; }
@@ -265,10 +306,17 @@
       else if (c && !c.disabled) { const n = c.dataset.col, i = cfg.exclude.indexOf(n); if (i >= 0) cfg.exclude.splice(i, 1); else cfg.exclude.push(n); render(); }
     });
     document.addEventListener('click', e => {
+      const ap = e.target.closest('[data-addp]'), dp = e.target.closest('[data-delp]'), ds = e.target.closest('[data-delstage]');
+      if (ap) { (listFor(ap.dataset.addp) || []).push({ name: '', use: 'text', value: '' }); render(); return; }
+      if (dp) { const pr = dp.closest('[data-pi]'); (listFor(pr.dataset.pkey) || []).splice(Number(pr.dataset.pi), 1); render(); return; }
+      if (ds) { cfg.med.stages.splice(Number(ds.closest('[data-si]').dataset.si), 1); render(); return; }
       const off = e.target.closest('[data-off]'), del = e.target.closest('[data-logdel]');
       if (off) { const g = off.dataset.off, i = std.off.indexOf(g); if (i >= 0) std.off.splice(i, 1); else std.off.push(g); render(); }
       else if (del) { std.log.params.splice(Number(del.closest('[data-logrow]').dataset.logrow), 1); render(); }
     });
+    $('addStage').addEventListener('click', () => { const n = cfg.med.stages.length, label = ['silver', 'gold'][n] || 'layer_' + (n + 2), prev = cfg.med.stages[n - 1];
+      const base = (cfg.med.bronzeFolder.split('{')[0] || '').replace(/\/+$/, '');
+      cfg.med.stages.push(A.medStage(label, 'folders', n === 0 ? base : (prev && prev.path ? prev.path.replace(/bronze/i, 'silver') : ''))); render(); });
     $('addLogParam').addEventListener('click', () => { std.log.params.push({ name: '', use: 'fixed', value: '' }); render(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     $('stdReset').addEventListener('click', () => { std = A.defaultStandards(); fill(); render(); });

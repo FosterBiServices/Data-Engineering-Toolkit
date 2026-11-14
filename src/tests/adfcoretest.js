@@ -1,8 +1,8 @@
 // Builds every pattern and runs the page's own checker on each: no high or medium findings expected.
-const S = require('../parts/suite.js'), A = require('../parts/adf_core.js'), EX = require('../parts/adf_ex.js');
+const S = require('../parts/suite.js'), A = require('../parts/adf_core.js'); require('../parts/adf_med.js'); const EX = require('../parts/adf_ex.js');
 let bad = 0;
 const run = (label, edit, want) => {
-  const c = EX(A.blank); c.ai.reply = ''; c.ai.request = ''; edit(c);
+  const c = EX(A.blank); c.src.kind = 'sql'; c.ai.reply = ''; c.ai.request = ''; edit(c);
   const errs = A.problems(c, c._std || A.defaultStandards()).filter(p => p.sev === 'err' && !/Overwrite with an incremental/.test(p.msg));
   if (want === 'blocked') { console.log(label, errs.length ? 'blocked as expected: ' + errs[0].msg.slice(0, 60) : 'NOT BLOCKED'); if (!errs.length) bad++; return; }
   if (errs.length) { bad++; console.log(label, 'setup errors', errs.map(e => e.msg)); return; }
@@ -40,7 +40,7 @@ run('files, own destination with no folder, plain copy', c => { own(c, null, DS(
 run('sql with own table datasets', c => { c.ds.src = { mode: 'own', map: {}, json: JSON.stringify({ name: 'ds_src_any', properties: { linkedServiceName: { referenceName: 'ls_sql_src' }, type: 'SqlServerTable', parameters: { SchemaName: { type: 'string' }, TableName: { type: 'string' } }, typeProperties: { schema: E('SchemaName'), table: E('TableName') } } }) }; c.ds.tgt = { mode: 'own', map: {}, json: JSON.stringify({ name: 'ds_dw_any', properties: { linkedServiceName: { referenceName: 'ls_azuresql_dw_prod' }, type: 'AzureSqlTable', parameters: { s: { type: 'string' }, t: { type: 'string' } }, typeProperties: { schema: E('s'), table: E('t') } } }) }; });
 run('own target without table parameters + merge', c => { c.ds.tgt = { mode: 'own', map: {}, json: JSON.stringify({ name: 'ds_fixed', properties: { type: 'AzureSqlTable', typeProperties: { schema: 'dw', table: 'fact_orders' } } }) }; }, 'blocked');
 run('own dataset: pipeline JSON pasted by mistake', c => { c.ds.src = { mode: 'own', map: {}, json: '{"name":"pl","properties":{"activities":[]}}' }; }, 'blocked');
-const o2 = run('log with own notebook', withLog({ method: 'notebook', nbPath: '/Shared/util/nb_log', nbLs: 'ls_dbx', params: [{ name: 'pipeline', use: 'pipeline' }, { name: 'rows', use: 'rows_written' }, { name: 'status', use: 'status' }, { name: 'err', use: 'error' }, { name: 'env', use: 'fixed', value: 'dev' }] }, c => {}));
+const o2 = run('log with own notebook', withLog({ method: 'notebook', nbPath: '/Shared/util/nb_log', nbLs: 'ls_dbx', params: [{ name: 'pipeline', use: 'pipeline' }, { name: 'rows', use: 'rows_written' }, { name: 'status', use: 'status' }, { name: 'err', use: 'error' }, { name: 'source_system', use: 'fixed', value: 'sales' }] }, c => {}));
 console.log('   notebook log params:', JSON.stringify(o2.pipeline.properties.activities.find(a => a.name === 'nb_log_failure').typeProperties.baseParameters).slice(0, 150));
 const o3 = run('log with own procedure', withLog({ method: 'sp_own', proc: '[audit].[usp_log]', params: [{ name: '@PipelineName', use: 'pipeline' }, { name: 'RowsCopied', use: 'rows_written' }] }, c => {}));
 console.log('   own proc:', JSON.stringify(o3.pipeline.properties.activities.find(a => a.name === 'sp_log_success').typeProperties), '| log table in SQL (expect false):', /pipeline_run_log/.test(o3.sql));
@@ -60,7 +60,7 @@ run('merge without key', c => { c.load.keys = []; }, 'blocked');
 run('incremental without change column', c => { c.load.wmCol = ''; }, 'blocked');
 run('wrong watermark type', c => { c.load.wmCol = 'Status'; }, 'blocked');
 // Copilot reply parsing
-const c = EX(A.blank);
+const c = EX(A.blank); c.src.kind = 'sql';
 c.ai.reply = "@@@ COLUMN @@@\nNAME: OrderYear\nTYPE: int\nEXPR: YEAR([OrderDate])\n@@@ COLUMN @@@\nNAME: Bad\nTYPE: int\nEXPR: (SELECT 1); DROP TABLE x\n@@@ COLUMN @@@\nNAME: Ghost\nTYPE: int\nEXPR: [Nope] + 1\n@@@ COLUMN @@@\nNAME: OrderID\nTYPE: int\nEXPR: [OrderID] * 2\n@@@ FILTER @@@\nWHERE [Amount] >= 0\n@@@ COLUMN @@@\nNAME: column name\nTYPE: sql type\nEXPR: t-sql expression";
 const ai = A.aiParse(c.ai.reply, c, S.parseBlocks, S.fields);
 console.log('ai ok (expect OrderYear):', ai.ok.map(x => x.name), '| rejected (expect Bad, Ghost, OrderID):', ai.items ? '' : ai.columns.filter(x => x.problems.length).map(x => x.name), '| filter:', ai.filterOk);

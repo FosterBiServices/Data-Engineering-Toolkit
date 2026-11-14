@@ -33,7 +33,7 @@ const DS = (name, type) => JSON.stringify({ name, properties: { linkedServiceNam
   const rows = () => [...document.querySelectorAll('#findBody tr')].map(r => r.children[0].textContent + ' | ' + r.children[2].textContent + ' | ' + r.children[3].textContent.slice(0, 60) + ' ... ' + (r.querySelector('.fix') ? 'FIX: ' + r.querySelector('.fix').textContent.slice(12, 90) : 'no fix'));
   await T('findings, run by trigger', rows);
   await page.selectOption('#runBy', 'manual'); await T('findings, run by hand', rows);
-  await page.click('#offChips [data-off="Failure path"]'); await T('Failure path off (expect none or stats only)', () => [document.querySelectorAll('#findBody tr').length, document.getElementById('checkStats').textContent]);
+  await page.click('#offChips [data-off="Failure path"]'); await T('Failure path off (expect 1 low: environment = dev typed in)', () => [document.querySelectorAll('#findBody tr').length, document.getElementById('checkStats').textContent]);
   await page.click('#offChips [data-off="Failure path"]');
   await T('fix prompt: ends properly, has JSON', () => { const t = document.getElementById('fixView').textContent; return [t.length, /=== END OF PROMPT ===\s*$/.test(t), t.includes('"nb_log_failure"')]; });
   await page.setViewportSize({ width: 390, height: 800 }); await T('390px check tab overflow (expect 0)', () => document.documentElement.scrollWidth - window.innerWidth);
