@@ -5,12 +5,14 @@
   S.SITE = 'Foster BI Data Engineering Toolkit';
   S.TOOLS = [
     { file: 'adf-pipeline-generator.html', name: 'ADF Pipeline Generator', prefix: 'dea.' },
-    { file: 'python-notebook-generator.html', name: 'Python Notebook Generator', prefix: 'dep.' }
+    { file: 'python-notebook-generator.html', name: 'Python Notebook Generator (Databricks)', prefix: 'dep.' },
+    { file: 'python-script-generator.html', name: 'Python Script Generator (pandas)', prefix: 'des.' }
   ];
   S.PREFIXES = S.TOOLS.map(t => t.prefix);
   S.NEXT = {
     'adf-pipeline-generator.html': [['python-notebook-generator.html', 'Write the Databricks notebooks this pipeline runs']],
-    'python-notebook-generator.html': [['adf-pipeline-generator.html', 'Build the ADF pipeline that runs this notebook']]
+    'python-notebook-generator.html': [['adf-pipeline-generator.html', 'Build the ADF pipeline that runs this notebook'], ['python-script-generator.html', 'Prepare a file with pandas, outside Databricks']],
+    'python-script-generator.html': [['python-notebook-generator.html', 'Do this at scale in Databricks: bronze, silver and gold notebooks'], ['adf-pipeline-generator.html', 'Load the cleaned data on a schedule with Azure Data Factory']]
   };
   S.END = '=== END OF PROMPT ===';
   S.READ_RULE = '\n\nHOW TO READ THIS PROMPT\n'

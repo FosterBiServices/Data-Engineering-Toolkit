@@ -25,10 +25,11 @@ described in plain words, and the page checks its reply before using it.
 ## Build
 
 ```
-src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* and py_* (body.html, core.js, ex.js, ui.js)
+src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_*, py_* and ps_* (body.html, core.js, ex.js, ui.js)
 src/brand/   logo files
 src/build.py builds every page into the repo root:  python src/build.py   (Python 3, no packages)
-src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest and pycoretest need only Node and Python
+src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest, pycoretest and pscoretest need only Node and
+             Python (pscoretest also runs the scripts when pandas, openpyxl and pyarrow are installed)
 ```
 
 `*_core.js` has no DOM: all generation and checking lives there, so Node can test it. `*_ui.js` is wiring only.
@@ -37,6 +38,7 @@ src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest and pycoret
 |---|---|---|
 | adf-pipeline-generator | `dea.` | optional |
 | python-notebook-generator | `dep.` | optional |
+| python-script-generator | `des.` | optional |
 
 Adding a tool: parts in `src/parts/`, an entry in `PAGES` in build.py, `S.TOOLS` and `S.NEXT` in suite.js, a card in
 home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagetest.js too).
@@ -65,6 +67,25 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
 - Every notebook ends with `dbutils.notebook.exit(json.dumps({status, batch_id, rows_read, rows_written, rows_quarantined, ...}))`.
 - pycoretest.js generates notebooks for many setups and checks each parses as Python.
 
+## Python Script Generator (`ps_core.js`)
+
+Added Nov 2026 when the owner asked for plain Python outside Databricks ("jupyter notebook or some other tool"). One
+pandas script per file, modelled on the owner's own snippet notebooks (read, clean headers, dedupe, validate, write).
+
+- `K.build(cfg, ai)` returns sections (title, markdown, code) and renders them twice: `.py` with `# %%` cells and
+  `.ipynb` (nbformat 4.4). Same code in both.
+- Order in the script: settings > read (everything as text; only empty is missing) > trim > types (`CONVERT`, failures
+  noted, never guessed) > Copilot columns > lookup from a second file > filter > dedupe > checks > summary > write.
+- The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
+- Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
+- The pasted sample rows are never saved (only column names and types are); `st.example` refills the example sample.
+- Copilot blocks: COLUMN (NAME, EXPR) and one FILTER (KEEP_WHEN), vetted by `K.vetExpr` (only df/pd/np, known columns,
+  no lambda, imports or file access).
+- pscoretest.js writes sample files and **runs** each generated script with pandas (3.0 here), then reads the output
+  back. Found that way: regex patterns passed to `.str.replace` must hold the real characters, not `\u` escapes
+  (pandas' Arrow-backed strings reject them).
+- Not checked: pandas 1.x / 2.x, opening the `.ipynb` in Jupyter itself, real Copilot replies.
+
 ## Not yet run in a real factory or workspace
 
 - The pipeline JSON pasted into ADF Studio's code view and validated, for each pattern.
@@ -80,4 +101,6 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
 ## Backlog
 
 Metadata-driven ingestion (control table + ForEach), hard deletes by key comparison, loading files into SQL, SCD2 in
-silver, a generated test notebook, a spec/brief export for design review, Fabric Data Factory.
+silver, a generated test notebook, a spec/brief export for design review, Fabric Data Factory. Python Script Generator:
+several input files (folder of files appended), SQL and API sources, pivot/unpivot, compare two files (Sheet Recon in the
+Power BI toolkit already does this in the browser).

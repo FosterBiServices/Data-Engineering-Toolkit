@@ -1,11 +1,12 @@
 # Foster BI Data Engineering Toolkit
 
-Single-file HTML tools for building Azure Data Factory pipelines and the Databricks notebooks they run. Nothing to install: each page runs in the browser, saves only to that browser, and sends nothing anywhere. Copilot is optional and only used for logic described in plain words; the pages check its reply before using it.
+Single-file HTML tools for building Azure Data Factory pipelines, the Databricks notebooks they run, and pandas scripts for files. Nothing to install: each page runs in the browser, saves only to that browser, and sends nothing anywhere. Copilot is optional and only used for logic described in plain words; the pages check its reply before using it.
 
 | Page | What it does | AI |
 |---|---|---|
 | [ADF Pipeline Generator](adf-pipeline-generator.html) | A described load in; pipeline JSON, datasets, supporting SQL, trigger, build steps and test plan out. Patterns: full load, watermark incremental, incremental + merge, SCD Type 2, file landing. Also checks any pipeline JSON you paste. | Not needed; Copilot optional |
-| [Python Notebook Generator](python-notebook-generator.html) | Bronze, silver and gold PySpark notebooks from your columns, key, quality rules and metrics, with ADF activity settings and SQL checks. | Not needed; Copilot optional |
+| [Python Notebook Generator](python-notebook-generator.html) | For Databricks: bronze, silver and gold PySpark notebooks from your columns, key, quality rules and metrics, with ADF activity settings and SQL checks. | Not needed; Copilot optional |
+| [Python Script Generator](python-script-generator.html) | A pandas script for one file (CSV, Excel, Parquet): rename and type columns, filter, remove duplicates, look up from a second file, check values, summarize, write the result. As a Jupyter notebook or a .py script. | Not needed; Copilot optional |
 
 ## Publish with GitHub Pages
 

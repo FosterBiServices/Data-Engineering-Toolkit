@@ -4,7 +4,7 @@
       <div class="txt">
         <img class="home-logo" src="@@HOMELOGO@@" alt="Foster BI Services">
         <h1>Foster BI Data Engineering Toolkit</h1>
-        <p class="lede">Tools for building Azure Data Factory pipelines and the Databricks notebooks they run. Each page writes the exact parts itself; Copilot is optional and only for logic described in plain words.</p>
+        <p class="lede">Tools for building Azure Data Factory pipelines, the Databricks notebooks they run, and pandas scripts for files. Each page writes the exact parts itself; Copilot is optional and only for logic described in plain words.</p>
       </div>
     </div>
   </header>
@@ -14,11 +14,12 @@
   <div class="cards" id="tools"></div>
 
   <section class="about">
-    <h2>How the two tools fit together</h2>
+    <h2>How the tools fit together</h2>
     <ul>
       <li><b>ADF Pipeline Generator</b> moves the data: from a database table or landed files into a database table or the raw zone, with a watermark, a run log and a failure path. It can then run your notebooks, passing each one <span class="mono">batch_id</span> and the path it landed.</li>
       <li><b>Python Notebook Generator</b> writes those notebooks: bronze lands the files, silver cleans and merges them, gold aggregates for reporting. Each returns its row counts to ADF.</li>
-      <li>Both are safe to rerun for the same window or batch, and both keep bad data visible (a quarantine folder or table) and never drop it silently.</li>
+      <li><b>Python Script Generator</b> is for work outside the pipeline: a pandas script or Jupyter notebook that cleans and checks one file on your own computer.</li>
+      <li>All three are safe to rerun, and keep bad data visible (a quarantine folder or table, or a rejected-rows file) and never drop it silently.</li>
     </ul>
   </section>
 
@@ -28,7 +29,7 @@
       <li><b>Nothing leaves your browser.</b> The pages don&rsquo;t send data anywhere. A prompt only reaches Copilot when you paste it yourself, and it carries column names and types, never rows of data.</li>
       <li><b>What the pages keep:</b> your entries and team standards, in this browser&rsquo;s storage for this site. They aren&rsquo;t on another computer or in another browser.</li>
       <li><b>Never paste secrets.</b> Connection strings, keys and passwords belong in Azure Key Vault, reached through the linked service. The pipeline checker flags anything that looks like one.</li>
-      <li><b>Clear entries</b> on each tool empties that tool. <button type="button" class="linkbtn" id="clearAllHome">Clear all pages</button> empties both.</li>
+      <li><b>Clear entries</b> on each tool empties that tool. <button type="button" class="linkbtn" id="clearAllHome">Clear all pages</button> empties them all.</li>
     </ul>
     <div id="homeMsg" class="msgs"></div>
   </section>

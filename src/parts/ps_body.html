@@ -1,0 +1,179 @@
+<div class="wrap">
+
+  <header class="top">
+    <div class="brandbar">
+      <img src="@@ICON@@" alt="Foster BI Services">
+      <div class="txt">
+        <span class="eyebrow">Data engineering toolkit</span>
+        <h1>Python Script Generator</h1>
+        <p class="lede">A pandas script for cleaning, checking and reshaping a file, as a Jupyter notebook or a plain .py script that runs on your own computer. No AI needed; Copilot is optional for logic in plain words.</p>
+      </div>
+      <button type="button" class="clear-btn" id="clearEntries" aria-controls="clearConfirm" aria-expanded="false">Clear entries</button>
+    </div>
+    <div class="clear-confirm" id="clearConfirm" role="alertdialog" aria-labelledby="clearMsg" hidden>
+      <span id="clearMsg"><b>Clear all entries?</b> This empties every box on this page and removes what this page saved in your browser. It can&rsquo;t be undone.</span>
+      <span class="btns"><button type="button" class="btn danger" id="clearYes">Clear entries</button><button type="button" class="btn" id="clearAllPages">Clear all pages</button><button type="button" class="btn" id="clearNo">Cancel</button></span>
+    </div>
+    <div class="clear-done msg ok" id="clearDone" role="status" hidden>Entries cleared. Start with your file in Step 1.</div>
+    <div class="banner" id="exampleBanner" hidden>
+      <span><strong>Example data loaded.</strong> An orders file, to show what the page makes. Pasting or typing in a main box replaces the whole example with your own.</span>
+      <span class="btns"><button class="btn" id="startOwn" type="button">Start with my own</button></span>
+    </div>
+  </header>
+
+  <section class="step" aria-labelledby="s1">
+    <div class="step-num">Step<b>1</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s1">Describe the file</h2>
+        <p>The page can&rsquo;t open your file, so you show it the header row and a few rows. It reads the column names and suggests a type for each.</p>
+      </div>
+      <div class="qgrid">
+        <label class="lab">File type<select data-k="input.kind"><option value="csv">CSV or text file</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option></select></label>
+        <label class="lab wide">Path to the file <span class="hint">as you would type it on your computer; a name alone means the folder the script runs in</span><input type="text" data-k="input.path" data-own spellcheck="false" autocomplete="off" placeholder="C:\Data\orders.csv"></label>
+        <label class="lab" data-kind="excel">Sheet name <span class="hint">empty = the first sheet</span><input type="text" class="plain" data-k="input.sheet" spellcheck="false" autocomplete="off" placeholder="Sheet1"></label>
+        <label class="lab" data-kind="csv">Separator<select data-k="input.sep"><option value=",">Comma</option><option value=";">Semicolon</option><option value="tab">Tab</option><option value="|">Pipe |</option></select></label>
+        <label class="lab" data-kind="csv">Encoding<select data-k="input.encoding"><option value="utf-8">UTF-8</option><option value="utf-8-sig">UTF-8 with BOM</option><option value="cp1252">Windows (cp1252)</option><option value="latin-1">Latin-1</option></select></label>
+        <label class="lab" data-kind="csv excel">Rows to skip above the header<input type="number" min="0" max="1000" data-k="input.skip"></label>
+      </div>
+      <ol class="how">
+        <li>Open the file and copy the header row with the next few rows (in Excel, select the cells; in a text file, the lines).</li>
+        <li>Paste them below. Five to twenty rows are enough.</li>
+      </ol>
+      <textarea class="mid" id="sampleIn" data-own spellcheck="false" aria-label="Header row and sample rows" placeholder="Paste the header row and a few rows here"></textarea>
+      <div id="sampleStats" class="stats" aria-live="polite"></div>
+      <div id="sampleMsg" class="msgs"></div>
+      <p class="note"><b>The rows you paste aren&rsquo;t kept.</b> The page reads the column names and types from them and saves only those. Nothing is sent anywhere, and a Copilot prompt never includes them.</p>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s2">
+    <div class="step-num">Step<b>2</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s2">Choose and type the columns</h2>
+        <p>The script reads everything as text, then converts each column to the type you set here. A value that can&rsquo;t be converted is listed as a problem, never guessed.</p>
+      </div>
+      <div class="tablewrap"><table class="maptable"><thead><tr><th class="ck">Keep</th><th>Column in the file</th><th>New name</th><th>Type</th><th class="ck">Key</th><th class="ck">Required</th></tr></thead><tbody id="mapBody"></tbody></table></div>
+      <div class="opts">
+        <label><input type="checkbox" data-k="opts.trim"> Trim spaces around text</label>
+        <label><input type="checkbox" data-k="opts.emptyNa"> Treat empty text as missing</label>
+        <label><input type="checkbox" data-k="opts.dropBlank"> Drop completely blank rows</label>
+        <label><input type="checkbox" data-k="opts.dayFirst"> Dates are written day first (31/12/2026)</label>
+      </div>
+      <p class="note small"><b>Key</b>: the column or columns that identify one row. <b>Required</b>: a row with no value there is a problem. Codes with leading zeros (ZIP, account numbers) are suggested as Text so the zeros survive.</p>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s3">
+    <div class="step-num">Step<b>3</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s3">Shape and check it</h2>
+        <p>Everything here is optional. The script does them in this order and prints how many rows each one changed.</p>
+      </div>
+
+      <label class="lab">Keep only rows where <span class="hint">optional; pandas query, with your new column names: amount &gt; 0 and status != "TEST"</span><input type="text" data-k="filter" spellcheck="false" autocomplete="off" placeholder='status != "TEST"' style="width:100%"></label>
+
+      <div class="sub">
+        <label class="chk"><input type="checkbox" data-k="dedupe.on"> <b>Remove duplicates</b>&nbsp;on the key</label>
+        <div class="qgrid" id="dedupeBox">
+          <label class="lab">Which row to keep<select id="dedupeOrder" data-k="dedupe.order"></select></label>
+          <label class="lab" id="keepBox">In file order, keep<select data-k="dedupe.keep"><option value="last">The last one</option><option value="first">The first one</option></select></label>
+        </div>
+      </div>
+
+      <div class="sub">
+        <label class="chk"><input type="checkbox" data-k="join.on"> <b>Look up columns</b>&nbsp;from a second file</label>
+        <div class="qgrid" id="joinBox">
+          <label class="lab">Lookup file type<select data-k="join.kind"><option value="csv">CSV (comma)</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option></select></label>
+          <label class="lab wide">Path to the lookup file<input type="text" data-k="join.path" spellcheck="false" autocomplete="off" placeholder="C:\Data\regions.csv"></label>
+          <label class="lab" id="joinSheet">Sheet name <span class="hint">empty = the first</span><input type="text" class="plain" data-k="join.sheet" spellcheck="false" autocomplete="off"></label>
+          <label class="lab">Match your column<select id="joinLeft" data-k="join.leftKey"></select></label>
+          <label class="lab">To this header in the lookup file<input type="text" class="plain" data-k="join.rightKey" spellcheck="false" autocomplete="off" placeholder="Region"></label>
+          <label class="lab">Columns to bring in <span class="hint">headers, comma-separated; empty = all</span><input type="text" class="plain" data-k="join.cols" spellcheck="false" autocomplete="off" placeholder="Manager, Target"></label>
+          <label class="lab">Rows with no match<select data-k="join.how"><option value="left">Keep them (new columns empty)</option><option value="inner">Remove them</option></select></label>
+        </div>
+        <p class="note small" id="joinNote">Your row count can&rsquo;t grow: if the lookup file has two rows for one key, the script stops and says so. Rows with no match are reported.</p>
+      </div>
+
+      <div class="sub">
+        <div class="details-head"><h3>Checks</h3><button type="button" class="btn" id="addRule">Add a check</button></div>
+        <p class="note small" style="margin-top:-8px"><b>Required</b> and a unique <b>Key</b> are checked already. Add value checks here.</p>
+        <div class="rowlist" id="ruleList"></div>
+        <label class="lab" style="max-width:460px">Rows that fail a check<select data-k="bad" id="badSel"></select></label>
+      </div>
+
+      <div class="sub">
+        <label class="chk"><input type="checkbox" data-k="summary.on"> <b>Add a summary</b>&nbsp;(totals by group)</label>
+        <div id="sumBox" style="display:flex;flex-direction:column;gap:12px">
+          <div class="picker"><div class="picker-head"><h3>Group by</h3></div><div class="chips" id="groupChips"></div></div>
+          <div class="details-head"><h3>Measures</h3><button type="button" class="btn" id="addMetric">Add a measure</button></div>
+          <div class="rowlist" id="metricList"></div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <h3>Output</h3>
+        <div class="qgrid">
+          <label class="lab">Write as<select data-k="output.kind"><option value="csv">CSV</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option></select></label>
+          <label class="lab wide">Output path <span class="hint">empty = next to the input, with _clean added</span><input type="text" data-k="output.path" spellcheck="false" autocomplete="off" id="outPath"></label>
+          <label class="lab">Script name <span class="hint">empty = from the file name</span><input type="text" data-k="name" spellcheck="false" autocomplete="off" id="scriptName"></label>
+        </div>
+      </div>
+      <div id="setupMsg" class="msgs" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s4">
+    <div class="step-num">Step<b>4</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s4">Logic in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
+        <p>For new columns or a row filter the boxes above can&rsquo;t express. Copilot writes the pandas expressions; the page checks them against your columns before using them.</p>
+      </div>
+      <textarea class="req" data-k="aiReq" data-own aria-label="Logic in plain words" placeholder="Add a column order_size: Small when the amount is under 100, Medium under 1000, otherwise Large.&#10;Keep only orders from the last 90 days."></textarea>
+      <div id="aiBox" style="display:flex;flex-direction:column;gap:14px" hidden>
+        <div class="codebox">
+          <div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="aiCount"></span><button class="btn" type="button" data-save="aiPrompt">Download file</button><button class="btn primary" type="button" data-copy="aiPrompt">Copy prompt</button></span></div>
+          <pre class="short" id="aiPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+        <p class="note">Paste the prompt into Copilot, or attach the downloaded file. It carries column names and types only, never data. In Copilot, use the <b>Copy</b> button on the code block, then paste the whole reply here.</p>
+        <textarea class="mid" data-k="aiReply" spellcheck="false" aria-label="Copilot reply" placeholder="Paste Copilot&rsquo;s reply here"></textarea>
+        <div id="aiMsg" class="msgs" aria-live="polite"></div>
+        <div class="tablewrap" id="aiReview" hidden>
+          <table><thead><tr><th>Name</th><th>Status</th><th>Expression and checks</th></tr></thead><tbody id="aiBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s5">
+    <div class="step-num">Step<b>5</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="s5">Get the script</h2>
+        <p>The same code two ways: a Jupyter notebook with one cell per step, or a .py script. Run it on a copy of the file first and read every line it prints that starts with <span class="mono">!</span></p>
+      </div>
+      <div id="outMsg" class="msgs" aria-live="polite"></div>
+      <div id="outWrap" class="tabset">
+        <div class="stats" id="outStats"></div>
+        <div class="subtabs" role="tablist" id="outTabs">
+          <button type="button" role="tab" data-tab="code" aria-selected="true">Script</button>
+          <button type="button" role="tab" data-tab="run" aria-selected="false">How to run it</button>
+          <button type="button" role="tab" data-tab="list" aria-selected="false">Before you rely on it</button>
+        </div>
+        <div data-pane="code">
+          <div class="codebox"><div class="codebox-bar"><span class="t" id="codeTitle">Script</span><span class="r"><button class="btn" type="button" data-save="ipynb">Download .ipynb</button><button class="btn" type="button" data-save="py">Download .py</button><button class="btn primary" type="button" data-copy="py">Copy script</button></span></div><pre class="tall" id="codeView"></pre></div>
+          <p class="note">In the .py file, each <span class="mono"># %%</span> line starts a cell in VS Code, Spyder and PyCharm. The notebook holds the same code. Pasting into an empty notebook cell works too.</p>
+        </div>
+        <div data-pane="run" hidden>
+          <div class="codebox"><div class="codebox-bar"><span class="t">How to run it</span><span class="r"><button class="btn primary" type="button" data-copy="howto">Copy</button></span></div><pre class="short" id="howView" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:none"></pre></div>
+        </div>
+        <div data-pane="list" hidden><ul class="checklist" id="checklist"></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Everything runs in this page. Nothing is sent anywhere; your entries are saved only in this browser. Check everything before you use it: generated output can be wrong.</footer>
+</div>
