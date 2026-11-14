@@ -223,7 +223,7 @@
   const listFor = key => (key === 'bronze' ? cfg.med.bronzeNb.params : (cfg.med.stages[Number(key.slice(1))] || {}).params);
   function renderMed() {
     const m = cfg.med;
-    $('lookupBox').hidden = !m.lookup.on; $('medCopy').hidden = m.action !== 'copy'; $('medNb').hidden = m.action !== 'notebook'; $('archiveBox').hidden = !m.archive;
+    $('lookupBox').hidden = !m.lookup.on; $('medCopy').hidden = m.action !== 'copy'; $('medNb').hidden = m.action !== 'notebook'; $('archiveBox').hidden = !m.archive; $('doneBox').hidden = m.after !== 'move';
     $('tokenList').textContent = A.TOKENS.map(t => '{' + t[0] + '}').join(' ');
     const pb = document.querySelector('[data-plist="bronze"]'); if (!typing(pb)) pb.innerHTML = paramRows(m.bronzeNb.params, 'bronze');
     const sl = $('stageList');
@@ -339,7 +339,7 @@
   }
 
   /* ---- token bar: shown under a folder or file name box while it has focus ---- */
-  const TOK_SCOPE = { 'src.folder': 'run', 'med.container': 'run', 'med.bronzeFolder': 'file', 'med.bronzeFile': 'file', 'med.archiveFolder': 'file', 'med.archiveFile': 'file' };
+  const TOK_SCOPE = { 'med.doneFolder': 'file', 'src.folder': 'run', 'med.container': 'run', 'med.bronzeFolder': 'file', 'med.bronzeFile': 'file', 'med.archiveFolder': 'file', 'med.archiveFile': 'file' };
   function tokScope(el) {
     if (cfg.src.kind !== 'medallion' || !el || el.tagName !== 'INPUT') return null;
     if (el.dataset.k && TOK_SCOPE[el.dataset.k]) return TOK_SCOPE[el.dataset.k];

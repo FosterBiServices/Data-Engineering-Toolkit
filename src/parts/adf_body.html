@@ -136,6 +136,10 @@
             <label class="lab wide">Archive folder<input type="text" data-k="med.archiveFolder" spellcheck="false" autocomplete="off" placeholder="yourproject/archive/{object}"></label>
             <label class="lab">Archive file name<input type="text" data-k="med.archiveFile" spellcheck="false" autocomplete="off" placeholder="{yyyy}-{MM}-{dd}_{object}.parquet"></label>
           </div>
+          <div class="qgrid">
+            <label class="lab">Once a file is in bronze, the landing file is<select data-k="med.after"><option value="leave">Left where it is (loaded again next run)</option><option value="move">Moved to a processed folder (only new files next run)</option><option value="delete">Deleted (only new files next run)</option></select></label>
+            <label class="lab" id="doneBox">Processed folder <span class="hint">in the landing container</span><input type="text" data-k="med.doneFolder" spellcheck="false" autocomplete="off" placeholder="processed/{yyyy}/{MM}/{dd}"></label>
+          </div>
         </div>
         <div id="medNb" style="display:flex;flex-direction:column;gap:10px">
           <label class="lab">Bronze notebook path<input type="text" data-k="med.bronzeNb.path" spellcheck="false" autocomplete="off" placeholder="/Shared/yourproject/to_bronze" style="width:100%"></label>

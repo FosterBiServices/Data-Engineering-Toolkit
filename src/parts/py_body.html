@@ -34,7 +34,8 @@
         <button type="button" role="tab" data-layer="gold"><span class="tn">Gold</span><span class="td">Aggregate silver to a reporting grain and reconcile</span></button>
       </div>
       <div class="qgrid">
-        <label class="lab">Entity <span class="hint">what one row is</span><input type="text" data-k="entity" data-own spellcheck="false" autocomplete="off" placeholder="orders"></label>
+        <label class="lab">Written for<select data-k="scope"><option value="entity">One entity (I paste its columns)</option><option value="any">Any object (the pipeline passes it in)</option></select></label>
+        <label class="lab" id="entityBox">Entity <span class="hint">what one row is</span><input type="text" data-k="entity" data-own spellcheck="false" autocomplete="off" placeholder="orders"></label>
         <label class="lab">Subject area <span class="hint">the schema in each catalog</span><input type="text" data-k="subject" spellcheck="false" autocomplete="off" placeholder="sales"></label>
         <label class="lab">Notebook folder<input type="text" data-k="folder" spellcheck="false" autocomplete="off" placeholder="/Shared/medallion"></label>
       </div>
@@ -90,6 +91,20 @@
       <div class="step-head">
         <h2 id="s3">Set it up</h2>
         <p id="s3p"></p>
+      </div>
+
+      <div id="setAny" class="pane" style="gap:14px" hidden>
+        <p class="tip"><b>One notebook for every object.</b> ADF runs it once per object and passes the object&rsquo;s name and where its bronze file is. Column names become lower case with underscores, no spaces or special characters (safe for Delta), whatever the file holds. Silver writes <span class="mono">&lt;schema&gt;.&lt;object&gt;</span>; gold copies only the rows silver wrote since the last gold load.</p>
+        <div class="qgrid">
+          <label class="lab">Business key <span class="hint">optional; comma separated; ADF can send another per object</span><input type="text" data-k="any.keys" spellcheck="false" autocomplete="off" placeholder="order_id"></label>
+          <label class="lab">Storage account <span class="hint">the default; ADF usually sends it</span><input type="text" data-k="any.storage" spellcheck="false" autocomplete="off" placeholder="mystorageaccount"></label>
+        </div>
+        <div class="checks" id="anySilverOpts">
+          <label><input type="checkbox" data-k="any.trim"> Trim spaces from text</label>
+          <label><input type="checkbox" data-k="any.emptyNull"> Empty text becomes null</label>
+          <label><input type="checkbox" data-k="any.dropDupRows"> Keep exact duplicate rows once</label>
+        </div>
+        <p class="note small">With a business key, silver and gold merge on it (one row per key). Without one, each file&rsquo;s rows are kept, and a rerun of the same batch replaces them instead of adding them twice.</p>
       </div>
 
       <div id="setBronze" class="pane" style="gap:14px">
@@ -204,7 +219,7 @@
         <div data-pane="adf" hidden>
           <div class="codebox"><div class="codebox-bar"><span class="t">Settings</span><span class="r"><button class="btn primary" type="button" data-copy="adf">Copy</button></span></div><pre class="short" id="adfView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
           <div class="codebox"><div class="codebox-bar"><span class="t">Activity JSON</span><span class="r"><button class="btn" type="button" data-copy="activity">Copy JSON</button></span></div><pre class="short" id="actView"></pre></div>
-          <p class="note">Or list the notebook path in the <a href="adf-pipeline-generator.html">ADF Pipeline Generator</a> under &ldquo;Run Databricks notebooks after the load&rdquo; and it adds the activity, the parameters and the failure path for you.</p>
+          <p class="note" id="adfNote">Or list the notebook path in the <a href="adf-pipeline-generator.html">ADF Pipeline Generator</a> under &ldquo;Run Databricks notebooks after the load&rdquo; and it adds the activity, the parameters and the failure path for you.</p>
         </div>
         <div data-pane="checks" hidden>
           <div class="codebox"><div class="codebox-bar"><span class="t">SQL checks</span><span class="r"><button class="btn primary" type="button" data-copy="checks">Copy SQL</button></span></div><pre class="short" id="checksView"></pre></div>

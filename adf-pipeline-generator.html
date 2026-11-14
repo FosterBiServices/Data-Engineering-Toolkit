@@ -558,6 +558,10 @@ td.flowname .ind{color:var(--ws)}
             <label class="lab wide">Archive folder<input type="text" data-k="med.archiveFolder" spellcheck="false" autocomplete="off" placeholder="yourproject/archive/{object}"></label>
             <label class="lab">Archive file name<input type="text" data-k="med.archiveFile" spellcheck="false" autocomplete="off" placeholder="{yyyy}-{MM}-{dd}_{object}.parquet"></label>
           </div>
+          <div class="qgrid">
+            <label class="lab">Once a file is in bronze, the landing file is<select data-k="med.after"><option value="leave">Left where it is (loaded again next run)</option><option value="move">Moved to a processed folder (only new files next run)</option><option value="delete">Deleted (only new files next run)</option></select></label>
+            <label class="lab" id="doneBox">Processed folder <span class="hint">in the landing container</span><input type="text" data-k="med.doneFolder" spellcheck="false" autocomplete="off" placeholder="processed/{yyyy}/{MM}/{dd}"></label>
+          </div>
         </div>
         <div id="medNb" style="display:flex;flex-direction:column;gap:10px">
           <label class="lab">Bronze notebook path<input type="text" data-k="med.bronzeNb.path" spellcheck="false" autocomplete="off" placeholder="/Shared/yourproject/to_bronze" style="width:100%"></label>
@@ -1169,7 +1173,7 @@ td.flowname .ind{color:var(--ws)}
     ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression'], ['fixed', 'Fixed text'], ['step', 'Output of an earlier step']];
   /* the short list shown for logging parameters; older choices still work when a saved setup has them */
   A.logChoices = kind => [['step', 'Output of an earlier step'], ['variable', 'Pipeline variable'], ['fixed', 'Fixed text'], ['expr', 'ADF expression'], ['global', 'Global parameter'], ['status', 'Status (Succeeded or Failed)'], ['error', 'Error message (filled in the failure log)']]
-    .concat(kind === 'medallion' ? [['obj_name', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer']] : [], [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['trig_time', 'Trigger time']]);
+    .concat(kind === 'medallion' ? [['rows_written', 'Rows written by the step being logged'], ['duration', 'Duration of the step being logged (seconds)'], ['obj_name', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer']] : [], [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['trig_time', 'Trigger time']]);
   /* "Output of an earlier step": value is "activity|field", or "activity|=path" for any other output */
   A.STEP_FIELDS = { Copy: [['rowsCopied', 'Rows copied'], ['rowsRead', 'Rows read'], ['filesWritten', 'Files written'], ['filesRead', 'Files read'], ['copyDuration', 'Copy duration (seconds)'], ['dataWritten', 'Bytes written']],
     DatabricksNotebook: [['runOutput', 'Notebook exit value'], ['executionDuration', 'Run duration (seconds)']], Lookup: [['firstRow', 'First row'], ['count', 'Row count']],
@@ -2236,7 +2240,7 @@ td.flowname .ind{color:var(--ws)}
   const ph = n => '<' + n + '>';
   const snake = A.snake;
 
-  A.TOKENS = [['object', 'object name'], ['file', 'file name'], ['name', 'file name without extension'], ['yyyy', 'year'], ['MM', 'month'], ['dd', 'day'], ['HH', 'hour'], ['yesterday', "yesterday's date"], ['run', 'run id'], ['pipeline', 'pipeline name']];
+  A.TOKENS = [['object', 'object name'], ['file', 'file name'], ['name', 'file name without extension'], ['yyyy', 'year'], ['MM', 'month'], ['dd', 'day'], ['HH', 'hour'], ['mm', 'minute'], ['ss', 'second'], ['yesterday', "yesterday's date"], ['run', 'run id'], ['pipeline', 'pipeline name']];
   A.NB_VALUES = [['object', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer'], ['text', 'Text (tokens allowed)'], ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['run', 'Run ID'], ['pipeline', 'Pipeline name'], ['expr', 'ADF expression']];
   A.medStage = (label, loop, path) => ({ label, loop, path, nbPath: '', params: [{ name: 'obj_name', use: 'object', value: '' }, { name: 'layer', use: 'layer', value: '' }], log: false });
   A.medDefaults = () => ({
@@ -2247,6 +2251,7 @@ td.flowname .ind{color:var(--ws)}
     action: 'copy',
     container: '', bronzeFolder: 'bronze/{object}', bronzeFile: '{object}.parquet',
     archive: false, archiveFolder: 'archive/{object}', archiveFile: '{yyyy}-{MM}-{dd}_{object}.parquet',
+    after: 'leave', doneFolder: 'processed/{yyyy}/{MM}/{dd}',
     bronzeNb: { path: '', params: [{ name: 'file_name', use: 'file', value: '' }, { name: 'obj_name', use: 'object', value: '' }, { name: 'layer', use: 'layer', value: '' }] },
     logEach: true, failOnError: true, sequential: true, vars: true,
     stages: []
@@ -2257,8 +2262,10 @@ td.flowname .ind{color:var(--ws)}
   A.patternTokens = p => (String(p || '').match(TOKEN_RX) || []).map(s => s.slice(1, -1)).filter(t => !/^var:/.test(t));
   const tokenExpr = (t, ctx) => (/^var:/.test(t) ? "variables('" + t.slice(4).trim() + "')" : {
     object: ctx.obj, file: ctx.file, name: ctx.name,
-    yyyy: "formatDateTime(utcNow(), 'yyyy')", MM: "formatDateTime(utcNow(), 'MM')", dd: "formatDateTime(utcNow(), 'dd')", HH: "formatDateTime(utcNow(), 'HH')",
-    yesterday: "formatDateTime(addDays(utcNow(), -1), 'yyyy-MM-dd')", run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline'
+    /* dates and times come from the run's start (UTC), so every file in a run gets the same stamp and two tokens never straddle a second */
+    yyyy: "formatDateTime(pipeline().TriggerTime, 'yyyy')", MM: "formatDateTime(pipeline().TriggerTime, 'MM')", dd: "formatDateTime(pipeline().TriggerTime, 'dd')", HH: "formatDateTime(pipeline().TriggerTime, 'HH')",
+    mm: "formatDateTime(pipeline().TriggerTime, 'mm')", ss: "formatDateTime(pipeline().TriggerTime, 'ss')",
+    yesterday: "formatDateTime(addDays(pipeline().TriggerTime, -1), 'yyyy-MM-dd')", run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline'
   }[t]);
   /* returns { expr } (no leading @) or { lit }; vars: put the fixed start of the pattern into a pipeline variable */
   A.compilePattern = function (pattern, ctx, varName, vars) {
@@ -2289,7 +2296,7 @@ td.flowname .ind{color:var(--ws)}
     if (med.obj.dash) obj = obj.replace(/-/g, '_');
     const d = new Date(), pad = n => String(n).padStart(2, '0'), y = new Date(d.getTime() - 864e5), name = file.replace(/\.[^.]*$/, '');
     const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
-    const base = { yyyy: String(d.getFullYear()), MM: pad(d.getMonth() + 1), dd: pad(d.getDate()), HH: pad(d.getHours()), yesterday: y.getFullYear() + '-' + pad(y.getMonth() + 1) + '-' + pad(y.getDate()), run: '<run id>', pipeline: '<pipeline>' };
+    const base = { yyyy: String(d.getUTCFullYear()), MM: pad(d.getUTCMonth() + 1), dd: pad(d.getUTCDate()), HH: pad(d.getUTCHours()), mm: pad(d.getUTCMinutes()), ss: pad(d.getUTCSeconds()), yesterday: y.getUTCFullYear() + '-' + pad(y.getUTCMonth() + 1) + '-' + pad(y.getUTCDate()), run: '<run id>', pipeline: '<pipeline>' };
     const fileTok = Object.assign({ object: obj, file, name }, base);
     const rv = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in fileTok ? fileTok[t] : m0));
     const folder = (rv(med.bronzeFolder).replace(/\/+$/, '').split('/').pop()) || obj, fobj = med.obj.dash ? folder.replace(/-/g, '_') : folder;
@@ -2307,13 +2314,14 @@ td.flowname .ind{color:var(--ws)}
     let obj = file; if (med.obj.stripExt) obj = ends && file.toLowerCase().endsWith(ends.toLowerCase()) ? file.slice(0, -ends.length) : (file.lastIndexOf('.') > 0 ? file.slice(0, file.lastIndexOf('.')) : file);
     if (med.obj.dash) obj = obj.replace(/-/g, '_');
     const d = new Date(), pad = n => String(n).padStart(2, '0'), y = new Date(d.getTime() - 864e5);
-    const tok = { object: obj, file, name: file.replace(/\.[^.]*$/, ''), yyyy: String(d.getFullYear()), MM: pad(d.getMonth() + 1), dd: pad(d.getDate()), HH: pad(d.getHours()), yesterday: y.getFullYear() + '-' + pad(y.getMonth() + 1) + '-' + pad(y.getDate()), run: '<run id>', pipeline: '<pipeline>' };
+    const tok = { object: obj, file, name: file.replace(/\.[^.]*$/, ''), yyyy: String(d.getUTCFullYear()), MM: pad(d.getUTCMonth() + 1), dd: pad(d.getUTCDate()), HH: pad(d.getUTCHours()), mm: pad(d.getUTCMinutes()), ss: pad(d.getUTCSeconds()), yesterday: y.getUTCFullYear() + '-' + pad(y.getUTCMonth() + 1) + '-' + pad(y.getUTCDate()), run: '<run id>', pipeline: '<pipeline>' };
     const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
     const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in tok ? tok[t] : m0));
     const j = (f, n) => (r(f).replace(/\/+$/, '') + '/' + r(n)).replace(/^\/+/, '');
     const lake = String(med.container || '').trim() ? r(med.container).replace(/\/+$/, '') : (cfg.src.container || '<container>');
     const L = [['File', (cfg.src.container || '<container>') + ' / ' + j(cfg.src.folder, '{file}')], ['Object name', obj]];
     if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', lake + ' / ' + j(med.bronzeFolder, med.bronzeFile) + '  →  ' + lake + ' / ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', lake + ' / ' + j(med.bronzeFolder, med.bronzeFile)]); }
+    if (med.after === 'move') L.push(['Then the landing file moves to', (cfg.src.container || '<container>') + ' / ' + j(med.doneFolder, '{file}')]); else if (med.after === 'delete') L.push(['Then the landing file', 'is deleted, so the next run only sees new files']);
     /* the object folder a layer loops over: the last part of the bronze folder for this file */
     const folder = (r(med.bronzeFolder).replace(/\/+$/, '').split('/').pop()) || obj, fobj = med.obj.dash ? folder.replace(/-/g, '_') : folder;
     const rowsText = (rows, ctx, label) => (rows || []).filter(x => String(x.name || '').trim()).map(x => {
@@ -2340,12 +2348,15 @@ td.flowname .ind{color:var(--ws)}
     const perItem = (label, p) => { if (A.patternTokens(p).some(t => /^(object|file|name)$/.test(t))) add('err', label + ' is read once for the whole run, so it can’t use {object}, {file} or {name}.'); };
     bad('Folder the files arrive in', cfg.src.folder); perItem('The folder the files arrive in', cfg.src.folder);
     bad('Bronze container', med.container); perItem('The bronze container', med.container);
+    if (med.after === 'move') { bad('Processed folder', med.doneFolder); if (!String(med.doneFolder || '').trim()) add('err', 'Give the folder the landing files move to.'); }
+    if (med.after === 'leave') add('info', 'The landing files stay where they are, so the next run loads them again. To load only new files, choose to move or delete them once they are in bronze.');
+    if (med.action === 'copy') { const sk = A.ownDs(cfg, 'sink'); if (!sk || sk.type === 'Parquet') add('info', 'ADF can\u2019t write a Parquet column name that has spaces or any of , ; { } ( ) =. If your file headers can have them (\u201cOrder Date\u201d), the copy to bronze fails: rename them at the source, or load bronze with a notebook.'); }
     if (med.lookup.on) {
       if (!/^\/|^\.{1,2}\//.test(med.lookup.nbPath.trim())) add('err', 'Object list: give the path of the notebook that returns the list, starting with /.');
       if (!med.lookup.idField.trim() || !med.lookup.nameField.trim()) add('err', 'Object list: give the names of the id and name fields in the list it returns.');
     }
     const usesId = rows => rows.some(r => r.use === 'obj_id') || (std && std.log && std.log.method !== 'none' && (std.log.params || []).some(r => r.use === 'obj_id'));
-    if (!med.lookup.on && (usesId(med.bronzeNb.params) || med.stages.some(s => usesId(s.params)))) add('err', 'A parameter sends the object id, but there is no object list to read it from. Turn on “Look up each object in a list”, or change that parameter.');
+    if (!med.lookup.on && (usesId(med.bronzeNb.params) || med.stages.some(s => usesId(s.params)))) add('warn', 'A parameter sends the object id, but there is no object list to read it from, so it is sent empty. Turn on “Look up each object in a list” to fill it.');
     if (med.action === 'copy') {
       [['Bronze folder', med.bronzeFolder], ['Bronze file name', med.bronzeFile]].concat(med.archive ? [['Archive folder', med.archiveFolder], ['Archive file name', med.archiveFile]] : []).forEach(([l, p]) => { if (!String(p).trim()) add('err', l + ' is empty.'); bad(l, p); });
       if (!/\{(object|file|name)\}/.test(med.bronzeFolder + med.bronzeFile)) add('warn', 'The bronze folder and file name don’t use {object}, {file} or {name}, so every file is written to the same place and only the last one is kept.');
@@ -2395,6 +2406,15 @@ td.flowname .ind{color:var(--ws)}
     const needSink = med.action === 'copy' || med.stages.some(s => s.loop === 'folders');
     const rSink = needSink ? role(oSink, fileDs(std.dsPrefix + 'adls_parquet_file', 'Parquet')) : null;
     const rList = oList ? role(oList, null) : rRead, rMeta = oMeta ? role(oMeta, null) : rSink;
+    /* moving or deleting a landing file: a Binary dataset on the landing storage, so the file moves byte for byte */
+    let rBin = null;
+    if (med.after === 'move' || med.after === 'delete') {
+      const src = oRead || oList, store = src ? src.store : 'AzureBlobFS', blob = store !== 'AzureBlobFS';
+      const def = { name: std.dsPrefix + (blob ? 'blob' : 'adls') + '_binary_file', properties: { linkedServiceName: lsRef(src && src.ls ? src.ls : ls), parameters: { container: { type: 'string' }, folder_path: { type: 'string' }, file_name: { type: 'string' } }, annotations: [], type: 'Binary',
+        typeProperties: { location: Object.assign({ type: store + 'Location', fileName: X('@dataset().file_name'), folderPath: X('@dataset().folder_path') }, blob ? { container: X('@dataset().container') } : { fileSystem: X('@dataset().container') }) } } };
+      if (!datasets.some(d => d.name === def.name)) datasets.push(def);
+      rBin = { type: 'Binary', store, ref: v => ({ referenceName: def.name, type: 'DatasetReference', parameters: { container: v.container, folder_path: v.folder, file_name: v.file } }) };
+    }
     const readSet = r => ({ type: r.store + 'ReadSettings', recursive: false, enablePartitionDiscovery: false });
     const fmtRead = r => (/^(DelimitedText|Json|Parquet|Xml|Binary)$/.test(r.type) ? { formatSettings: { type: r.type + 'ReadSettings' } } : {});
     const fmtWrite = r => (r.type === 'DelimitedText' ? { formatSettings: { type: 'DelimitedTextWriteSettings', quoteAllText: true, fileExtension: '.txt' } } : r.type === 'Parquet' ? { formatSettings: { type: 'ParquetWriteSettings' } } : r.type === 'Json' ? { formatSettings: { type: 'JsonWriteSettings' } } : {});
@@ -2429,7 +2449,7 @@ td.flowname .ind{color:var(--ws)}
     const valueOf = (r, ctx, x) => {
       const u = r.use, v = String(r.value == null ? '' : r.value);
       const e = { step: A.stepExpr(v, false), object: ctx.obj, obj_name: ctx.obj, file: ctx.file, obj_id: x.id, layer: sq(x.layer || ''), run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline', factory: 'pipeline().DataFactory', trig_time: 'string(pipeline().TriggerTime)', trig_name: 'pipeline().TriggerName',
-        status: sq(x.status || ''), error: x.status === 'Succeeded' ? sq(v) : (x.err || "''"), rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
+        status: sq(x.status || ''), error: x.status === 'Succeeded' ? sq(v) : (x.err || "''"), rows_read: x.rowsRead ? 'string(coalesce(' + x.rowsRead.replace(/\.output\./, '?.output?.').replace(/runOutput\?\./, 'runOutput?.') + ', 0))' : "'0'", rows_written: x.rowsWritten ? 'string(coalesce(' + x.rowsWritten.replace(/\.output\./, '?.output?.') + ', 0))' : "'0'", duration: x.duration ? 'string(coalesce(' + x.duration.replace(/\.output\./, '?.output?.') + ', 0))' : "'0'",
         source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", variable: "string(variables('" + (v.trim() || 'NAME') + "'))", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
       if (u === 'text' || u === 'fixed') { const c = C(v, ctx.obj ? ctx : topCtx); return val(c); }
       if (e == null) return '';
@@ -2493,6 +2513,12 @@ td.flowname .ind{color:var(--ws)}
           inputs: [rRead.ref({ container, folder: val(landing), file: X('@item().name') })], outputs: [sinkRef()] });
         Object.assign(x, { rowsRead: "activity('cp_file_to_bronze').output.rowsRead", rowsWritten: "activity('cp_file_to_bronze').output.rowsCopied", duration: "activity('cp_file_to_bronze').output.copyDuration", source: { expr: "item().name" }, target: bf });
       } else add(nbAct('nb_bronze', med.bronzeNb.path, med.bronzeNb.params, fileCtx, x, []));
+      if (rBin) {
+        const here = rBin.ref({ container, folder: val(landing), file: X('@item().name') });
+        if (med.after === 'move') add({ name: 'cp_landing_to_processed', type: 'Copy', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: { source: { type: 'BinarySource', storeSettings: { type: rBin.store + 'ReadSettings', recursive: false } }, sink: { type: 'BinarySink', storeSettings: { type: rBin.store + 'WriteSettings' } }, enableStaging: false },
+          inputs: [here], outputs: [rBin.ref({ container, folder: val(C(med.doneFolder, fileCtx, 'processed_path')), file: X('@item().name') })] });
+        add({ name: 'del_landing_file', type: 'Delete', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: { dataset: here, enableLogging: false, storeSettings: { type: rBin.store + 'ReadSettings', recursive: false } } });
+      }
       finish(inner, 'file', fileCtx, x, med.logEach, med.failOnError);
       const seq = med.lookup.on || med.sequential;
       top({ name: 'fe_files', type: 'ForEach', dependsOn: [], userProperties: [], typeProperties: Object.assign({ items: X("@activity('flt_files').output.value"), isSequential: seq }, seq ? {} : { batchCount: 4 }, { activities: inner }) });
@@ -2557,16 +2583,25 @@ td.flowname .ind{color:var(--ws)}
   };
   A.medSteps = function (o, cfg, std) {
     const med = cfg.med, L = [], v = Object.keys(o.pipeline.properties.variables || {}).filter(k => k !== 'object_name');
+    /* what must exist before the pipeline can run: global parameters it reads and notebooks it calls */
+    const json = JSON.stringify(o.pipeline), globals = Array.from(new Set((json.match(/globalParameters\.([A-Za-z_]\w*)/g) || []).map(s => s.split('.')[1])));
+    const nbs = []; A.flatten(o.pipeline).forEach(f => { const p = f.type === 'DatabricksNotebook' && (f.a.typeProperties || {}).notebookPath; if (typeof p === 'string' && nbs.indexOf(p) < 0) nbs.push(p); });
+    if (globals.length || nbs.length) {
+      L.push('BEFORE YOU START - what the pipeline expects to exist');
+      if (globals.length) L.push('Global parameters (Manage > Global parameters > New): ' + globals.map(g => g + (/storage/i.test(g) ? ' (your storage account name, String)' : ' (String)')).join(', ') + '.');
+      nbs.forEach(p => L.push('Notebook in Databricks: ' + p + (/_any_object$/.test(p) ? ' (from the Python Notebook Generator, Any object)' : '')));
+      L.push('Linked services: ' + Array.from(new Set((json.match(/"referenceName":"([^"]+)","type":"LinkedServiceReference"/g) || []).map(s => s.split('"')[3]).concat(o.datasets.map(d => d.properties.linkedServiceName.referenceName)))).join(', ') + ' (Manage > Linked services).', '');
+    }
     L.push('PART A - Datasets');
     if (o.reused.length) L.push('Your datasets are used as they are: ' + o.reused.map(d => d.name).join(', ') + '.');
-    o.datasets.forEach((d, i) => L.push((i + 1) + '. Author > Datasets > New dataset > Azure Data Lake Storage Gen2 > ' + ({ DelimitedText: 'DelimitedText', Parquet: 'Parquet', Json: 'JSON' }[d.properties.type] || d.properties.type) + '. Name it ' + d.name + ', pick the linked service, OK. Then open its code view {} and replace everything with the JSON for ' + d.name + '.'));
+    o.datasets.forEach((d, i) => L.push((i + 1) + '. Author > Datasets > New dataset > Azure Data Lake Storage Gen2 > ' + ({ DelimitedText: 'DelimitedText', Parquet: 'Parquet', Json: 'JSON', Binary: 'Binary' }[d.properties.type] || d.properties.type) + '. Name it ' + d.name + ', pick the linked service, OK. Then open its code view {} and replace everything with the JSON for ' + d.name + '.'));
     if (!o.datasets.length && !o.reused.length) L.push('None.');
     L.push('', 'PART B - Pipeline', '1. Author > Pipelines > New pipeline > code view {} > replace everything with the Pipeline JSON > OK.', '2. Select Validate and fix what it flags (usually a dataset, linked service or notebook name).');
     if (v.length) L.push('3. Paths are pipeline variables (' + v.join(', ') + '). Change a path by selecting the empty canvas > Variables tab; nothing else needs editing.');
     if (o.placeholders.length) L.push((v.length ? '4' : '3') + '. Replace every placeholder: ' + o.placeholders.join(', ') + '.');
     if (med.lookup.on) L.push('', 'The object list notebook must end with dbutils.notebook.exit(json.dumps(rows)), where rows is a list like [{"' + med.lookup.idField + '": 1, "' + med.lookup.nameField + '": "orders"}]. ADF reads it as output.runOutput.');
     L.push('', 'PART C - Test plan', '1. Put one small file in the landing folder and select Debug.', '2. Check the bronze file landed where the preview on the page says' + (med.archive ? ', and that a second run archives the first file before replacing it.' : '.'),
-      '3. Check your log has a row for the file' + (med.lookup.on ? ' with the right object id.' : '.'), '4. Rename the file to something not in the object list (or break its header) and run again: the failure should be logged' + (med.failOnError ? ' and the run should show Failed.' : '.'));
+      '3. Check your log has a row for the file' + (med.lookup.on ? ' with the right object id.' : '.') + (med.after === 'move' ? ' The landing file should now be in the processed folder, so a second run with no new file loads nothing.' : med.after === 'delete' ? ' The landing file should be gone, so a second run with no new file loads nothing.' : ''), '4. Rename the file to something not in the object list (or break its header) and run again: the failure should be logged' + (med.failOnError ? ' and the run should show Failed.' : '.'));
     med.stages.forEach((s, i) => L.push((5 + i) + '. Check the ' + (s.label || 'layer') + ' notebook ran ' + (s.loop === 'folders' ? 'once per folder' : s.loop === 'files' ? 'once per file' : 'once') + ' with the parameters you expect (Monitor > the activity > Input).'));
     return L.join('\n');
   };
@@ -2837,7 +2872,7 @@ td.flowname .ind{color:var(--ws)}
   const listFor = key => (key === 'bronze' ? cfg.med.bronzeNb.params : (cfg.med.stages[Number(key.slice(1))] || {}).params);
   function renderMed() {
     const m = cfg.med;
-    $('lookupBox').hidden = !m.lookup.on; $('medCopy').hidden = m.action !== 'copy'; $('medNb').hidden = m.action !== 'notebook'; $('archiveBox').hidden = !m.archive;
+    $('lookupBox').hidden = !m.lookup.on; $('medCopy').hidden = m.action !== 'copy'; $('medNb').hidden = m.action !== 'notebook'; $('archiveBox').hidden = !m.archive; $('doneBox').hidden = m.after !== 'move';
     $('tokenList').textContent = A.TOKENS.map(t => '{' + t[0] + '}').join(' ');
     const pb = document.querySelector('[data-plist="bronze"]'); if (!typing(pb)) pb.innerHTML = paramRows(m.bronzeNb.params, 'bronze');
     const sl = $('stageList');
@@ -2953,7 +2988,7 @@ td.flowname .ind{color:var(--ws)}
   }
 
   /* ---- token bar: shown under a folder or file name box while it has focus ---- */
-  const TOK_SCOPE = { 'src.folder': 'run', 'med.container': 'run', 'med.bronzeFolder': 'file', 'med.bronzeFile': 'file', 'med.archiveFolder': 'file', 'med.archiveFile': 'file' };
+  const TOK_SCOPE = { 'med.doneFolder': 'file', 'src.folder': 'run', 'med.container': 'run', 'med.bronzeFolder': 'file', 'med.bronzeFile': 'file', 'med.archiveFolder': 'file', 'med.archiveFile': 'file' };
   function tokScope(el) {
     if (cfg.src.kind !== 'medallion' || !el || el.tagName !== 'INPUT') return null;
     if (el.dataset.k && TOK_SCOPE[el.dataset.k]) return TOK_SCOPE[el.dataset.k];

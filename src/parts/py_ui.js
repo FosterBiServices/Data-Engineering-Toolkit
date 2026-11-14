@@ -13,6 +13,7 @@
     const c = P.blank(); if (!saved || typeof saved !== 'object') return c;
     const copy = (to, from, keys) => keys.forEach(k => { if (from && typeof from[k] === typeof to[k] && !Array.isArray(to[k])) to[k] = from[k]; });
     copy(c, saved, ['entity', 'subject', 'folder']); if (/^(bronze|silver|gold)$/.test(saved.layer)) c.layer = saved.layer;
+    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); }
     copy(c.cat, saved.cat, ['bronze', 'silver', 'gold']); copy(c.bronze, saved.bronze, ['format', 'path']);
     const sv = saved.silver || {}, g = saved.gold || {}, arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);
     copy(c.silver, sv, ['schemaText', 'orderCol', 'tz', 'softDelete', 'cluster', 'aiReq', 'aiReply']);
@@ -39,7 +40,7 @@
   const L = () => cfg.layer, sub = () => cfg[cfg.layer];
 
   function fill(skip) {
-    document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || el.tagName === 'SELECT' && el.id) return; const v = get(cfg, el.dataset.k); if (el.type === 'radio') el.checked = el.value === v; else el.value = v == null ? '' : v; });
+    document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || el.tagName === 'SELECT' && el.id) return; const v = get(cfg, el.dataset.k); if (el.type === 'checkbox') { el.checked = !!v; return; } if (el.type === 'radio') el.checked = el.value === v; else el.value = v == null ? '' : v; });
     document.querySelectorAll('[data-g]').forEach(el => { if (el === skip || el.tagName === 'SELECT') return; if (el.type === 'checkbox') el.checked = !!log[el.dataset.g]; else el.value = log[el.dataset.g] == null ? '' : log[el.dataset.g]; });
     if ($('schemaIn') !== skip) $('schemaIn').value = L() === 'bronze' ? '' : sub().schemaText;
     if ($('aiReq') !== skip) $('aiReq').value = L() === 'bronze' ? '' : sub().aiReq;
@@ -57,6 +58,12 @@
     $('inBronze').hidden = layer !== 'bronze'; $('inPaste').hidden = false; $('useSilverBox').hidden = layer !== 'gold'; $('schemaIn').hidden = layer === 'bronze';
     $('setBronze').hidden = layer !== 'bronze'; $('setSilver').hidden = layer !== 'silver'; $('setGold').hidden = layer !== 'gold';
     $('aiStep').hidden = layer === 'bronze'; $('outNum').textContent = layer === 'bronze' ? '4' : '5';
+    const any = cfg.scope === 'any';
+    $('entityBox').hidden = any; $('setAny').hidden = !any; $('anySilverOpts').hidden = layer !== 'silver';
+    document.querySelector('section[aria-labelledby="s2"]').hidden = any;
+    $('adfNote').hidden = any;
+    if (any) { $('s3p').textContent = 'Nothing about the columns is needed: the notebook cleans whatever the file holds. Choose the options, and give the business key if the objects share one.'; $('setBronze').hidden = true; $('setSilver').hidden = true; $('setGold').hidden = true; $('aiStep').hidden = true; $('outNum').textContent = '3'; }
+    document.querySelector('section[aria-labelledby="s3"] .step-num b').textContent = any ? '2' : '3';
     $('s2p').textContent = layer === 'bronze' ? 'Bronze takes the files as they are, so the page only needs the format. The context cell is optional: it shows what the files hold before you land them.' : layer === 'silver' ? 'The page can’t see your workspace. Run one cell against the bronze table and paste what it prints, so every column name and type is exact.' : 'Gold reads silver. Take the columns from the silver setup on this page, or run the cell against the silver table and paste what it prints.';
     $('s3p').textContent = layer === 'silver' ? 'Every silver column is named, typed and cleaned on purpose. Names are suggested in snake_case; change anything.' : layer === 'gold' ? 'Say what one row is and what to measure. The notebook recomputes only what changed and checks its totals against silver.' : 'Bronze is a faithful, replayable copy of the source.';
     $('s4p').textContent = layer === 'gold' ? 'For metrics the boxes above can’t express. Copilot writes the PySpark expressions; the page checks them against your columns before using them.' : 'For derived columns and quality rules the boxes above can’t express. Copilot writes the PySpark expressions; the page checks them against your columns before using them.';
@@ -108,7 +115,8 @@
   /* everything computed from the form; safe to call on every keystroke */
   function renderOut() {
     const layer = L(), n = P.names(cfg);
-    $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span>' + (layer === 'bronze' ? '<span class="stat">Writes <b>' + esc(n.bronze) + '</b></span>' : layer === 'silver' ? '<span class="stat">Reads <b>' + esc(n.bronze) + '</b></span><span class="stat">Writes <b>' + esc(n.silver) + '</b></span><span class="stat">Quarantine <b>' + esc(n.quarantine) + '</b></span>' : '<span class="stat">Reads <b>' + esc(n.silver) + '</b></span><span class="stat">Writes <b>' + esc(n.gold) + '</b></span>');
+    if (cfg.scope === 'any') $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span><span class="stat">Writes <b>' + esc(layer === 'gold' ? n.gold : n.silver) + '</b></span>';
+    else $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span>' + (layer === 'bronze' ? '<span class="stat">Writes <b>' + esc(n.bronze) + '</b></span>' : layer === 'silver' ? '<span class="stat">Reads <b>' + esc(n.bronze) + '</b></span><span class="stat">Writes <b>' + esc(n.silver) + '</b></span><span class="stat">Quarantine <b>' + esc(n.quarantine) + '</b></span>' : '<span class="stat">Reads <b>' + esc(n.silver) + '</b></span><span class="stat">Writes <b>' + esc(n.gold) + '</b></span>');
     $('contextView').textContent = P.contextCell(cfg);
     if (layer !== 'bronze') {
       const s = sub(), parsed = P.parseSchema(s.schemaText), have = layer === 'silver' ? s.cols.length : s.cols.length;
@@ -119,7 +127,7 @@
     $('setupMsg').innerHTML = probs.map(p => S.msg(p.sev, esc(p.msg))).join('');
     /* Copilot */
     ai = null;
-    const want = layer !== 'bronze' && sub().aiReq.trim().length > 0;
+    const want = cfg.scope !== 'any' && layer !== 'bronze' && sub().aiReq.trim().length > 0;   /* any object: no Copilot columns, nothing about the columns is known */
     $('aiBox').hidden = !want;
     if (want) {
       const prompt = S.fullPrompt(P.aiPrompt(cfg)); $('aiPromptView').textContent = prompt; S.count($('aiCount'), prompt);
@@ -141,8 +149,8 @@
       out = P.build(cfg, ai, log); $('outWrap').hidden = false; $('outMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you run it:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
       const lines = out.code.split('\n').length, used = ai ? ai.ok.length : 0;
       $('outStats').innerHTML = '<span class="stat"><b>' + esc(out.names.nb) + '</b></span><span class="stat"><b>' + lines + '</b> lines</span>'
-        + (layer === 'silver' ? '<span class="stat"><b>' + out.silver.outCols.length + '</b> columns</span><span class="stat"><b>' + out.silver.rules.length + '</b> quality rules</span>' : '')
-        + (layer === 'gold' ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '') + (out.logged ? '<span class="stat">Logs with your utility</span>' : '');
+        + (layer === 'silver' && out.silver ? '<span class="stat"><b>' + out.silver.outCols.length + '</b> columns</span><span class="stat"><b>' + out.silver.rules.length + '</b> quality rules</span>' : '')
+        + (layer === 'gold' && !out.any ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '') + (out.logged ? '<span class="stat">Logs with your utility</span>' : '');
       $('codeTitle').textContent = out.names.nb + '.py'; $('codeView').textContent = out.code;
       $('adfView').textContent = out.adf; $('actView').textContent = JSON.stringify(out.activity, null, 4); $('checksView').textContent = out.checks;
     }
@@ -176,7 +184,7 @@
       if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
       const row = el.closest('[data-i]');
       if (row && el.dataset.f && el.tagName === 'INPUT' && el.type === 'text') { const list = row.dataset.list ? (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]) : cfg.silver.cols; list[Number(row.dataset.i)][el.dataset.f] = el.value; renderOut(); return; }
-      if (el.dataset && el.dataset.k && el.tagName !== 'SELECT' && el.type !== 'radio') { set(cfg, el.dataset.k, el.value); renderOut(); }
+      if (el.dataset && el.dataset.k && el.tagName !== 'SELECT' && el.type !== 'radio' && el.type !== 'checkbox') { set(cfg, el.dataset.k, el.value); renderOut(); }
     });
     document.addEventListener('change', e => {
       const el = e.target;
@@ -195,6 +203,7 @@
         }
         renderForm(); return;
       }
+      if (el.dataset && el.dataset.k && el.type === 'checkbox') { set(cfg, el.dataset.k, el.checked); renderForm(); return; }
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
     });
     document.addEventListener('click', e => {

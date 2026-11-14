@@ -134,6 +134,14 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   it: the tokens that box allows for its scope (`A.medTokenHelp(cfg, scope)`: run / file / folder), the user's variables as
   `{var:name}`, each with its value for the example file, click-to-insert at the cursor, and "Becomes:" the resolved
   value. Check: `adftokentest.js`.
+- Beginner walkthrough (Nov 2026, owner: "from a complete beginner's perspective... no variables or datasets supplied"):
+  `{mm}` `{ss}` tokens, and all date tokens from `pipeline().TriggerTime` (one stamp per run, UTC; previews in UTC);
+  `med.after` leave / move (`med.doneFolder`, Copy with a page-made Binary dataset on the landing storage) / delete
+  (`del_landing_file`) so only new files load; log values `rows_written` / `duration` "of the step being logged" (each log
+  point reads its own step, `coalesce(..., 0)`), because "Output of an earlier step" can't cross loops; obj_id without an
+  object list is a warning (sent empty); an info that ADF can't write Parquet column names with spaces or `,;{}()=`
+  (no fix in ADF; notebook bronze or rename at source); Build steps start with "BEFORE YOU START" (global parameters,
+  notebooks, linked services the JSON uses). Gaps left: a database/ERP source for bronze, a generic bronze notebook.
 - `adfmedtest.js` sets up the owner's yourproject pipeline through the page with his datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
 
@@ -153,6 +161,14 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   inside try/except that logs and re-raises. `dbutils.notebook.exit` always stays outside try (gold's early exit too).
   Not run on a cluster.
 - pycoretest.js generates notebooks for many setups and checks each parses as Python.
+- **Any object** (`cfg.scope = 'any'`, `cfg.any`): one silver and one gold notebook for every object the pipeline sends
+  (`P.anySilver`, `P.anyGold`, `P.buildAny`). Silver reads the bronze Parquet from container/folder/file widgets, cleans
+  every column name (ascii, camelCase split, non-alphanumerics to _, lower, leading digit `c_`, repeats numbered), trims,
+  empty to null, drops exact duplicates, adds `_source_file` `_batch_id` `_ingest_ts`, writes `<schema>.<object>`: MERGE on
+  `key_columns`, else replaceWhere on batch + file. Gold: watermark = max `_ingest_ts` in gold; MERGE on keys (newest wins)
+  or replace whole batches. No Copilot step, no bronze. The ADF tab lists the exact layer parameters. Ran on local Spark
+  with parquet in place of Delta (Maven blocked): names, trims, dedupe, first load and the 0-row second gold run; MERGE and
+  replaceWhere not run. Check: `pyanytest.js`.
 
 ## Python Script Generator (`ps_core.js`)
 

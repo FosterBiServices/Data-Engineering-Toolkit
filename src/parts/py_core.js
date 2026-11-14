@@ -16,7 +16,7 @@
   P.RULES = [['min', 'is at least', 'number'], ['max', 'is at most', 'number'], ['inlist', 'is one of', 'A, B, C'], ['regex', 'matches pattern', '^[A-Z]{2}$'], ['notfuture', 'is not in the future', ''], ['expr', 'fails when (Spark SQL)', 'ship_date < order_date']];
 
   P.blank = () => ({
-    layer: 'silver', entity: '', subject: '', folder: '/Shared/medallion',
+    layer: 'silver', scope: 'entity', any: P.anyDefaults(), entity: '', subject: '', folder: '/Shared/medallion',
     cat: { bronze: 'bronze', silver: 'silver', gold: 'gold' },
     bronze: { format: 'parquet', path: '' },
     silver: { schemaText: '', cols: [], orderCol: '', tz: 'America/New_York', rules: [], softDelete: '', cluster: '', aiReq: '', aiReply: '' },
@@ -30,6 +30,7 @@
       bronze: c.bronze + '.' + s + '.' + e + '_raw', silver: c.silver + '.' + s + '.' + e, gold: c.gold + '.' + s + '.' + g,
       nbBronze: 'nb_bronze_' + e, nbSilver: 'nb_silver_' + e, nbGold: 'nb_gold_' + g.replace(/^(fact|dim|agg)_/, '') };
     n.quarantine = n.silver + '_quarantine';
+    if (cfg.scope === 'any') Object.assign(n, { entity: '<object>', silver: c.silver + '.' + s + '.<object>', gold: c.gold + '.' + s + '.<object>', nbSilver: 'nb_silver_' + s + '_any_object', nbGold: 'nb_gold_' + s + '_any_object' });
     n.nb = { bronze: n.nbBronze, silver: n.nbSilver, gold: n.nbGold }[cfg.layer];
     n.path = (cfg.folder || '').replace(/\/+$/, '') + '/' + n.nb;
     return n;
@@ -167,8 +168,80 @@
   };
 
   /* ---------- checks on the setup ---------- */
+  /* ---------- notebooks for any object: the pipeline passes the object, nothing about its columns is known here ---------- */
+  P.anyDefaults = () => ({ keys: '', trim: true, emptyNull: true, dropDupRows: true, storage: '' });
+  const CLEAN_NAMES = ['def clean_name(name):',
+    '    """Lower case, underscores, no spaces or special characters: safe for Delta and for SQL."""',
+    '    n = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()',
+    '    n = re.sub(r"([a-z0-9])([A-Z])", r"\\1_\\2", n.strip())        # OrderDate -> Order_Date',
+    '    n = re.sub(r"[^0-9A-Za-z]+", "_", n).strip("_").lower()        # spaces and symbols -> _',
+    '    if not n:',
+    '        n = "col"',
+    '    if n[0].isdigit():',
+    '        n = "c_" + n                                               # a name can\'t start with a digit',
+    '    return n', '',
+    'def clean_names(columns):',
+    '    """Clean every name; when two clean to the same name, number the later ones (_2, _3)."""',
+    '    out, seen = [], {}',
+    '    for c in columns:',
+    '        n = clean_name(c)',
+    '        if n in seen:',
+    '            seen[n] += 1',
+    '            n = f"{n}_{seen[n]}"',
+    '        seen.setdefault(n, 1)',
+    '        out.append(n)',
+    '    return out'].join('\n');
+  P.anySilver = function (cfg) {
+    const n = P.names(cfg), a = cfg.any;
+    let s = head(n.nbSilver, ['Cleans one bronze file for ANY object and writes it to a Delta table named after the object. Called by ADF once per object.',
+      'Column names become lower case with underscores, no spaces or special characters. Rerunning the same batch replaces its rows; it never duplicates.']);
+    s += md('1. Parameters') + widgets([['obj_name', '', true], ['storage_account', a.storage, true], ['source_container', '', true], ['source_folder', '', true], ['source_file', '', true], ['target_schema', cfg.cat.silver + '.' + n.subject, true], ['key_columns', a.keys, false], ['batch_id', '', true]]) + '\n';
+    s += md('2. Imports and helpers') + ['import json, re, unicodedata', 'from pyspark.sql import functions as F', 'from delta.tables import DeltaTable', '', CLEAN_NAMES].join('\n') + '\n';
+    s += md('3. Read the bronze file') + ['source_path = f"abfss://{source_container}@{storage_account}.dfs.core.windows.net/{source_folder.strip(\'/\')}/{source_file}"',
+      'target_table = f"{target_schema}.{clean_name(obj_name)}"', 'raw = spark.read.parquet(source_path)', 'rows_read = raw.count()'].join('\n') + '\n';
+    const C = ['new_names = clean_names(raw.columns)', 'renamed = {old: new for old, new in zip(raw.columns, new_names) if old != new}', 'df = raw.toDF(*new_names)'];
+    if (a.trim || a.emptyNull) C.push('', '# Text columns: ' + [a.trim ? 'trim spaces' : '', a.emptyNull ? 'empty text becomes null' : ''].filter(Boolean).join(', '),
+      'for c, t in df.dtypes:', '    if t == "string":', '        v = ' + (a.trim ? 'F.trim(F.col(c))' : 'F.col(c)'), '        df = df.withColumn(c, ' + (a.emptyNull ? 'F.when(v != "", v)' : 'v') + ')');
+    if (a.dropDupRows) C.push('', '# Rows that are exact copies of another row are kept once', 'before = df.count()', 'df = df.dropDuplicates()', 'rows_deduped = before - df.count()'); else C.push('rows_deduped = 0');
+    C.push('', 'keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]', 'missing_keys = [k for k in keys if k not in df.columns]', 'if missing_keys:', '    raise ValueError(f"key_columns not in {obj_name}: {missing_keys}. Columns: {df.columns}")');
+    C.push('', 'df = (df.withColumn("_source_file", F.lit(source_path))', '        .withColumn("_batch_id", F.lit(batch_id))', '        .withColumn("_ingest_ts", F.current_timestamp()))');
+    s += md('4. Clean') + C.join('\n') + '\n';
+    s += md('5. Write to Delta') + ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")', 'if not spark.catalog.tableExists(target_table):', '    df.write.format("delta").saveAsTable(target_table)',
+      'elif keys:', '    # One row per key: the incoming row replaces the stored one', '    incoming = df.dropDuplicates(keys)', '    spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new columns are added',
+      '    (DeltaTable.forName(spark, target_table).alias("t")', '        .merge(incoming.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))', '        .whenMatchedUpdateAll()', '        .whenNotMatchedInsertAll()', '        .execute())',
+      'else:', '    # No key: this file\'s rows for this batch are replaced, so a rerun never duplicates', '    (df.write.format("delta").mode("overwrite")', '        .option("replaceWhere", f"_batch_id = \'{batch_id}\' AND _source_file = \'{source_path}\'")', '        .option("mergeSchema", "true")', '        .saveAsTable(target_table))'].join('\n') + '\n';
+    s += md('6. Metrics and exit') + ['rows_written = df.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target_table', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_deduped": rows_deduped', '"rows_quarantined": 0', '"columns_renamed": len(renamed)'])].join('\n') + '\n';
+    return s;
+  };
+  P.anyGold = function (cfg) {
+    const n = P.names(cfg), a = cfg.any;
+    let s = head(n.nbGold, ['Copies new silver rows for ANY object to gold, incrementally, with no transformations. Called by ADF once per object.',
+      'Only rows silver wrote since the last gold load are read (by _ingest_ts). With key_columns the rows are merged on the key; without, each batch is replaced, so a rerun never duplicates.']);
+    s += md('1. Parameters') + widgets([['obj_name', '', true], ['source_schema', cfg.cat.silver + '.' + n.subject, true], ['target_schema', cfg.cat.gold + '.' + n.subject, true], ['key_columns', a.keys, false], ['batch_id', '', true]]) + '\n';
+    s += md('2. Imports and helpers') + ['import json, re, unicodedata', 'from pyspark.sql import functions as F', 'from pyspark.sql.window import Window', 'from delta.tables import DeltaTable', '', CLEAN_NAMES].join('\n') + '\n';
+    s += md('3. Find what is new in silver') + ['source_table = f"{source_schema}.{clean_name(obj_name)}"', 'target_table = f"{target_schema}.{clean_name(obj_name)}"', 'silver = spark.table(source_table)', '',
+      '# The watermark is the newest silver row gold already has', 'last = spark.table(target_table).agg(F.max("_ingest_ts")).first()[0] if spark.catalog.tableExists(target_table) else None',
+      'new = silver if last is None else silver.filter(F.col("_ingest_ts") > F.lit(last))', 'rows_read = new.count()', '',
+      'if rows_read == 0:', '    dbutils.notebook.exit(json.dumps({"status": "succeeded", "batch_id": batch_id, "table": target_table,', '                                      "rows_read": 0, "rows_written": 0, "rows_quarantined": 0}))'].join('\n') + '\n';
+    s += md('4. Write: no transformations, only a load time') + ['keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]', 'spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")', 'spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new silver columns reach gold', '',
+      'if keys:', '    # Newest row per key wins', '    w = Window.partitionBy(*keys).orderBy(F.col("_ingest_ts").desc())', '    rows = new.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn").withColumn("_gold_loaded_ts", F.current_timestamp())',
+      '    if not spark.catalog.tableExists(target_table):', '        rows.write.format("delta").saveAsTable(target_table)', '    else:', '        (DeltaTable.forName(spark, target_table).alias("t")', '            .merge(rows.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))',
+      '            .whenMatchedUpdateAll(condition="s._ingest_ts > t._ingest_ts")', '            .whenNotMatchedInsertAll()', '            .execute())',
+      'else:', '    # Whole batches: every silver row of a batch that has new rows, so a rerun replaces instead of adding', '    batches = [r[0] for r in new.select("_batch_id").distinct().collect()]',
+      '    rows = silver.filter(F.col("_batch_id").isin(batches)).withColumn("_gold_loaded_ts", F.current_timestamp())', '    if not spark.catalog.tableExists(target_table):', '        rows.write.format("delta").saveAsTable(target_table)', '    else:',
+      '        in_list = ", ".join("\'" + b.replace("\'", "\'\'") + "\'" for b in batches)', '        (rows.write.format("delta").mode("overwrite")', '            .option("replaceWhere", f"_batch_id IN ({in_list})")', '            .option("mergeSchema", "true")', '            .saveAsTable(target_table))'].join('\n') + '\n';
+    s += md('5. Metrics and exit') + ['rows_written = rows.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target_table', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_quarantined": 0'])].join('\n') + '\n';
+    return s;
+  };
+
   P.problems = function (cfg) {
     const R = [], add = (sev, msg) => R.push({ sev, msg }), L = cfg.layer;
+    if (cfg.scope === 'any') {
+      if (L === 'bronze') add('err', 'For any object, bronze is loaded by the ADF pipeline (Files through bronze, silver and gold). Choose Silver or Gold.');
+      if (!cfg.subject.trim()) add('err', 'Name the subject area (for example sales). It is the schema the tables go in.');
+      if (cfg.any.keys.trim() && cfg.any.keys.split(',').some(k => !k.trim())) add('warn', 'The key columns have an empty name between commas.');
+      return R;
+    }
     if (!cfg.entity.trim()) add('err', 'Name the entity (for example orders). It names the notebook and the tables.');
     if (!cfg.subject.trim()) add('warn', 'No subject area: table names use the placeholder <subject>.');
     if (L === 'silver') {
@@ -405,6 +478,7 @@
   /* ---------- everything for the current layer ---------- */
   P.build = function (cfg, ai, log) {
     const n = P.names(cfg), L = cfg.layer, o = { names: n, layer: L };
+    if (cfg.scope === 'any') return P.buildAny(cfg, log);
     if (L === 'bronze') o.code = P.bronze(cfg);
     else if (L === 'silver') { const r = P.silver(cfg, ai); o.code = r.code; o.silver = r; }
     else { const r = P.gold(cfg, ai); o.code = r.code; o.gold = r; }
@@ -427,6 +501,25 @@
       if (o.gold.recon) C.push('', '-- Totals against silver: expect difference = 0', 'SELECT (SELECT SUM(' + o.gold.recon.name + ') FROM ' + n.gold + ') - (SELECT SUM(' + o.gold.recon.col + ') FROM ' + n.silver + (g.softDelete ? ' WHERE NOT COALESCE(' + g.softDelete + ', false)' : '') + ') AS difference;'); }
     o.checks = C.join('\n');
     o.placeholders = Array.from(new Set((o.code.match(/<[a-z_]+>/g) || [])));
+    return o;
+  };
+  /* the ADF side of a notebook for any object: the parameters the pipeline must send */
+  P.buildAny = function (cfg, log) {
+    const n = P.names(cfg), L = cfg.layer, o = { names: n, layer: L, any: true };
+    o.code = L === 'gold' ? P.anyGold(cfg) : P.anySilver(cfg);
+    o.logged = !!(log && log.on && !P.logProblems(log).some(p => p.sev === 'err'));
+    if (o.logged) o.code = P.applyLog(o.code, cfg, log, n);
+    const prm = L === 'gold'
+      ? [['obj_name', 'Object name', '(nothing to type)'], ['key_columns', 'Text (optional)', 'the business key, for example order_id; empty = whole batches'], ['batch_id', 'Run ID', '(nothing to type)']]
+      : [['obj_name', 'Object name', '(nothing to type)'], ['storage_account', 'Global parameter', 'StorageAccountName (your storage account name)'], ['source_container', 'Text', 'the bronze container, for example lake'], ['source_folder', 'Text', 'the bronze folder pattern, for example bronze/sales/{object}'], ['source_file', 'Text', 'the bronze file name pattern, for example {object}.parquet'], ['key_columns', 'Text (optional)', 'the business key; empty = no merge'], ['batch_id', 'Run ID', '(nothing to type)']];
+    o.params = prm;
+    o.activity = { name: 'nb_' + L, type: 'DatabricksNotebook', dependsOn: [], policy: { timeout: '0.02:00:00', retry: 0, retryIntervalInSeconds: 60, secureOutput: false, secureInput: false }, userProperties: [], typeProperties: { notebookPath: n.path, baseParameters: Object.fromEntries(prm.map(p => [p[0], p[0] === 'batch_id' ? { value: '@pipeline().RunId', type: 'Expression' } : '<' + p[0] + '>'])) }, linkedServiceName: { referenceName: '<LS_DATABRICKS>', type: 'LinkedServiceReference' } };
+    o.adf = ['In the ADF Pipeline Generator: Files through bronze, silver and gold > Layers after bronze > Add a layer', '  Name:            ' + L, '  Runs:            Once per file (only objects that got a new file this run)', '  Notebook path:   ' + n.path, '  Parameters it reads (name | value | what to type):']
+      .concat(prm.map(p => '    ' + p[0].padEnd(16) + ' | ' + p[1].padEnd(16) + ' | ' + p[2]), ['', 'Run silver before gold in the same pipeline, so they share the batch_id.', 'For logging, tick "Log this layer" and use "Rows written by the step being logged": it reads this notebook’s exit value rows_written.',
+        '', 'Reading what the notebook returns, in a later activity:'], ['status', 'table', 'rows_read', 'rows_written'].concat(L === 'silver' ? ['rows_deduped', 'columns_renamed'] : []).map(e => "  @activity('nb_" + L + "').output.runOutput." + e)).join('\n');
+    o.checks = (L === 'silver' ? ['-- Column names after cleaning: every name lower case, digits and underscores', 'DESCRIBE TABLE ' + n.silver.replace('<object>', '<object_name>') + ';', '', '-- Rows per batch and file: one group per file ADF sent', 'SELECT _batch_id, _source_file, COUNT(*) AS row_count, MAX(_ingest_ts) AS loaded_at', 'FROM ' + n.silver.replace('<object>', '<object_name>'), 'GROUP BY _batch_id, _source_file ORDER BY loaded_at DESC LIMIT 20;']
+      : ['-- Gold has every silver batch, with the same row counts (no key) ', 'SELECT s._batch_id, s.n AS silver_rows, g.n AS gold_rows', 'FROM (SELECT _batch_id, COUNT(*) n FROM ' + n.silver.replace('<object>', '<object_name>') + ' GROUP BY _batch_id) s', 'LEFT JOIN (SELECT _batch_id, COUNT(*) n FROM ' + n.gold.replace('<object>', '<object_name>') + ' GROUP BY _batch_id) g ON g._batch_id = s._batch_id', 'ORDER BY s._batch_id DESC LIMIT 20;']).join('\n');
+    o.placeholders = [];
     return o;
   };
   P.CHECKLIST = {

@@ -27,7 +27,7 @@
     ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression'], ['fixed', 'Fixed text'], ['step', 'Output of an earlier step']];
   /* the short list shown for logging parameters; older choices still work when a saved setup has them */
   A.logChoices = kind => [['step', 'Output of an earlier step'], ['variable', 'Pipeline variable'], ['fixed', 'Fixed text'], ['expr', 'ADF expression'], ['global', 'Global parameter'], ['status', 'Status (Succeeded or Failed)'], ['error', 'Error message (filled in the failure log)']]
-    .concat(kind === 'medallion' ? [['obj_name', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer']] : [], [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['trig_time', 'Trigger time']]);
+    .concat(kind === 'medallion' ? [['rows_written', 'Rows written by the step being logged'], ['duration', 'Duration of the step being logged (seconds)'], ['obj_name', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer']] : [], [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['trig_time', 'Trigger time']]);
   /* "Output of an earlier step": value is "activity|field", or "activity|=path" for any other output */
   A.STEP_FIELDS = { Copy: [['rowsCopied', 'Rows copied'], ['rowsRead', 'Rows read'], ['filesWritten', 'Files written'], ['filesRead', 'Files read'], ['copyDuration', 'Copy duration (seconds)'], ['dataWritten', 'Bytes written']],
     DatabricksNotebook: [['runOutput', 'Notebook exit value'], ['executionDuration', 'Run duration (seconds)']], Lookup: [['firstRow', 'First row'], ['count', 'Row count']],
