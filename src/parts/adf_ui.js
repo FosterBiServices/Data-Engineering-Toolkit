@@ -9,11 +9,27 @@
   const set = (o, path, v) => { const ks = path.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
   const merge = (base, saved) => { if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base; Object.keys(base).forEach(k => { if (saved == null || !(k in saved)) return; const b = base[k], s = saved[k]; if (b && typeof b === 'object' && !Array.isArray(b)) { if (s && typeof s === 'object' && !Array.isArray(s)) merge(b, s); } else if (Array.isArray(b)) { if (Array.isArray(s)) base[k] = s.filter(x => typeof x === 'string'); } else if (typeof s === typeof b) base[k] = s; }); return base; };
 
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  /* standards from storage or a file: the log parameter rows are a list of objects, which merge() doesn't carry */
+  function readStd(saved) {
+    const s = merge(A.defaultStandards(), saved), uses = A.LOG_VALUES.map(v => v[0]);
+    const rows = isObj(saved) && isObj(saved.log) && Array.isArray(saved.log.params) ? saved.log.params.filter(isObj).map(r => ({ name: String(r.name == null ? '' : r.name).slice(0, 100), use: uses.indexOf(r.use) >= 0 ? r.use : 'fixed', value: String(r.value == null ? '' : r.value).slice(0, 300) })) : null;
+    s.log.params = rows || A.defaultLogParams();
+    if (!A.LOG_METHODS.some(m => m[0] === s.log.method)) s.log.method = 'sp_new';
+    s.off = s.off.filter(x => A.CHECK_GROUPS.indexOf(x) >= 0);
+    return s;
+  }
+  function readCfg(saved) {
+    const c = merge(A.blank(), saved);
+    ['src', 'tgt'].forEach(k => { const d = c.ds[k], sv = isObj(saved) && isObj(saved.ds) && isObj(saved.ds[k]) ? saved.ds[k] : {}; d.mode = d.mode === 'own' ? 'own' : 'new'; d.map = {};
+      if (isObj(sv.map)) Object.keys(sv.map).slice(0, 40).forEach(n => { const m = sv.map[n]; if (isObj(m) && typeof m.use === 'string') d.map[n] = { use: m.use, value: String(m.value == null ? '' : m.value) }; }); });
+    return c;
+  }
   function load() {
-    std = merge(A.defaultStandards(), store.get('std', null));
-    st = merge({ example: false, mode: 'build', check: '', done: [] }, store.get('st', null));
+    std = readStd(store.get('std', null));
+    st = merge({ example: false, mode: 'build', check: '', done: [], runBy: 'auto' }, store.get('st', null));
     const saved = store.get('cfg', null);
-    if (saved) cfg = merge(A.blank(), saved);
+    if (saved) cfg = readCfg(saved);
     else if (store.get('blank', false)) cfg = A.blank();
     else { cfg = window.ADF_EX(A.blank); st.example = true; st.check = window.ADF_EX_CHECK; }
   }
@@ -27,6 +43,10 @@
       if (el.type === 'radio') el.checked = el.value === v; else if (el.type === 'checkbox') el.checked = !!v; else el.value = v == null ? '' : v;
     });
     document.querySelectorAll('[data-s]').forEach(el => { el.value = std[el.dataset.s]; });
+    document.querySelectorAll('[data-l]').forEach(el => { if (el !== skip && el.tagName !== 'SELECT') el.value = std.log[el.dataset.l] || ''; });
+    document.querySelectorAll('[data-dsjson]').forEach(el => { if (el !== skip) el.value = cfg.ds[el.dataset.dsjson].json; });
+    document.querySelectorAll('[data-dsmode]').forEach(el => { el.checked = cfg.ds[el.dataset.dsmode].mode === el.value; });
+    $('runBy').value = st.runBy === 'manual' ? 'manual' : 'auto';
     if ($('checkInput') !== skip) $('checkInput').value = st.check || '';
   }
   function readEl(el) {
@@ -39,7 +59,11 @@
       document.querySelectorAll('[data-k="' + el.dataset.k + '"]').forEach(o => { if (o !== el && o.type !== 'radio') o.value = el.value; });
     } else if (el.dataset.s) {
       const k = el.dataset.s; std[k] = el.type === 'number' ? Math.max(Number(el.min) || 0, parseInt(el.value, 10) || 0) : el.value.trim();
-    } else if (el.id === 'checkInput') st.check = el.value;
+    } else if (el.dataset.l) std.log[el.dataset.l] = el.tagName === 'SELECT' ? el.value : el.value.trim();
+    else if (el.dataset.dsjson) { cfg.ds[el.dataset.dsjson].json = el.value; cfg.ds[el.dataset.dsjson].map = {}; }
+    else if (el.dataset.dsmode) { if (el.checked) cfg.ds[el.dataset.dsmode].mode = el.value; }
+    else if (el.id === 'runBy') st.runBy = el.value;
+    else if (el.id === 'checkInput') st.check = el.value;
   }
 
   /* a new paste: pick up the table name, key and change column it suggests */
@@ -75,6 +99,11 @@
     $('overlapBox').hidden = !(inc && sqlT && cfg.load.wmType !== 'integer' && (cfg.tgt.write === 'merge' || cfg.tgt.write === 'scd2'));
     $('timeBox').hidden = cfg.sched.freq !== 'daily'; $('tzBox').hidden = cfg.sched.freq === 'none';
     $('aiStep').hidden = files;
+    renderDatasets(files, sqlT); renderLogging(files, sqlT, inc);
+    const mode = cfg.src.after, nm0 = A.names(cfg, std);
+    $('fileNote').textContent = (mode === 'leave' ? 'Each run copies every matching file to the destination folder and leaves the originals. Running it again copies them again, so give each run its own folder with {run} or dates if the next step shouldn\u2019t see a file twice.' : mode === 'delete' ? 'Each run copies every matching file to the destination folder, then deletes the original once its copy succeeded.' : 'Each run lands every matching file exactly as it arrived, moves the original to the archive, and moves a file that can\u2019t be copied to quarantine.') + ' Cleaning and loading happen in the next layer (a bronze notebook, for example).';
+    $('destIn').placeholder = std.rawPath.replace('{source}', nm0.srcShort).replace('{object}', nm0.obj) + '/{run}';
+    $('ctlBox').hidden = !(inc || std.log.method === 'sp_new' || std.log.method === 'sp_own');
     /* step 1 */
     $('schemaQueryView').textContent = A.schemaQuery(cfg.src.schema, [cfg.src.table.trim()]);
     const parsed = A.parseSchema(cfg.schemaText), cols = A.tableCols(cfg);
@@ -126,14 +155,14 @@
     if (blocking.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (blocking.length === 1 ? 'item' : blocking.length + ' items') + ' marked in red in Step 2 and the pipeline appears here.'); }
     else {
       out = A.build(cfg, std, ai);
-      const own = A.check(out.pipeline, std).filter(f => f.sev !== 'low');
+      const own = A.check(out.pipeline, std, { off: out.names.noHandler ? ['Failure path'] : [] }).filter(f => f.sev !== 'low');
       $('outWrap').hidden = false; $('outMsg').innerHTML = own.length ? S.msg('warn', 'The page’s own checks found something in this pipeline:<ul>' + own.map(f => '<li>' + esc((f.activity ? f.activity + ': ' : '') + f.msg) + '</li>').join('') + '</ul>') : '';
       const flow = A.flow(out.pipeline);
       const pattern = files ? 'File landing' : (inc ? 'Watermark incremental' : 'Full load') + (out.staged ? (out.write === 'scd2' ? ' + SCD Type 2' : ' + merge') : '');
       $('outStats').innerHTML = '<span class="stat">Pattern <b>' + esc(pattern) + '</b></span><span class="stat"><b>' + flow.length + '</b> activities</span><span class="stat"><b>' + out.datasets.length + '</b> datasets</span>' + (own.length ? '' : '<span class="stat" style="background:var(--ok-soft);color:var(--ok)">Structure checks passed</span>') + (out.placeholders.length ? '<span class="stat limited"><b>' + out.placeholders.length + '</b> placeholders to replace</span>' : '');
       $('flowBody').innerHTML = flowRows(flow);
       $('plTitle').textContent = 'Pipeline JSON · ' + out.names.pipeline; $('plView').textContent = out.json;
-      $('dsList').innerHTML = out.datasets.map((d, i) => '<div class="codebox"><div class="codebox-bar"><span class="t">' + esc(d.name) + '</span><span class="r"><button class="btn primary" type="button" data-copy="ds' + i + '">Copy JSON</button></span></div><pre class="short">' + esc(JSON.stringify(d, null, 4)) + '</pre></div>').join('') + '<p class="note">One parameterized dataset per system, so the next pipeline reuses them. If one with this name already exists, compare its parameters and skip it.</p>';
+      $('dsList').innerHTML = (out.reused.length ? S.msg('ok', 'Using your own dataset' + (out.reused.length > 1 ? 's' : '') + ' as ' + (out.reused.length > 1 ? 'they are' : 'it is') + ': ' + out.reused.map(d => '<span class="mono">' + esc(d.name) + '</span>').join(', ') + '. Nothing to create for ' + (out.reused.length > 1 ? 'them' : 'it') + '.') : '') + out.datasets.map((d, i) => '<div class="codebox"><div class="codebox-bar"><span class="t">' + esc(d.name) + '</span><span class="r"><button class="btn primary" type="button" data-copy="ds' + i + '">Copy JSON</button></span></div><pre class="short">' + esc(JSON.stringify(d, null, 4)) + '</pre></div>').join('') + (out.datasets.length ? '<p class="note">One parameterized dataset per system, so the next pipeline reuses them. If one with this name already exists, compare its parameters and skip it.</p>' : '');
       $('sqlView').textContent = out.sql;
       $('trBox').hidden = !out.trigger; $('trView').textContent = out.trigger ? JSON.stringify(out.trigger, null, 4) : '';
       $('trNote').textContent = out.trigger ? 'The trigger is created stopped. Start it after the test plan passes. Its first run is the next ' + (cfg.sched.freq === 'hourly' ? 'hour' : cfg.sched.time) + ' after you start it.' : 'No schedule: run it with Trigger now, or from another pipeline with Execute Pipeline.';
@@ -141,23 +170,59 @@
       $('objBody').innerHTML = out.objects.map(o => '<tr><td>' + esc(o.type) + '</td><td class="nm">' + esc(o.name) + '</td><td>' + esc(o.state) + '</td><td>' + esc(o.purpose) + '</td></tr>').join('');
       $('phMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you build:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ') + '. Fill in the matching box in Step 2 and they disappear.') : '';
     }
-    $('rawNote').hidden = sqlT; if (!sqlT) $('rawNote').textContent = 'Files land under ' + std.rawPath.replace('{source}', names.srcShort).replace('{object}', names.obj) + (files ? '/<run id>/' : '/') + ' in the data lake container. Change the path under Team standards.';
+    $('rawNote').hidden = sqlT || files; if (!sqlT && !files) $('rawNote').textContent = 'Files land under ' + std.rawPath.replace('{source}', names.srcShort).replace('{object}', names.obj) + (files ? '/<run id>/' : '/') + ' in the data lake container. Change the path under Team standards.';
     renderCheck();
     save();
   }
 
+  const optsHtml = (list, cur) => list.map(o => '<option value="' + esc(o[0]) + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('');
+  const typing = box => box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+  function renderDatasets(files, sqlT) {
+    [['src', 'Source'], ['tgt', files ? 'Destination' : 'Target']].forEach(([k, label]) => {
+      const d = cfg.ds[k], wantFile = files || (k === 'tgt' && !sqlT);
+      $('dsTag' + k).textContent = label;
+      document.querySelector('[data-dsown="' + k + '"]').hidden = d.mode !== 'own';
+      if (d.mode !== 'own') return;
+      const r = A.readDataset(d.json), own = A.ownDs(cfg, k), map = $('dsMap' + k);
+      $('dsInfo' + k).innerHTML = own ? '<span class="stat"><b>' + esc(own.name) + '</b></span><span class="stat">' + esc(own.type) + '</span>' + (own.ls ? '<span class="stat">on <b>' + esc(own.ls) + '</b></span>' : '') + '<span class="stat"><b>' + own.params.length + '</b> parameter' + (own.params.length === 1 ? '' : 's') + '</span>' : '';
+      $('dsMsg' + k).innerHTML = r && r.error ? S.msg('err', esc(r.error)) : own && !own.params.length ? S.msg('info', 'This dataset has no parameters, so it always points at the same place. The pipeline uses it as it is and doesn\u2019t pass it a ' + (wantFile ? 'folder or file name' : 'schema or table') + '.') : '';
+      if (!own) { map.innerHTML = ''; return; }
+      if (typing(map)) return;
+      const uses = A.DS_USES[wantFile ? 'file' : 'table'];
+      map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
+        + (m.use === 'fixed' ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="value to pass" spellcheck="false" aria-label="Fixed value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
+    });
+  }
+  function renderLogging(files, sqlT, inc) {
+    const lg = std.log, m = lg.method;
+    $('logMethod').innerHTML = optsHtml(A.LOG_METHODS, m);
+    document.querySelectorAll('[data-log]').forEach(el => { el.hidden = el.dataset.log !== m; });
+    $('logOwn').hidden = !(m === 'sp_own' || m === 'notebook');
+    $('logParamsTitle').textContent = m === 'notebook' ? 'Base parameters the notebook reads' : 'Parameters the procedure takes';
+    $('logNote').textContent = m === 'sp_new' ? 'The page writes a log table and procedure (Supporting SQL tab) and calls it at the end of a run and on failure. It needs a SQL database: the target, or the control database below.'
+      : m === 'sp_own' ? 'Your procedure is called on the control database linked service. Row counts are passed as Int64, everything else as String.'
+        : m === 'notebook' ? 'Your notebook is run at the end of a run and on failure. Base parameters are always text, so counts are passed as text. Read them with dbutils.widgets.get.'
+          : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
+    const box = $('logRows'); if (typing(box)) return;
+    box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(A.LOG_VALUES, r.use) + '</select>'
+      + (r.use === 'fixed' ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="text to pass" spellcheck="false" aria-label="Fixed text">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+  }
+
   function renderCheck() {
+    $('offChips').innerHTML = A.CHECK_GROUPS.map(g => '<button type="button" class="chip" data-off="' + esc(g) + '" aria-pressed="' + (std.off.indexOf(g) < 0 ? 'true' : 'false') + '">' + esc(g) + '</button>').join('');
     const r = A.readPipeline(st.check); checkRes = null;
     if (r.empty) { $('checkOut').hidden = true; $('checkMsg').innerHTML = ''; return; }
     if (r.error) { $('checkOut').hidden = true; $('checkMsg').innerHTML = S.msg('err', esc(r.error)); return; }
-    const F = A.check(r.pipeline, std), flow = A.flow(r.pipeline), ph = A.placeholders(JSON.stringify(r.pipeline));
+    const manual = st.runBy === 'manual', F = A.check(r.pipeline, std, { manual, off: std.off }), flow = A.flow(r.pipeline), ph = A.placeholders(JSON.stringify(r.pipeline));
     checkRes = { F, name: r.pipeline.name || '(no name)' };
     const n = s => F.filter(f => f.sev === s).length;
     $('checkMsg').innerHTML = ph.length ? S.msg('warn', '<b>Placeholders still in the JSON:</b> ' + ph.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
     $('checkOut').hidden = false;
     $('checkStats').innerHTML = '<span class="stat"><b>' + esc(checkRes.name) + '</b></span><span class="stat"><b>' + flow.length + '</b> activities</span>' + (F.length ? '<span class="stat" style="background:var(--err-soft);color:var(--err)"><b>' + n('high') + '</b> high</span><span class="stat limited"><b>' + n('medium') + '</b> medium</span><span class="stat"><b>' + n('low') + '</b> low</span>' : '<span class="stat" style="background:var(--ok-soft);color:var(--ok)">No findings</span>');
     $('findWrap').hidden = !F.length;
-    $('findBody').innerHTML = F.map(f => '<tr><td>' + S.pill(f.sev, f.sev) + '</td><td class="nm">' + esc(f.activity || 'Pipeline') + '</td><td>' + esc(f.rule) + '</td><td>' + esc(f.msg) + '</td></tr>').join('');
+    $('findBody').innerHTML = F.map(f => '<tr><td>' + S.pill(f.sev, f.sev) + '</td><td class="nm">' + esc(f.activity || 'Pipeline') + '</td><td>' + esc(f.rule) + '</td><td>' + esc(f.msg) + (f.fix ? '<div class="fix"><b>How to fix:</b> ' + esc(f.fix) + '</div>' : '') + '</td></tr>').join('');
+    $('fixWrap').hidden = !F.length; checkRes.prompt = F.length ? S.fullPrompt(A.fixPrompt(r.pipeline, F, std, manual)) : '';
+    $('fixView').textContent = checkRes.prompt; S.count($('fixCount'), checkRes.prompt);
     $('checkFlow').innerHTML = flowRows(flow);
   }
 
@@ -179,33 +244,49 @@
     S.tabs($('outTabs'));
     document.querySelectorAll('[data-done]').forEach(el => { el.checked = st.done.indexOf(el.dataset.done) >= 0; });
 
-    document.addEventListener('input', e => { const el = e.target; if (!(el.dataset && (el.dataset.k || el.dataset.s)) && el.id !== 'checkInput') return; readEl(el); render(); });
+    const ownField = el => el.dataset && (el.dataset.k || el.dataset.s || el.dataset.l || el.dataset.dsjson);
+    document.addEventListener('input', e => {
+      const el = e.target, row = el.closest && el.closest('[data-logrow]');
+      if (row && el.dataset.lf && el.tagName === 'INPUT') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; render(); return; }
+      if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed]; d.map[el.dataset.p] = { use: 'fixed', value: el.value }; render(); return; }
+      if (!ownField(el) && el.id !== 'checkInput') return; readEl(el); render();
+    });
     document.addEventListener('change', e => {
       const el = e.target;
       if (el.dataset && el.dataset.done != null) { st.done = Array.from(document.querySelectorAll('[data-done]')).filter(x => x.checked).map(x => x.dataset.done); save(); return; }
-      if (el.dataset && (el.dataset.k || el.dataset.s) && (el.tagName === 'SELECT' || el.type === 'radio' || el.type === 'checkbox')) { readEl(el); render(); }
+      const row = el.closest && el.closest('[data-logrow]');
+      if (row && el.dataset.lf === 'use') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r.use = el.value; render(); return; }
+      if (el.dataset && el.dataset.dsmap) { const own = A.ownDs(cfg, el.dataset.dsmap); const prev = own && own.map[el.dataset.p]; cfg.ds[el.dataset.dsmap].map[el.dataset.p] = { use: el.value, value: prev ? prev.value : '' }; render(); return; }
+      if (el.id === 'runBy' || (el.dataset && (el.dataset.dsmode || ((el.dataset.k || el.dataset.s || el.dataset.l) && (el.tagName === 'SELECT' || el.type === 'radio' || el.type === 'checkbox'))))) { readEl(el); render(); }
     });
     document.addEventListener('click', e => {
       const k = e.target.closest('[data-key]'), c = e.target.closest('[data-col]');
       if (k) { const n = k.dataset.key, i = cfg.load.keys.indexOf(n); if (i >= 0) cfg.load.keys.splice(i, 1); else cfg.load.keys.push(n); render(); }
       else if (c && !c.disabled) { const n = c.dataset.col, i = cfg.exclude.indexOf(n); if (i >= 0) cfg.exclude.splice(i, 1); else cfg.exclude.push(n); render(); }
     });
+    document.addEventListener('click', e => {
+      const off = e.target.closest('[data-off]'), del = e.target.closest('[data-logdel]');
+      if (off) { const g = off.dataset.off, i = std.off.indexOf(g); if (i >= 0) std.off.splice(i, 1); else std.off.push(g); render(); }
+      else if (del) { std.log.params.splice(Number(del.closest('[data-logrow]').dataset.logrow), 1); render(); }
+    });
+    $('addLogParam').addEventListener('click', () => { std.log.params.push({ name: '', use: 'fixed', value: '' }); render(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     $('stdReset').addEventListener('click', () => { std = A.defaultStandards(); fill(); render(); });
     $('stdFile').addEventListener('change', e => {
       const f = e.target.files[0]; if (!f) return;
-      S.readFile(f).then(t => { try { const o = JSON.parse(t); std = merge(A.defaultStandards(), o && o.standards ? o.standards : o); fill(); render(); $('stdMsg').innerHTML = S.msg('ok', 'Standards loaded from ' + esc(f.name) + '.'); } catch (err) { $('stdMsg').innerHTML = S.msg('err', 'That file isn’t a standards file from this page.'); } e.target.value = ''; });
+      S.readFile(f).then(t => { try { const o = JSON.parse(t); std = readStd(o && o.standards ? o.standards : o); fill(); render(); $('stdMsg').innerHTML = S.msg('ok', 'Standards loaded from ' + esc(f.name) + '.'); } catch (err) { $('stdMsg').innerHTML = S.msg('err', 'That file isn’t a standards file from this page.'); } e.target.value = ''; });
     });
     $('checkFile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; S.readFile(f).then(t => { if (st.example) toBlank($('checkInput')); st.check = t; $('checkInput').value = t; render(); e.target.value = ''; }); });
     S.ownEntry({ isExample: () => st.example, toBlank });
-    S.clearSetup({ onClear: () => { store.clear(); store.set('blank', true); std = A.defaultStandards(); st = { example: false, mode: st.mode, check: '', done: [] }; cfg = A.blank(); fill(); document.querySelectorAll('[data-done]').forEach(el => { el.checked = false; }); render(); } });
+    S.clearSetup({ onClear: () => { store.clear(); store.set('blank', true); std = A.defaultStandards(); st = { example: false, mode: st.mode, check: '', done: [], runBy: 'auto' }; cfg = A.blank(); fill(); document.querySelectorAll('[data-done]').forEach(el => { el.checked = false; }); render(); } });
     const file = (ext, text) => ({ name: (out ? out.names.pipeline : 'pipeline') + ext, text });
     const getters = {
       schemaQuery: () => $('schemaQueryView').textContent, volumeQuery: () => $('volumeQueryView').textContent,
       aiPrompt: () => ({ name: 'adf-transformations-prompt.txt', text: $('aiPromptView').textContent }),
       pipeline: () => out && file('.json', out.json), sql: () => out && file('.sql', out.sql), steps: () => out && out.steps, trigger: () => out && out.trigger && JSON.stringify(out.trigger, null, 4),
       standards: () => ({ name: 'adf-team-standards.json', text: JSON.stringify({ standards: std }, null, 2) }),
-      review: () => checkRes && ('Pipeline review: ' + checkRes.name + '\n' + (checkRes.F.length ? checkRes.F.map(f => '[' + f.sev.toUpperCase() + '] ' + (f.activity || 'Pipeline') + ' (' + f.rule + '): ' + f.msg).join('\n') : 'No findings.'))
+      review: () => checkRes && ('Pipeline review: ' + checkRes.name + '\n' + (checkRes.F.length ? checkRes.F.map(f => '[' + f.sev.toUpperCase() + '] ' + (f.activity || 'Pipeline') + ' (' + f.rule + '): ' + f.msg + (f.fix ? '\n    How to fix: ' + f.fix : '')).join('\n') : 'No findings.')),
+      fixPrompt: () => checkRes && checkRes.prompt && ({ name: 'adf-fix-prompt.txt', text: checkRes.prompt })
     };
     document.addEventListener('click', e => { const b = e.target.closest('[data-copy^="ds"]'); if (b && out) { const d = out.datasets[Number(b.dataset.copy.slice(2))]; if (d) S.copyText(JSON.stringify(d, null, 4), b); } });
     S.wireCopy(getters);

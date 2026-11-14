@@ -11,7 +11,7 @@
       <button type="button" class="clear-btn" id="clearEntries" aria-controls="clearConfirm" aria-expanded="false">Clear entries</button>
     </div>
     <div class="clear-confirm" id="clearConfirm" role="alertdialog" aria-labelledby="clearMsg" hidden>
-      <span id="clearMsg"><b>Clear all entries?</b> This empties every box on this page and removes what this page saved in your browser, including your team standards. It can&rsquo;t be undone.</span>
+      <span id="clearMsg"><b>Clear all entries?</b> This empties every box on this page and removes what this page saved in your browser, including your team standards and logging setup. It can&rsquo;t be undone.</span>
       <span class="btns"><button type="button" class="btn danger" id="clearYes">Clear entries</button><button type="button" class="btn" id="clearAllPages">Clear all pages</button><button type="button" class="btn" id="clearNo">Cancel</button></span>
     </div>
     <div class="clear-done msg ok" id="clearDone" role="status" hidden>Entries cleared. Start with the source in Step 1.</div>
@@ -68,8 +68,10 @@
           <label class="lab">Landing folder<input type="text" data-k="src.folder" data-own spellcheck="false" autocomplete="off" placeholder="sales/orders"></label>
           <label class="lab">File name starts with <span class="hint">optional</span><input type="text" data-k="src.starts" spellcheck="false" autocomplete="off" placeholder="orders_"></label>
           <label class="lab">File name ends with<input type="text" data-k="src.ends" spellcheck="false" autocomplete="off" placeholder=".csv"></label>
+          <label class="lab">After copying<select data-k="src.after"><option value="leave">Leave the originals where they are (a plain copy)</option><option value="delete">Delete the originals (a move)</option><option value="archive">Move the originals to archive; failures to quarantine</option></select></label>
+          <label class="lab wide">Destination folder <span class="hint">in the data lake container; {yyyy} {MM} {dd} and {run} are filled in. Empty = the raw zone path from team standards, one folder per run</span><input type="text" data-k="src.dest" spellcheck="false" autocomplete="off" placeholder="bronze/orders" id="destIn"></label>
         </div>
-        <p class="note">Each run lands every matching file in the raw zone exactly as it arrived, moves it to the archive, and moves a file that can&rsquo;t be copied to quarantine. Cleaning and loading happen in the next layer (a bronze notebook, for example).</p>
+        <p class="note" id="fileNote"></p>
       </div>
     </div>
   </section>
@@ -120,6 +122,40 @@
         <p class="note small" id="rawNote" hidden></p>
       </div>
 
+
+      <div class="sub" id="dsSub">
+        <h3>Datasets</h3>
+        <p class="note small" style="margin-top:-6px">Use the datasets your factory already has, and the pipeline works as soon as it is pasted. Or let the page create parameterized ones.</p>
+        <div class="dcard" data-role="src">
+          <div class="dcard-head"><span class="dtag" id="dsTagsrc">Source</span>
+            <div class="seg" role="radiogroup" aria-label="Source dataset">
+              <label><input type="radio" name="dsModesrc" value="new" data-dsmode="src"><span>Create one for me</span></label>
+              <label><input type="radio" name="dsModesrc" value="own" data-dsmode="src"><span>Use one I already have</span></label>
+            </div></div>
+          <div data-dsown="src" style="display:flex;flex-direction:column;gap:10px" hidden>
+            <p class="note small">In ADF Studio open the dataset, select the code view button <span class="mono">{}</span> and copy everything. The page reads its name, type, linked service and parameters, and passes the right value to each one.</p>
+            <textarea class="mid" data-dsjson="src" spellcheck="false" aria-label="Source dataset JSON" placeholder='{ "name": "ds_...", "properties": { "type": "...", "parameters": { ... } } }'></textarea>
+            <div class="stats" id="dsInfosrc"></div>
+            <div class="msgs" id="dsMsgsrc"></div>
+            <div class="rowlist" id="dsMapsrc"></div>
+          </div>
+        </div>
+        <div class="dcard" data-role="tgt">
+          <div class="dcard-head"><span class="dtag" id="dsTagtgt">Target</span>
+            <div class="seg" role="radiogroup" aria-label="Target dataset">
+              <label><input type="radio" name="dsModetgt" value="new" data-dsmode="tgt"><span>Create one for me</span></label>
+              <label><input type="radio" name="dsModetgt" value="own" data-dsmode="tgt"><span>Use one I already have</span></label>
+            </div></div>
+          <div data-dsown="tgt" style="display:flex;flex-direction:column;gap:10px" hidden>
+            <p class="note small">In ADF Studio open the dataset, select the code view button <span class="mono">{}</span> and copy everything. The page reads its name, type, linked service and parameters, and passes the right value to each one.</p>
+            <textarea class="mid" data-dsjson="tgt" spellcheck="false" aria-label="Target dataset JSON" placeholder='{ "name": "ds_...", "properties": { "type": "...", "parameters": { ... } } }'></textarea>
+            <div class="stats" id="dsInfotgt"></div>
+            <div class="msgs" id="dsMsgtgt"></div>
+            <div class="rowlist" id="dsMaptgt"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="sub" data-only="sql">
         <h3>Load pattern</h3>
         <div class="seg" role="radiogroup" aria-label="Load type">
@@ -155,14 +191,31 @@
         </details>
       </div>
 
+      <div class="sub" id="logSub">
+        <h3>Logging</h3>
+        <p class="note small" style="margin-top:-6px">How a run is recorded, on success and on failure. Set it once: it is saved with your team standards and used for every pipeline.</p>
+        <div class="qgrid">
+          <label class="lab">Log each run with<select data-l="method" id="logMethod"></select></label>
+          <label class="lab" data-log="sp_own">Procedure name <span class="hint">with its schema</span><input type="text" data-l="proc" spellcheck="false" autocomplete="off" placeholder="[etl].[usp_log_run]"></label>
+          <label class="lab" data-log="notebook">Notebook path<input type="text" data-l="nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/utilities/nb_log_pipeline_run"></label>
+          <label class="lab" data-log="notebook">Databricks linked service<input type="text" data-l="nbLs" spellcheck="false" autocomplete="off" placeholder="ls_databricks_prod"></label>
+        </div>
+        <div id="logOwn" style="display:flex;flex-direction:column;gap:10px">
+          <div class="details-head"><h3 id="logParamsTitle">Parameters it takes</h3><button type="button" class="btn" id="addLogParam">Add a parameter</button></div>
+          <p class="note small" style="margin-top:-6px">One row per parameter: its exact name, and what the pipeline should pass. The same call is made on success and on failure, with the status and error message filled in to match.</p>
+          <div class="rowlist" id="logRows"></div>
+        </div>
+        <p class="note small" id="logNote"></p>
+      </div>
+
       <div class="sub">
         <h3>Schedule, alerts and what runs next</h3>
         <div class="qgrid">
           <label class="lab">Runs<select data-k="sched.freq"><option value="daily">Every day</option><option value="hourly">Every hour</option><option value="none">No schedule (run by hand or from another pipeline)</option></select></label>
           <label class="lab" id="timeBox">At<input type="time" data-k="sched.time"></label>
           <label class="lab" id="tzBox">Time zone<select data-k="sched.tz" id="tzSel"></select></label>
-          <label class="lab">On failure<select data-k="alert"><option value="web">Log it and post an alert (Logic App or Teams workflow URL)</option><option value="none">Log it only</option></select></label>
-          <label class="lab">Control database linked service <span class="hint">where the watermark and log tables live; empty = the target database</span><input type="text" data-k="ctlLs" spellcheck="false" autocomplete="off" placeholder="ls_azuresql_dw_prod"></label>
+          <label class="lab">Alert on failure<select data-k="alert"><option value="none">No alert</option><option value="web">Post to a URL (Logic App or Teams workflow)</option></select></label>
+          <label class="lab" id="ctlBox">Control database linked service <span class="hint">where the watermark table and logging procedure live; empty = the target database</span><input type="text" data-k="ctlLs" spellcheck="false" autocomplete="off" placeholder="ls_azuresql_dw_prod"></label>
         </div>
         <details class="extra" id="nbWrap">
           <summary>Run Databricks notebooks after the load <span class="muted" id="nbCount">(optional)</span></summary>
@@ -290,6 +343,10 @@
         <h2 id="c1">Paste the pipeline JSON</h2>
         <p>In ADF Studio, open the pipeline and select the code view button <span class="mono">{}</span>, then copy everything. A pipeline Copilot wrote works too: paste its whole reply. Take out connection strings and keys first.</p>
       </div>
+      <div class="qgrid">
+        <label class="lab">How is this pipeline run?<select id="runBy"><option value="auto">By a trigger, a schedule or another pipeline</option><option value="manual">By hand, by someone watching it</option></select></label>
+      </div>
+      <div class="picker"><div class="picker-head"><h3>Checks to run</h3><span class="note small">Turn off a group that doesn&rsquo;t apply to how you work. Saved with your team standards.</span></div><div class="chips" id="offChips"></div></div>
       <textarea class="big" id="checkInput" data-own spellcheck="false" aria-label="Pipeline JSON" placeholder='{ "name": "pl_...", "properties": { "activities": [ ... ] } }'></textarea>
       <div class="reply-actions"><label class="btn filebtn">Open a JSON file<input type="file" id="checkFile" accept=".json,.txt,application/json"></label></div>
       <div id="checkMsg" class="msgs" aria-live="polite"></div>
@@ -304,8 +361,15 @@
       </div>
       <div id="checkOut" style="display:flex;flex-direction:column;gap:14px" hidden>
         <div class="stats" id="checkStats"></div>
-        <div class="tablewrap" id="findWrap"><table><thead><tr><th>Severity</th><th>Activity</th><th>Check</th><th>What&rsquo;s wrong and what to do</th></tr></thead><tbody id="findBody"></tbody></table></div>
+        <div class="tablewrap" id="findWrap"><table><thead><tr><th>Severity</th><th>Activity</th><th>Check</th><th>What&rsquo;s wrong, and how to fix it in ADF Studio</th></tr></thead><tbody id="findBody"></tbody></table></div>
         <div class="reply-actions"><button type="button" class="btn" data-copy="review">Copy review as text</button></div>
+        <details class="extra" id="fixWrap">
+          <summary>Have Copilot fix it <span class="muted">(optional)</span></summary>
+          <div class="extra-body">
+            <p class="note">The prompt holds the findings and the pipeline JSON, and asks for the whole corrected pipeline back. Paste Copilot&rsquo;s reply into the box in Step 1 and the page checks it again. Use the steps in the table instead when there are only a few fixes: they are exact, and Copilot can still get a pipeline wrong.</p>
+            <div class="codebox"><div class="codebox-bar"><span class="t">Fix prompt for Copilot</span><span class="r"><span class="count" id="fixCount"></span><button class="btn" type="button" data-save="fixPrompt">Download file</button><button class="btn primary" type="button" data-copy="fixPrompt">Copy prompt</button></span></div><pre class="short" id="fixView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+          </div>
+        </details>
         <h3>Activity flow</h3>
         <div class="tablewrap"><table><thead><tr><th>#</th><th>Activity</th><th>Type</th><th>Runs after</th></tr></thead><tbody id="checkFlow"></tbody></table></div>
         <p class="note">These checks read the pipeline&rsquo;s structure. They can&rsquo;t see your data, linked services or SQL, so a clean result still needs a debug run on a small window.</p>

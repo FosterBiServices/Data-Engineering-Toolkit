@@ -12,6 +12,7 @@
     Object.assign(c.tgt, { kind: 'sql', system: 'azuresql', ls: 'ls_azuresql_dw_prod', schema: 'dw', table: 'fact_orders', write: 'merge', container: 'datalake', storage: '' });
     Object.assign(c.load, { type: 'incremental', wmCol: 'ModifiedDate', wmType: 'datetime', keys: ['OrderID'], overlap: 120 });
     c.filter = 'CustomerID <> 999999';
+    c.alert = 'web'; c.src.after = 'archive'; c.sched.freq = 'daily';
     c.ai.request = 'Convert OrderDate from US Eastern time to UTC.';
     c.ai.reply = ['```', '@@@ COLUMN @@@', 'NAME: OrderDate', 'TYPE: datetime2(7)', "EXPR: CAST([OrderDate] AT TIME ZONE 'Eastern Standard Time' AT TIME ZONE 'UTC' AS datetime2(7))", '@@@ NOTES @@@', 'OrderDate is assumed to be stored in US Eastern local time, with no offset.', '```'].join('\n');
     return c;

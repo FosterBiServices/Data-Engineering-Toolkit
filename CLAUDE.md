@@ -51,12 +51,30 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
 - Watermarks are stored as text (ISO date-time or a number) in `<ctl>.watermark`; the new value is read before the copy
   and the copy is bounded above by it. `p_full_reload` restarts from the floor; `p_overlap_minutes` only with a staged
   merge. Literal `@` in SQL inside an expression is doubled (`lit`).
-- File landing: Get Metadata > Filter > ForEach (raw, archive, delete; quarantine on failure) > notebooks inside an If
-  when files landed > log > If any quarantined then Fail. Raw folder per run: `<raw path>/<RunId>/`.
+- Files: Get Metadata > Filter > ForEach (copy; in archive mode also archive, delete, and quarantine on failure) >
+  notebooks inside an If when files landed > log > (archive mode) If any quarantined then Fail. Destination folder:
+  `src.dest` with {yyyy} {MM} {dd} {run}, else `<raw path>/<RunId>/`.
 - Datasets are one parameterized dataset per system (`schema_name`, `table_name`; or `container`, `folder_path`, `file_name`).
 - `A.check(pipeline, std)` is the checker, used on pasted JSON and on the page's own output (adfcoretest expects no
   findings for every pattern). `A.flatten` settles the shapes of pasted JSON first.
 - Team standards (`dea.std`) can be downloaded and loaded as a file so a team shares one set.
+- **The user's own setup comes first** (owner feedback after the first real try, Nov 2026: the page assumed its own
+  datasets, a logging procedure and a trigger). Nothing about the factory is assumed:
+  - Datasets: per role (source, target/destination) "Create one for me" or "Use one I already have". The user pastes the
+    dataset's code-view JSON; `A.readDataset` reads name, type, linked service, store and parameters, and works out what
+    each parameter is from `typeProperties` (`@dataset().x` in fileSystem/folderPath/fileName/schema/table), then from its
+    name. The mapping is editable (`cfg.ds[role].map`), including fixed text. `role()` in `A.build` returns `ref(values)`
+    for either kind, and source/sink/store types follow the dataset's type (Binary, DelimitedText, Parquet...).
+  - Logging (`std.log`, saved with team standards): the page's procedure (`sp_new`), the user's procedure (`sp_own`),
+    the user's Databricks notebook (`notebook`) or none. Own methods take a list of parameter name -> value
+    (`A.LOG_VALUES`). The owner logs with a notebook.
+  - Alert, schedule and file handling default to the least: no alert, no trigger, plain copy that leaves the originals
+    (`src.after`: leave / delete / archive). With no logging and no alert there is no failure path at all.
+  - No supporting SQL is written unless something needs it.
+- Checker: every finding can carry `fix` (exact ADF Studio steps, naming the activity). "How is this pipeline run?"
+  (`st.runBy`) makes the failure-path findings low and optional for a pipeline run by hand; "Checks to run" turns rule
+  groups off (`std.off`). `A.fixPrompt` writes a Copilot prompt with the findings and the JSON that asks for the whole
+  corrected pipeline, which is pasted back into the same box and checked again.
 
 ## Python Notebook Generator (`py_core.js`)
 
@@ -88,7 +106,9 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
 
 ## Not yet run in a real factory or workspace
 
-- The pipeline JSON pasted into ADF Studio's code view and validated, for each pattern.
+- The pipeline JSON pasted into ADF Studio's code view and validated, for each pattern. (The owner ran a first folder
+  copy in Nov 2026 and reported the setup assumptions above, not JSON errors.)
+- Own datasets of types other than Binary and DelimitedText; a notebook logging activity reading its base parameters.
 - `activity('name').error?.message` across skipped activities in `sp_log_failure`.
 - The Fail activity after the handler making the run show Failed; the Web alert body reaching a Teams workflow or Logic App.
 - `p_full_reload` reaching the Lookup query as the text True/False.
