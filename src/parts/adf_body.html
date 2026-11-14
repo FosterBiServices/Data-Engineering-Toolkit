@@ -33,7 +33,8 @@
     <div class="step-body">
       <div class="step-head">
         <h2 id="s1">Read the source</h2>
-        <p>The page can&rsquo;t see your database, so you run one query and paste the result. Real column names and types are what make the output exact.</p>
+        <p data-only="sql">The page can&rsquo;t see your database, so you run one query and paste the result. Real column names and types are what make the output exact.</p>
+        <p data-not="sql">Where the files arrive. The page can&rsquo;t see your storage, so type the container and folder as they appear in Storage Explorer.</p>
       </div>
       <div class="seg" role="radiogroup" aria-label="Source kind">
         <label><input type="radio" name="srcKind" value="medallion" data-k="src.kind"><span>Files through bronze, silver and gold</span></label>
@@ -122,6 +123,7 @@
         <h3>Bronze</h3>
         <div class="qgrid">
           <label class="lab">Each file is<select data-k="med.action"><option value="copy">Copied to bronze by ADF</option><option value="notebook">Loaded to bronze by a notebook</option></select></label>
+          <label class="lab">Container for bronze and layers <span class="hint">empty = the one the files arrive in; {var:name} allowed</span><input type="text" data-k="med.container" spellcheck="false" autocomplete="off" placeholder="same as the files"></label>
         </div>
         <div id="medCopy" style="display:flex;flex-direction:column;gap:12px">
           <div class="qgrid">

@@ -104,6 +104,7 @@
     $('exampleBanner').hidden = !st.example;
     $('srcSql').hidden = files; $('srcFiles').hidden = !files;
     document.querySelectorAll('[data-only="sql"]').forEach(el => { el.hidden = files; });
+    document.querySelectorAll('[data-not="sql"]').forEach(el => { el.hidden = !files; });
     $('tgtSql').hidden = !sqlT; $('tgtAdls').hidden = sqlT;
     $('incBox').hidden = !inc; $('keyBox').hidden = !sqlT;
     $('overlapBox').hidden = !(inc && sqlT && cfg.load.wmType !== 'integer' && (cfg.tgt.write === 'merge' || cfg.tgt.write === 'scd2'));
@@ -204,8 +205,17 @@
       if (typing(map)) return;
       const uses = A.DS_USES[wantFile ? 'file' : 'table'];
       map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
-        + (/^(fixed|variable|global|expr)$/.test(m.use) ? (m.use === 'expr' ? fxBox : x => x)('<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">') : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
+        + (/^(fixed|variable|global|expr)$/.test(m.use) ? (m.use === 'expr' ? fxBox : x => x)('<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">') : '<span class="note small" style="overflow-wrap:anywhere">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : esc(fillsWith(k, m.use, med))) + '</span>') + '</div>'; }).join('');
     });
+  }
+  /* what the pipeline passes for a mapped parameter, in words, so a wrong container or folder shows before building */
+  function fillsWith(k, use, med) {
+    if (!med) return 'filled in by the pipeline';
+    const m = cfg.med, src = cfg.src, lake = String(m.container || '').trim() || src.container.trim() || '(container not given)';
+    const t = { container: { list: src.container.trim() || '(container not given)', read: src.container.trim() || '(container not given)', sink: lake, meta: lake },
+      folder: { list: src.folder, read: src.folder, sink: m.bronzeFolder + (m.archive && m.archiveFolder !== m.bronzeFolder ? ', or ' + m.archiveFolder + ' when archiving' : ''), meta: 'each layer\u2019s folder: ' + (m.stages.map(s => s.path).filter(Boolean).join(', ') || 'none yet') },
+      file: { list: '(empty: a folder is listed)', read: 'each file\u2019s name', sink: m.bronzeFile + (m.archive && m.archiveFile !== m.bronzeFile ? ', or ' + m.archiveFile + ' when archiving' : ''), meta: '(empty: a folder is listed)' } }[use];
+    return t && t[k] != null ? 'gets ' + t[k] : 'filled in by the pipeline';
   }
   const NBV = A.NB_VALUES;
   const paramRows = (list, key) => list.map((r, i) => '<div class="rrow log4" data-pkey="' + key + '" data-pi="' + i + '"><input type="text" data-pf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-pf="use" aria-label="Value">' + optsHtml(NBV, r.use) + '</select>'
@@ -241,7 +251,7 @@
     $('logParamsTitle').textContent = m === 'notebook' ? 'Base parameters the notebook reads' : 'Parameters the procedure takes';
     $('logNote').textContent = m === 'sp_new' ? 'The page writes a log table and procedure (Supporting SQL tab) and calls it at the end of a run and on failure. It needs a SQL database: the target, or the control database below.'
       : m === 'sp_own' ? 'Your procedure is called on the control database linked service. Row counts are passed as Int64, everything else as String.'
-        : m === 'notebook' ? 'Your notebook is run at the end of a run and on failure. Base parameters are always text, so counts are passed as text. Read them with dbutils.widgets.get.'
+        : m === 'notebook' ? (cfg.src.kind === 'medallion' ? (cfg.med.logEach ? 'Your notebook is run after each file (success or failure) and after each layer run you tick. ' : 'Tick \u201cLog each file and layer run\u201d above to use it. ') : 'Your notebook is run at the end of a run and on failure. ') + 'Base parameters are always text, so counts are passed as text (0 when there is none). Read them with dbutils.widgets.get.'
           : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
     const box = $('logRows'); if (typing(box)) return;
     const choices = A.logChoices(cfg.src.kind), label = u => (A.LOG_VALUES.find(v => v[0] === u) || [u, u])[1];
@@ -252,7 +262,7 @@
         + '<select data-lf="stepField" aria-label="Which output">' + optsHtml([['', 'Choose an output']].concat(fields), fv) + '</select>'
         + (fv === '=' ? '<input type="text" data-lf="stepPath" value="' + esc(f.slice(1)) + '" placeholder="runOutput.rows_written" spellcheck="false" aria-label="Output path">' : '') + '</span>'; };
     box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(choices.some(c => c[0] === r.use) ? choices : choices.concat([[r.use, label(r.use) + ' (older choice)']]), r.use) + '</select>'
-      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable)$/.test(r.use) ? (r.use === 'expr' ? fxBox : x => x)('<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">') : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable|error)$/.test(r.use) ? (r.use === 'expr' ? fxBox : x => x)('<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name', error: 'on success (optional): no error' }[r.use]) + '"' + (r.use === 'error' ? ' title="Passed when the step succeeded. Empty passes nothing."' : '') + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">') : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
   }
 
   /* ---- expression helper: opened by the fx button beside any "ADF expression" box ---- */

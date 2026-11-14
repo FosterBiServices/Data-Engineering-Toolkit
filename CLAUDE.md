@@ -120,6 +120,15 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   parameter names, a step inside a ForEach/If read from elsewhere), and an optional Copilot prompt (`A.exprPrompt`,
   reply `@@@ EXPRESSION @@@`, `A.exprParse`, refused when the check finds errors). "Use" writes back by dispatching an
   input event on the original box. Check: `adfexprtest.js` (no samples needed).
+- Rebuild of pl_yourproject_region through the page (Nov 2026, owner: "recreate it, document what went well and
+  what didn't, fix it"). Fixes from it: `med.container` (bronze, archive and layer folders in another container; pattern,
+  `{var:}` allowed); dataset parameter rows say what they get (`fillsWith`); the preview shows containers, the real
+  object folder name and each layer notebook's parameter values (folder loop: `{name}`/`{file}` = folder, `{object}` =
+  folder with - to _); counts and durations from a step default to 0, not '' (`A.stepExpr`); the Error message log value
+  takes optional text for success; checker rule: an archive copy inside an `exists` If must read what the main copy
+  writes. `adfrebuildtest.js` drives the whole rebuild and `adfcompare.py` (with `adfeval.py`, a small ADF expression
+  evaluator) compares every dataset, notebook and log value with the original for one file: only the 4 known
+  corrections may differ.
 - `adfmedtest.js` sets up the owner's yourproject pipeline through the page with his datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
 

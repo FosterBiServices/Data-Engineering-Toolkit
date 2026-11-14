@@ -17,8 +17,8 @@
     obj: { stripExt: true, dash: true },
     example: '',
     action: 'copy',
-    bronzeFolder: 'sales/bronze/{object}', bronzeFile: '{object}.parquet',
-    archive: false, archiveFolder: 'sales/archive/{object}', archiveFile: '{yyyy}-{MM}-{dd}_{object}.parquet',
+    container: '', bronzeFolder: 'bronze/{object}', bronzeFile: '{object}.parquet',
+    archive: false, archiveFolder: 'archive/{object}', archiveFile: '{yyyy}-{MM}-{dd}_{object}.parquet',
     bronzeNb: { path: '', params: [{ name: 'file_name', use: 'file', value: '' }, { name: 'obj_name', use: 'object', value: '' }, { name: 'layer', use: 'layer', value: '' }] },
     logEach: true, failOnError: true, sequential: true, vars: true,
     stages: []
@@ -63,9 +63,21 @@
     const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
     const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in tok ? tok[t] : m0));
     const j = (f, n) => (r(f).replace(/\/+$/, '') + '/' + r(n)).replace(/^\/+/, '');
+    const lake = String(med.container || '').trim() ? r(med.container).replace(/\/+$/, '') : (cfg.src.container || '<container>');
     const L = [['File', (cfg.src.container || '<container>') + ' / ' + j(cfg.src.folder, '{file}')], ['Object name', obj]];
-    if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', j(med.bronzeFolder, med.bronzeFile) + '  →  ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', j(med.bronzeFolder, med.bronzeFile)]); }
-    med.stages.forEach(s => L.push([(s.label || 'Layer') + (s.loop === 'folders' ? ': one run per folder in' : s.loop === 'files' ? ': one run per file' : ': runs once'), s.loop === 'folders' ? r(s.path).replace(/\/+$/, '') + '/' + obj + '  (folder name = object)' : s.loop === 'files' ? obj : '']));
+    if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', lake + ' / ' + j(med.bronzeFolder, med.bronzeFile) + '  →  ' + lake + ' / ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', lake + ' / ' + j(med.bronzeFolder, med.bronzeFile)]); }
+    /* the object folder a layer loops over: the last part of the bronze folder for this file */
+    const folder = (r(med.bronzeFolder).replace(/\/+$/, '').split('/').pop()) || obj, fobj = med.obj.dash ? folder.replace(/-/g, '_') : folder;
+    const rowsText = (rows, ctx, label) => (rows || []).filter(x => String(x.name || '').trim()).map(x => {
+      const v = String(x.value == null ? '' : x.value), rr = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in ctx ? ctx[t] : t in tok ? tok[t] : m0));
+      const shown = { object: ctx.object, obj_name: ctx.object, file: ctx.file, obj_id: med.lookup.on ? '<id from the object list>' : '(empty: no object list)', layer: label, text: rr(v), fixed: rr(v), variable: v.trim() in uv ? uv[v.trim()] : '<' + v.trim() + '>', global: '<global ' + v.trim() + '>', run: '<run id>', pipeline: '<pipeline>', expr: v.trim() ? '(expression) ' + v.trim() : '(empty)' }[x.use];
+      return String(x.name).trim() + ' = ' + (shown == null ? '(' + x.use + ')' : shown === '' ? '(empty)' : shown); }).join(', ');
+    if (med.action === 'notebook') L.push(['Bronze notebook gets', rowsText(med.bronzeNb.params, { object: obj, file, name: tok.name }, 'bronze')]);
+    med.stages.forEach(s => {
+      const label = s.label || 'Layer', ctx = s.loop === 'folders' ? { object: fobj, file: folder, name: folder } : s.loop === 'files' ? { object: obj, file, name: tok.name } : { object: '(none: runs once)', file: '(none)', name: '(none)' };
+      L.push([label + (s.loop === 'folders' ? ': one run per folder in' : s.loop === 'files' ? ': one run per file' : ': runs once'), s.loop === 'folders' ? lake + ' / ' + r(s.path).replace(/\/+$/, '') + '/' + folder + '  (in a folder loop, {name} and {file} = ' + folder + ', {object} = ' + fobj + ')' : s.loop === 'files' ? obj : '']);
+      const pv = rowsText(s.params, ctx, label); if (pv) L.push(['  ' + label + ' notebook gets', pv]);
+    });
     return L;
   };
 
@@ -79,6 +91,7 @@
     const bad = (label, p) => A.patternTokens(p).filter(t => !A.TOKENS.some(x => x[0] === t)).forEach(t => add('err', label + ': {' + t + '} isn’t a token. Use ' + A.TOKENS.map(x => '{' + x[0] + '}').join(' ') + '.'));
     const perItem = (label, p) => { if (A.patternTokens(p).some(t => /^(object|file|name)$/.test(t))) add('err', label + ' is read once for the whole run, so it can’t use {object}, {file} or {name}.'); };
     bad('Folder the files arrive in', cfg.src.folder); perItem('The folder the files arrive in', cfg.src.folder);
+    bad('Bronze container', med.container); perItem('The bronze container', med.container);
     if (med.lookup.on) {
       if (!/^\/|^\.{1,2}\//.test(med.lookup.nbPath.trim())) add('err', 'Object list: give the path of the notebook that returns the list, starting with /.');
       if (!med.lookup.idField.trim() || !med.lookup.nameField.trim()) add('err', 'Object list: give the names of the id and name fields in the list it returns.');
@@ -138,11 +151,13 @@
     const fmtRead = r => (/^(DelimitedText|Json|Parquet|Xml|Binary)$/.test(r.type) ? { formatSettings: { type: r.type + 'ReadSettings' } } : {});
     const fmtWrite = r => (r.type === 'DelimitedText' ? { formatSettings: { type: 'DelimitedTextWriteSettings', quoteAllText: true, fileExtension: '.txt' } } : r.type === 'Parquet' ? { formatSettings: { type: 'ParquetWriteSettings' } } : r.type === 'Json' ? { formatSettings: { type: 'JsonWriteSettings' } } : {});
     const container = cfg.src.container.trim() ? (vars ? (vars.add('container', cfg.src.container.trim()), X("@variables('container')")) : cfg.src.container.trim()) : ph('CONTAINER');
-
     /* expressions for a loop item */
     const fileCtx = { obj: A.objExprFromFile(med, ends), file: 'item().name', name: "if(contains(item().name, '.'), substring(item().name, 0, lastIndexOf(item().name, '.')), item().name)" };
     const folderCtx = { obj: med.obj.dash ? "replace(item().name, '-', '_')" : 'item().name', file: 'item().name', name: 'item().name' };
     const topCtx = { obj: null, file: null, name: null };
+    /* bronze, archive and layer folders can sit in another container (a pattern, so {var:name} works); empty = the landing container */
+    const lake = String(med.container || '').trim() ? val(A.compilePattern(med.container, topCtx, vars && !/^\{var:/.test(med.container.trim()) ? 'lake_container' : null, vars)) : container;
+
     const C = (p, ctx, v) => A.compilePattern(p, ctx, v, vars);
     const lg = Object.assign({ method: 'none', params: [] }, std.log || {});
 
@@ -166,7 +181,7 @@
     const valueOf = (r, ctx, x) => {
       const u = r.use, v = String(r.value == null ? '' : r.value);
       const e = { step: A.stepExpr(v, false), object: ctx.obj, obj_name: ctx.obj, file: ctx.file, obj_id: x.id, layer: sq(x.layer || ''), run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline', factory: 'pipeline().DataFactory', trig_time: 'string(pipeline().TriggerTime)', trig_name: 'pipeline().TriggerName',
-        status: sq(x.status || ''), error: x.err || "''", rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
+        status: sq(x.status || ''), error: x.status === 'Succeeded' ? sq(v) : (x.err || "''"), rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
         source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", variable: "string(variables('" + (v.trim() || 'NAME') + "'))", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
       if (u === 'text' || u === 'fixed') { const c = C(v, ctx.obj ? ctx : topCtx); return val(c); }
       if (e == null) return '';
@@ -216,13 +231,13 @@
       const x = { id: os.id, layer: 'bronze' };
       if (med.action === 'copy') {
         const bf = C(med.bronzeFolder, fileCtx, 'bronze_path'), bn = C(med.bronzeFile, fileCtx);
-        const sinkRef = () => rSink.ref({ container, folder: val(bf), file: val(bn) });
+        const sinkRef = () => rSink.ref({ container: lake, folder: val(bf), file: val(bn) });
         if (med.archive) {
           const af = C(med.archiveFolder, fileCtx, 'archive_path'), an = C(med.archiveFile, fileCtx);
           add({ name: 'gm_check_bronze_file', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: sinkRef(), fieldList: ['exists'], storeSettings: readSet(rSink) }, fmtRead(rSink)) });
           add({ name: 'if_bronze_file_exists', type: 'IfCondition', dependsOn: [], userProperties: [], typeProperties: { expression: X("@activity('gm_check_bronze_file').output.exists"),
             ifTrueActivities: [{ name: 'cp_archive_bronze_file', type: 'Copy', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ source: Object.assign({ type: rSink.type + 'Source', storeSettings: readSet(rSink) }, fmtRead(rSink)), sink: Object.assign({ type: rSink.type + 'Sink', storeSettings: { type: rSink.store + 'WriteSettings' } }, fmtWrite(rSink)), enableStaging: false }),
-              inputs: [sinkRef()], outputs: [rSink.ref({ container, folder: val(af), file: val(an) })] }] } });
+              inputs: [sinkRef()], outputs: [rSink.ref({ container: lake, folder: val(af), file: val(an) })] }] } });
           x.target = af;
         }
         add({ name: 'cp_file_to_bronze', type: 'Copy', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: { source: Object.assign({ type: rRead.type + 'Source', storeSettings: readSet(rRead) }, fmtRead(rRead)), sink: Object.assign({ type: rSink.type + 'Sink', storeSettings: { type: rSink.store + 'WriteSettings' } }, fmtWrite(rSink)), enableStaging: false,
@@ -249,7 +264,7 @@
       let items;
       if (s.loop === 'folders') {
         const sp = C(s.path, topCtx, tag + '_path'); A.AUTO_VARS.add(tag + '_path');
-        top({ name: 'gm_list_' + tag + '_folders', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rMeta.ref({ container, folder: val(sp), file: '' }), fieldList: ['childItems'], storeSettings: readSet(rMeta) }, fmtRead(rMeta)) });
+        top({ name: 'gm_list_' + tag + '_folders', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rMeta.ref({ container: lake, folder: val(sp), file: '' }), fieldList: ['childItems'], storeSettings: readSet(rMeta) }, fmtRead(rMeta)) });
         top({ name: 'flt_' + tag + '_folders', type: 'Filter', dependsOn: [], userProperties: [], typeProperties: { items: X("@activity('gm_list_" + tag + "_folders').output.childItems"), condition: X("@equals(item().type, 'Folder')") } });
         items = "@activity('flt_" + tag + "_folders').output.value";
       } else items = "@activity('flt_files').output.value";

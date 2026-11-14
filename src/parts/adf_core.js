@@ -41,7 +41,8 @@
     const path = (/^=/.test(f) ? f.slice(1).trim() : f).replace(/^output\./, '').split('.').filter(Boolean).map(p => p.replace(/[^\w\[\]]/g, '')).join('?.');
     if (!path) return "''";
     const read = "activity('" + act + "')?.output?." + path;
-    return numeric ? 'coalesce(' + read + ', 0)' : "string(coalesce(" + read + ", ''))";
+    if (numeric) return 'coalesce(' + read + ', 0)';
+    return A.STEP_NUMERIC.test(path) ? 'string(coalesce(' + read + ', 0))' : "string(coalesce(" + read + ", ''))";   /* a count that is missing is 0, so int() still reads it */
   };
   A.STEP_NUMERIC = /^(rowsCopied|rowsRead|filesWritten|filesRead|copyDuration|dataWritten|dataRead|executionDuration|count)$/;
   A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
@@ -542,7 +543,7 @@
     const srcObj = files ? (cfg.src.folder.trim() || (n.ownSrc ? n.ownSrc.name : '')) : (cfg.src.schema || 'dbo') + '.' + (cfg.src.table || ph('TABLE'));
     const tgtObj = files ? (n.destFolder || '') : sql ? (cfg.tgt.schema || 'dbo') + '.' + (cfg.tgt.table || ph('TARGET_TABLE')) : pathExpr(std.rawPath, n);
     const logValue = (use, ok, err, fixed) => ({ pipeline: ['@pipeline().Pipeline'], run: ['@pipeline().RunId'], status: [ok ? 'Succeeded' : 'Failed'], rows_read: [ok ? rowsRead : '0', 1], rows_written: [ok ? rowsWritten : '0', 1],
-      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [err || ''], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')], step: ['@' + A.stepExpr(fixed, false)] }[use] || ['']);
+      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [ok ? String(fixed || '') : (err || '')], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')], step: ['@' + A.stepExpr(fixed, false)] }[use] || ['']);
     const logAct = (ok, err, after) => {
       const tag = ok ? 'success' : 'failure';
       if (method === 'none') return null;
@@ -907,6 +908,19 @@
         const cp = (c.outputs[0].parameters || {}), diff = Object.keys(Object.assign({}, gp, cp)).filter(k => norm(gp[k]) !== norm(cp[k]));
         if (diff.length) add('high', 'Correctness', g.name + ' checks whether a file exists, but not the file ' + c.name + ' writes: ' + diff.map(k => k + ' is ' + (sval(gp[k]) || '(empty)').replace(/\s+/g, ' ') + ' in the check and ' + (sval(cp[k]) || '(empty)').replace(/\s+/g, ' ') + ' in the copy').join('; ') + '. The check never finds the file, so whatever depends on it (archiving the old file) never runs.', g.name,
           'Open ' + g.name + ', Settings tab, and give the dataset parameters exactly the values ' + c.name + ' uses on its Sink tab (copy them across).');
+      });
+    });
+    /* the archive copy, run when the file exists, must read the file the main copy is about to replace */
+    flat.filter(f => f.type === 'IfCondition').forEach(f => {
+      const m = /activity\('([^']+)'\)\??\.output\??\.exists/.exec(sval((f.a.typeProperties || {}).expression)); if (!m) return;
+      const g = flat.find(x => x.name === m[1] && x.type === 'GetMetadata'); if (!g) return;
+      const ds = ((g.a.typeProperties.dataset || {}).referenceName);
+      const main = f.siblings.find(s => s.type === 'Copy' && ((s.outputs || [])[0] || {}).referenceName === ds); if (!main) return;
+      const mp = main.outputs[0].parameters || {};
+      flat.filter(x => x.parent === f.a && x.type === 'Copy' && ((x.a.inputs || [])[0] || {}).referenceName === ds).forEach(c => {
+        const ip = c.a.inputs[0].parameters || {}, diff = Object.keys(Object.assign({}, mp, ip)).filter(k => norm(mp[k]) !== norm(ip[k]));
+        if (diff.length) add('high', 'Correctness', c.name + ' archives a file, but not the file ' + main.name + ' writes: ' + diff.map(k => k + ' is ' + (sval(ip[k]) || '(empty)').replace(/\s+/g, ' ') + ' in the archive copy and ' + (sval(mp[k]) || '(empty)').replace(/\s+/g, ' ') + ' in ' + main.name).join('; ') + '. When the old file exists, the archive copy looks for a file that isn\u2019t there and fails.', c.name,
+          'Open ' + c.name + ', Source tab, and give the dataset parameters exactly the values ' + main.name + ' uses on its Sink tab. Keep only the folder (and file name, if you rename it) different on ' + c.name + '\u2019s Sink tab.');
       });
     });
     /* the first item of a Filter that may be empty */

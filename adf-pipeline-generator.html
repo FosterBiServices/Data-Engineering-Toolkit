@@ -445,7 +445,8 @@ td.flowname .ind{color:var(--ws)}
     <div class="step-body">
       <div class="step-head">
         <h2 id="s1">Read the source</h2>
-        <p>The page can&rsquo;t see your database, so you run one query and paste the result. Real column names and types are what make the output exact.</p>
+        <p data-only="sql">The page can&rsquo;t see your database, so you run one query and paste the result. Real column names and types are what make the output exact.</p>
+        <p data-not="sql">Where the files arrive. The page can&rsquo;t see your storage, so type the container and folder as they appear in Storage Explorer.</p>
       </div>
       <div class="seg" role="radiogroup" aria-label="Source kind">
         <label><input type="radio" name="srcKind" value="medallion" data-k="src.kind"><span>Files through bronze, silver and gold</span></label>
@@ -534,6 +535,7 @@ td.flowname .ind{color:var(--ws)}
         <h3>Bronze</h3>
         <div class="qgrid">
           <label class="lab">Each file is<select data-k="med.action"><option value="copy">Copied to bronze by ADF</option><option value="notebook">Loaded to bronze by a notebook</option></select></label>
+          <label class="lab">Container for bronze and layers <span class="hint">empty = the one the files arrive in; {var:name} allowed</span><input type="text" data-k="med.container" spellcheck="false" autocomplete="off" placeholder="same as the files"></label>
         </div>
         <div id="medCopy" style="display:flex;flex-direction:column;gap:12px">
           <div class="qgrid">
@@ -1170,7 +1172,8 @@ td.flowname .ind{color:var(--ws)}
     const path = (/^=/.test(f) ? f.slice(1).trim() : f).replace(/^output\./, '').split('.').filter(Boolean).map(p => p.replace(/[^\w\[\]]/g, '')).join('?.');
     if (!path) return "''";
     const read = "activity('" + act + "')?.output?." + path;
-    return numeric ? 'coalesce(' + read + ', 0)' : "string(coalesce(" + read + ", ''))";
+    if (numeric) return 'coalesce(' + read + ', 0)';
+    return A.STEP_NUMERIC.test(path) ? 'string(coalesce(' + read + ', 0))' : "string(coalesce(" + read + ", ''))";   /* a count that is missing is 0, so int() still reads it */
   };
   A.STEP_NUMERIC = /^(rowsCopied|rowsRead|filesWritten|filesRead|copyDuration|dataWritten|dataRead|executionDuration|count)$/;
   A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
@@ -1671,7 +1674,7 @@ td.flowname .ind{color:var(--ws)}
     const srcObj = files ? (cfg.src.folder.trim() || (n.ownSrc ? n.ownSrc.name : '')) : (cfg.src.schema || 'dbo') + '.' + (cfg.src.table || ph('TABLE'));
     const tgtObj = files ? (n.destFolder || '') : sql ? (cfg.tgt.schema || 'dbo') + '.' + (cfg.tgt.table || ph('TARGET_TABLE')) : pathExpr(std.rawPath, n);
     const logValue = (use, ok, err, fixed) => ({ pipeline: ['@pipeline().Pipeline'], run: ['@pipeline().RunId'], status: [ok ? 'Succeeded' : 'Failed'], rows_read: [ok ? rowsRead : '0', 1], rows_written: [ok ? rowsWritten : '0', 1],
-      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [err || ''], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')], step: ['@' + A.stepExpr(fixed, false)] }[use] || ['']);
+      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [ok ? String(fixed || '') : (err || '')], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')], step: ['@' + A.stepExpr(fixed, false)] }[use] || ['']);
     const logAct = (ok, err, after) => {
       const tag = ok ? 'success' : 'failure';
       if (method === 'none') return null;
@@ -2038,6 +2041,19 @@ td.flowname .ind{color:var(--ws)}
           'Open ' + g.name + ', Settings tab, and give the dataset parameters exactly the values ' + c.name + ' uses on its Sink tab (copy them across).');
       });
     });
+    /* the archive copy, run when the file exists, must read the file the main copy is about to replace */
+    flat.filter(f => f.type === 'IfCondition').forEach(f => {
+      const m = /activity\('([^']+)'\)\??\.output\??\.exists/.exec(sval((f.a.typeProperties || {}).expression)); if (!m) return;
+      const g = flat.find(x => x.name === m[1] && x.type === 'GetMetadata'); if (!g) return;
+      const ds = ((g.a.typeProperties.dataset || {}).referenceName);
+      const main = f.siblings.find(s => s.type === 'Copy' && ((s.outputs || [])[0] || {}).referenceName === ds); if (!main) return;
+      const mp = main.outputs[0].parameters || {};
+      flat.filter(x => x.parent === f.a && x.type === 'Copy' && ((x.a.inputs || [])[0] || {}).referenceName === ds).forEach(c => {
+        const ip = c.a.inputs[0].parameters || {}, diff = Object.keys(Object.assign({}, mp, ip)).filter(k => norm(mp[k]) !== norm(ip[k]));
+        if (diff.length) add('high', 'Correctness', c.name + ' archives a file, but not the file ' + main.name + ' writes: ' + diff.map(k => k + ' is ' + (sval(ip[k]) || '(empty)').replace(/\s+/g, ' ') + ' in the archive copy and ' + (sval(mp[k]) || '(empty)').replace(/\s+/g, ' ') + ' in ' + main.name).join('; ') + '. When the old file exists, the archive copy looks for a file that isn\u2019t there and fails.', c.name,
+          'Open ' + c.name + ', Source tab, and give the dataset parameters exactly the values ' + main.name + ' uses on its Sink tab. Keep only the folder (and file name, if you rename it) different on ' + c.name + '\u2019s Sink tab.');
+      });
+    });
     /* the first item of a Filter that may be empty */
     const allText = JSON.stringify(pipeline);
     flat.filter(f => f.type === 'Filter').forEach(fl => {
@@ -2218,8 +2234,8 @@ td.flowname .ind{color:var(--ws)}
     obj: { stripExt: true, dash: true },
     example: '',
     action: 'copy',
-    bronzeFolder: 'sales/bronze/{object}', bronzeFile: '{object}.parquet',
-    archive: false, archiveFolder: 'sales/archive/{object}', archiveFile: '{yyyy}-{MM}-{dd}_{object}.parquet',
+    container: '', bronzeFolder: 'bronze/{object}', bronzeFile: '{object}.parquet',
+    archive: false, archiveFolder: 'archive/{object}', archiveFile: '{yyyy}-{MM}-{dd}_{object}.parquet',
     bronzeNb: { path: '', params: [{ name: 'file_name', use: 'file', value: '' }, { name: 'obj_name', use: 'object', value: '' }, { name: 'layer', use: 'layer', value: '' }] },
     logEach: true, failOnError: true, sequential: true, vars: true,
     stages: []
@@ -2264,9 +2280,21 @@ td.flowname .ind{color:var(--ws)}
     const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
     const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in tok ? tok[t] : m0));
     const j = (f, n) => (r(f).replace(/\/+$/, '') + '/' + r(n)).replace(/^\/+/, '');
+    const lake = String(med.container || '').trim() ? r(med.container).replace(/\/+$/, '') : (cfg.src.container || '<container>');
     const L = [['File', (cfg.src.container || '<container>') + ' / ' + j(cfg.src.folder, '{file}')], ['Object name', obj]];
-    if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', j(med.bronzeFolder, med.bronzeFile) + '  →  ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', j(med.bronzeFolder, med.bronzeFile)]); }
-    med.stages.forEach(s => L.push([(s.label || 'Layer') + (s.loop === 'folders' ? ': one run per folder in' : s.loop === 'files' ? ': one run per file' : ': runs once'), s.loop === 'folders' ? r(s.path).replace(/\/+$/, '') + '/' + obj + '  (folder name = object)' : s.loop === 'files' ? obj : '']));
+    if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', lake + ' / ' + j(med.bronzeFolder, med.bronzeFile) + '  →  ' + lake + ' / ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', lake + ' / ' + j(med.bronzeFolder, med.bronzeFile)]); }
+    /* the object folder a layer loops over: the last part of the bronze folder for this file */
+    const folder = (r(med.bronzeFolder).replace(/\/+$/, '').split('/').pop()) || obj, fobj = med.obj.dash ? folder.replace(/-/g, '_') : folder;
+    const rowsText = (rows, ctx, label) => (rows || []).filter(x => String(x.name || '').trim()).map(x => {
+      const v = String(x.value == null ? '' : x.value), rr = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in ctx ? ctx[t] : t in tok ? tok[t] : m0));
+      const shown = { object: ctx.object, obj_name: ctx.object, file: ctx.file, obj_id: med.lookup.on ? '<id from the object list>' : '(empty: no object list)', layer: label, text: rr(v), fixed: rr(v), variable: v.trim() in uv ? uv[v.trim()] : '<' + v.trim() + '>', global: '<global ' + v.trim() + '>', run: '<run id>', pipeline: '<pipeline>', expr: v.trim() ? '(expression) ' + v.trim() : '(empty)' }[x.use];
+      return String(x.name).trim() + ' = ' + (shown == null ? '(' + x.use + ')' : shown === '' ? '(empty)' : shown); }).join(', ');
+    if (med.action === 'notebook') L.push(['Bronze notebook gets', rowsText(med.bronzeNb.params, { object: obj, file, name: tok.name }, 'bronze')]);
+    med.stages.forEach(s => {
+      const label = s.label || 'Layer', ctx = s.loop === 'folders' ? { object: fobj, file: folder, name: folder } : s.loop === 'files' ? { object: obj, file, name: tok.name } : { object: '(none: runs once)', file: '(none)', name: '(none)' };
+      L.push([label + (s.loop === 'folders' ? ': one run per folder in' : s.loop === 'files' ? ': one run per file' : ': runs once'), s.loop === 'folders' ? lake + ' / ' + r(s.path).replace(/\/+$/, '') + '/' + folder + '  (in a folder loop, {name} and {file} = ' + folder + ', {object} = ' + fobj + ')' : s.loop === 'files' ? obj : '']);
+      const pv = rowsText(s.params, ctx, label); if (pv) L.push(['  ' + label + ' notebook gets', pv]);
+    });
     return L;
   };
 
@@ -2280,6 +2308,7 @@ td.flowname .ind{color:var(--ws)}
     const bad = (label, p) => A.patternTokens(p).filter(t => !A.TOKENS.some(x => x[0] === t)).forEach(t => add('err', label + ': {' + t + '} isn’t a token. Use ' + A.TOKENS.map(x => '{' + x[0] + '}').join(' ') + '.'));
     const perItem = (label, p) => { if (A.patternTokens(p).some(t => /^(object|file|name)$/.test(t))) add('err', label + ' is read once for the whole run, so it can’t use {object}, {file} or {name}.'); };
     bad('Folder the files arrive in', cfg.src.folder); perItem('The folder the files arrive in', cfg.src.folder);
+    bad('Bronze container', med.container); perItem('The bronze container', med.container);
     if (med.lookup.on) {
       if (!/^\/|^\.{1,2}\//.test(med.lookup.nbPath.trim())) add('err', 'Object list: give the path of the notebook that returns the list, starting with /.');
       if (!med.lookup.idField.trim() || !med.lookup.nameField.trim()) add('err', 'Object list: give the names of the id and name fields in the list it returns.');
@@ -2339,11 +2368,13 @@ td.flowname .ind{color:var(--ws)}
     const fmtRead = r => (/^(DelimitedText|Json|Parquet|Xml|Binary)$/.test(r.type) ? { formatSettings: { type: r.type + 'ReadSettings' } } : {});
     const fmtWrite = r => (r.type === 'DelimitedText' ? { formatSettings: { type: 'DelimitedTextWriteSettings', quoteAllText: true, fileExtension: '.txt' } } : r.type === 'Parquet' ? { formatSettings: { type: 'ParquetWriteSettings' } } : r.type === 'Json' ? { formatSettings: { type: 'JsonWriteSettings' } } : {});
     const container = cfg.src.container.trim() ? (vars ? (vars.add('container', cfg.src.container.trim()), X("@variables('container')")) : cfg.src.container.trim()) : ph('CONTAINER');
-
     /* expressions for a loop item */
     const fileCtx = { obj: A.objExprFromFile(med, ends), file: 'item().name', name: "if(contains(item().name, '.'), substring(item().name, 0, lastIndexOf(item().name, '.')), item().name)" };
     const folderCtx = { obj: med.obj.dash ? "replace(item().name, '-', '_')" : 'item().name', file: 'item().name', name: 'item().name' };
     const topCtx = { obj: null, file: null, name: null };
+    /* bronze, archive and layer folders can sit in another container (a pattern, so {var:name} works); empty = the landing container */
+    const lake = String(med.container || '').trim() ? val(A.compilePattern(med.container, topCtx, vars && !/^\{var:/.test(med.container.trim()) ? 'lake_container' : null, vars)) : container;
+
     const C = (p, ctx, v) => A.compilePattern(p, ctx, v, vars);
     const lg = Object.assign({ method: 'none', params: [] }, std.log || {});
 
@@ -2367,7 +2398,7 @@ td.flowname .ind{color:var(--ws)}
     const valueOf = (r, ctx, x) => {
       const u = r.use, v = String(r.value == null ? '' : r.value);
       const e = { step: A.stepExpr(v, false), object: ctx.obj, obj_name: ctx.obj, file: ctx.file, obj_id: x.id, layer: sq(x.layer || ''), run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline', factory: 'pipeline().DataFactory', trig_time: 'string(pipeline().TriggerTime)', trig_name: 'pipeline().TriggerName',
-        status: sq(x.status || ''), error: x.err || "''", rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
+        status: sq(x.status || ''), error: x.status === 'Succeeded' ? sq(v) : (x.err || "''"), rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
         source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", variable: "string(variables('" + (v.trim() || 'NAME') + "'))", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
       if (u === 'text' || u === 'fixed') { const c = C(v, ctx.obj ? ctx : topCtx); return val(c); }
       if (e == null) return '';
@@ -2417,13 +2448,13 @@ td.flowname .ind{color:var(--ws)}
       const x = { id: os.id, layer: 'bronze' };
       if (med.action === 'copy') {
         const bf = C(med.bronzeFolder, fileCtx, 'bronze_path'), bn = C(med.bronzeFile, fileCtx);
-        const sinkRef = () => rSink.ref({ container, folder: val(bf), file: val(bn) });
+        const sinkRef = () => rSink.ref({ container: lake, folder: val(bf), file: val(bn) });
         if (med.archive) {
           const af = C(med.archiveFolder, fileCtx, 'archive_path'), an = C(med.archiveFile, fileCtx);
           add({ name: 'gm_check_bronze_file', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: sinkRef(), fieldList: ['exists'], storeSettings: readSet(rSink) }, fmtRead(rSink)) });
           add({ name: 'if_bronze_file_exists', type: 'IfCondition', dependsOn: [], userProperties: [], typeProperties: { expression: X("@activity('gm_check_bronze_file').output.exists"),
             ifTrueActivities: [{ name: 'cp_archive_bronze_file', type: 'Copy', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ source: Object.assign({ type: rSink.type + 'Source', storeSettings: readSet(rSink) }, fmtRead(rSink)), sink: Object.assign({ type: rSink.type + 'Sink', storeSettings: { type: rSink.store + 'WriteSettings' } }, fmtWrite(rSink)), enableStaging: false }),
-              inputs: [sinkRef()], outputs: [rSink.ref({ container, folder: val(af), file: val(an) })] }] } });
+              inputs: [sinkRef()], outputs: [rSink.ref({ container: lake, folder: val(af), file: val(an) })] }] } });
           x.target = af;
         }
         add({ name: 'cp_file_to_bronze', type: 'Copy', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: { source: Object.assign({ type: rRead.type + 'Source', storeSettings: readSet(rRead) }, fmtRead(rRead)), sink: Object.assign({ type: rSink.type + 'Sink', storeSettings: { type: rSink.store + 'WriteSettings' } }, fmtWrite(rSink)), enableStaging: false,
@@ -2450,7 +2481,7 @@ td.flowname .ind{color:var(--ws)}
       let items;
       if (s.loop === 'folders') {
         const sp = C(s.path, topCtx, tag + '_path'); A.AUTO_VARS.add(tag + '_path');
-        top({ name: 'gm_list_' + tag + '_folders', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rMeta.ref({ container, folder: val(sp), file: '' }), fieldList: ['childItems'], storeSettings: readSet(rMeta) }, fmtRead(rMeta)) });
+        top({ name: 'gm_list_' + tag + '_folders', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rMeta.ref({ container: lake, folder: val(sp), file: '' }), fieldList: ['childItems'], storeSettings: readSet(rMeta) }, fmtRead(rMeta)) });
         top({ name: 'flt_' + tag + '_folders', type: 'Filter', dependsOn: [], userProperties: [], typeProperties: { items: X("@activity('gm_list_" + tag + "_folders').output.childItems"), condition: X("@equals(item().type, 'Folder')") } });
         items = "@activity('flt_" + tag + "_folders').output.value";
       } else items = "@activity('flt_files').output.value";
@@ -2656,6 +2687,7 @@ td.flowname .ind{color:var(--ws)}
     $('exampleBanner').hidden = !st.example;
     $('srcSql').hidden = files; $('srcFiles').hidden = !files;
     document.querySelectorAll('[data-only="sql"]').forEach(el => { el.hidden = files; });
+    document.querySelectorAll('[data-not="sql"]').forEach(el => { el.hidden = !files; });
     $('tgtSql').hidden = !sqlT; $('tgtAdls').hidden = sqlT;
     $('incBox').hidden = !inc; $('keyBox').hidden = !sqlT;
     $('overlapBox').hidden = !(inc && sqlT && cfg.load.wmType !== 'integer' && (cfg.tgt.write === 'merge' || cfg.tgt.write === 'scd2'));
@@ -2756,8 +2788,17 @@ td.flowname .ind{color:var(--ws)}
       if (typing(map)) return;
       const uses = A.DS_USES[wantFile ? 'file' : 'table'];
       map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
-        + (/^(fixed|variable|global|expr)$/.test(m.use) ? (m.use === 'expr' ? fxBox : x => x)('<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">') : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
+        + (/^(fixed|variable|global|expr)$/.test(m.use) ? (m.use === 'expr' ? fxBox : x => x)('<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">') : '<span class="note small" style="overflow-wrap:anywhere">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : esc(fillsWith(k, m.use, med))) + '</span>') + '</div>'; }).join('');
     });
+  }
+  /* what the pipeline passes for a mapped parameter, in words, so a wrong container or folder shows before building */
+  function fillsWith(k, use, med) {
+    if (!med) return 'filled in by the pipeline';
+    const m = cfg.med, src = cfg.src, lake = String(m.container || '').trim() || src.container.trim() || '(container not given)';
+    const t = { container: { list: src.container.trim() || '(container not given)', read: src.container.trim() || '(container not given)', sink: lake, meta: lake },
+      folder: { list: src.folder, read: src.folder, sink: m.bronzeFolder + (m.archive && m.archiveFolder !== m.bronzeFolder ? ', or ' + m.archiveFolder + ' when archiving' : ''), meta: 'each layer\u2019s folder: ' + (m.stages.map(s => s.path).filter(Boolean).join(', ') || 'none yet') },
+      file: { list: '(empty: a folder is listed)', read: 'each file\u2019s name', sink: m.bronzeFile + (m.archive && m.archiveFile !== m.bronzeFile ? ', or ' + m.archiveFile + ' when archiving' : ''), meta: '(empty: a folder is listed)' } }[use];
+    return t && t[k] != null ? 'gets ' + t[k] : 'filled in by the pipeline';
   }
   const NBV = A.NB_VALUES;
   const paramRows = (list, key) => list.map((r, i) => '<div class="rrow log4" data-pkey="' + key + '" data-pi="' + i + '"><input type="text" data-pf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-pf="use" aria-label="Value">' + optsHtml(NBV, r.use) + '</select>'
@@ -2793,7 +2834,7 @@ td.flowname .ind{color:var(--ws)}
     $('logParamsTitle').textContent = m === 'notebook' ? 'Base parameters the notebook reads' : 'Parameters the procedure takes';
     $('logNote').textContent = m === 'sp_new' ? 'The page writes a log table and procedure (Supporting SQL tab) and calls it at the end of a run and on failure. It needs a SQL database: the target, or the control database below.'
       : m === 'sp_own' ? 'Your procedure is called on the control database linked service. Row counts are passed as Int64, everything else as String.'
-        : m === 'notebook' ? 'Your notebook is run at the end of a run and on failure. Base parameters are always text, so counts are passed as text. Read them with dbutils.widgets.get.'
+        : m === 'notebook' ? (cfg.src.kind === 'medallion' ? (cfg.med.logEach ? 'Your notebook is run after each file (success or failure) and after each layer run you tick. ' : 'Tick \u201cLog each file and layer run\u201d above to use it. ') : 'Your notebook is run at the end of a run and on failure. ') + 'Base parameters are always text, so counts are passed as text (0 when there is none). Read them with dbutils.widgets.get.'
           : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
     const box = $('logRows'); if (typing(box)) return;
     const choices = A.logChoices(cfg.src.kind), label = u => (A.LOG_VALUES.find(v => v[0] === u) || [u, u])[1];
@@ -2804,7 +2845,7 @@ td.flowname .ind{color:var(--ws)}
         + '<select data-lf="stepField" aria-label="Which output">' + optsHtml([['', 'Choose an output']].concat(fields), fv) + '</select>'
         + (fv === '=' ? '<input type="text" data-lf="stepPath" value="' + esc(f.slice(1)) + '" placeholder="runOutput.rows_written" spellcheck="false" aria-label="Output path">' : '') + '</span>'; };
     box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(choices.some(c => c[0] === r.use) ? choices : choices.concat([[r.use, label(r.use) + ' (older choice)']]), r.use) + '</select>'
-      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable)$/.test(r.use) ? (r.use === 'expr' ? fxBox : x => x)('<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">') : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+      + (r.use === 'step' ? stepCtl(r) : /^(fixed|global|expr|variable|error)$/.test(r.use) ? (r.use === 'expr' ? fxBox : x => x)('<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name', error: 'on success (optional): no error' }[r.use]) + '"' + (r.use === 'error' ? ' title="Passed when the step succeeded. Empty passes nothing."' : '') + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">') : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
   }
 
   /* ---- expression helper: opened by the fx button beside any "ADF expression" box ---- */
