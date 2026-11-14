@@ -15,7 +15,9 @@
     const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {}), arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);
     const copy = (to, from, keys) => keys.forEach(k => { if (typeof obj(from)[k] === typeof to[k]) to[k] = from[k]; });
     const kinds = K.KINDS.map(k => k[0]);
-    copy(c, s, ['name', 'filter', 'aiReq', 'aiReply']); c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
+    copy(c, s, ['name', 'aiReq', 'aiReply']); c.keepRemoved = s.keepRemoved === true;
+    c.filters = arr(s.filters).map(x => ({ when: str(x.when), label: str(x.label), join: x.join === 'or' ? 'or' : 'and' }));
+    if (!c.filters.length && str(s.filter).trim()) c.filters = [{ when: str(s.filter), label: '', join: 'and' }];   // saved before filters became a list c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
     copy(c.input, s.input, ['path', 'sheet', 'encoding']); c.input.kind = oneOf(kinds, obj(s.input).kind, 'csv'); c.input.sep = oneOf([',', ';', 'tab', '|'], obj(s.input).sep, ','); c.input.skip = Math.max(0, parseInt(obj(s.input).skip, 10) || 0);
     copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dayFirst']);
     c.cols = arr(s.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: oneOf(K.TYPES.map(t => t[0]), x.type, 'text'), on: x.on !== false, key: !!x.key, req: !!x.req }));
@@ -64,6 +66,12 @@
     $('joinLeft').innerHTML = opts(n, cfg.join.leftKey, 'Choose a column');
     $('badSel').innerHTML = opts(K.BAD, cfg.bad);
     const all = K.known(cfg, ai).all;
+    $('filterList').innerHTML = cfg.filters.map((f, i) => '<div class="rrow filt" data-list="filters" data-i="' + i + '">'
+      + (i ? '<select data-f="join" aria-label="Combine with the filters before"><option value="and"' + (f.join !== 'or' ? ' selected' : '') + '>AND</option><option value="or"' + (f.join === 'or' ? ' selected' : '') + '>OR</option></select>' : '<span class="muted small" style="align-self:center">Keep if</span>')
+      + '<input type="text" data-f="when" value="' + esc(f.when) + '" placeholder=\'order_date >= "2026-06-01"\' spellcheck="false" aria-label="Condition">'
+      + '<input type="text" data-f="label" value="' + esc(f.label) + '" placeholder="name (optional)" spellcheck="false" aria-label="Name shown in Filtered out">'
+      + '<button type="button" class="x" data-del aria-label="Remove filter">&times;</button></div>').join('');
+    filterPreview();
     $('ruleList').innerHTML = cfg.rules.map((r, i) => '<div class="rrow" data-list="rules" data-i="' + i + '"><select data-f="col" aria-label="Column">' + opts(all, r.col, 'Column') + '</select><select data-f="kind" aria-label="Check">' + opts(K.RULES.map(x => [x[0], x[1]]), r.kind) + '</select>'
       + (r.kind === 'notfuture' ? '<span></span><span></span>' : '<input type="text" data-f="val" value="' + esc(r.val) + '" placeholder="' + esc((K.RULES.find(x => x[0] === r.kind) || [])[2] || '') + '" spellcheck="false" aria-label="Value" style="grid-column:span 2">') + '<button type="button" class="x" data-del aria-label="Remove check">&times;</button></div>').join('');
     $('groupChips').innerHTML = all.length ? all.map(c => '<button type="button" class="chip" data-group="' + esc(c) + '" aria-pressed="' + (cfg.summary.group.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
@@ -73,7 +81,11 @@
     renderOut();
   }
 
+  function filterPreview() {
+    const act = K.activeFilters(cfg); $('filterLogic').textContent = act.length > 1 ? 'Rows are kept when: ' + K.filterLogic(act) + (act.some((f, i) => i && f.join === 'or') && act.some((f, i) => i && f.join !== 'or') && act.length > 2 ? '. Read left to right: each AND or OR applies to everything before it.' : '.') : '';
+  }
   function renderOut() {
+    filterPreview();
     const nm = K.names(cfg); $('outPath').placeholder = nm.outPath; $('scriptName').placeholder = nm.script;
     $('sampleStats').innerHTML = cfg.cols.length ? '<span class="stat"><b>' + cfg.cols.length + '</b> columns</span><span class="stat"><b>' + cfg.cols.filter(c => c.on && c.type !== 'text').length + '</b> converted from text</span>' : '';
     ai = null; const want = cfg.aiReq.trim().length > 0, msgs = [];
@@ -111,7 +123,7 @@
     prune(); fill($('sampleIn'));
   }
   function toBlank(keep) { cfg = K.blank(); st.example = false; ai = null; $('sampleMsg').innerHTML = ''; fill(keep); renderForm(); }
-  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : cfg.cols);
+  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : cfg.cols);
 
   function init() {
     load(); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
@@ -126,6 +138,9 @@
           const sw = v => (v === was ? el.value : v);
           cfg.dedupe.order = sw(cfg.dedupe.order); cfg.join.leftKey = sw(cfg.join.leftKey); cfg.summary.group = cfg.summary.group.map(sw);
           cfg.summary.metrics.forEach(m => { m.col = sw(m.col); }); cfg.rules.forEach(r => { r.col = sw(r.col); });
+          const word = new RegExp('(^|[^\\w"\'])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w"\'])', 'g');
+          cfg.filters.forEach(f => { f.when = f.when.replace(word, (m0, p) => p + el.value); });
+          document.querySelectorAll('#filterList [data-i]').forEach(r => { const f = cfg.filters[Number(r.dataset.i)], b = r.querySelector('[data-f="when"]'); if (f && b && b.value !== f.when) b.value = f.when; });
         }
         renderOut(); return;
       }
@@ -137,7 +152,7 @@
       const row = el.closest('[data-i]');
       if (row && el.dataset.f) {
         const it = listOf(row)[Number(row.dataset.i)]; if (!it) return;
-        if (el.type === 'checkbox') it[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') it[el.dataset.f] = el.value; else { prune(); renderForm(); return; }
+        if (el.type === 'checkbox') it[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') it[el.dataset.f] = el.value; else if (row.dataset.list === 'filters') { renderOut(); return; } else { prune(); renderForm(); return; }   /* a redraw here would take the cursor out of the next box */
         if (!row.dataset.list && el.dataset.f === 'key' && it.key) it.req = true;
         prune(); renderForm(); return;
       }
@@ -149,6 +164,7 @@
       else if (g) { const a = cfg.summary.group, i = a.indexOf(g.dataset.group); if (i >= 0) a.splice(i, 1); else a.push(g.dataset.group); renderForm(); }
     });
     $('addRule').addEventListener('click', () => { cfg.rules.push({ kind: 'min', col: '', val: '' }); renderForm(); });
+    $('addFilter').addEventListener('click', () => { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); });
     $('addMetric').addEventListener('click', () => { cfg.summary.metrics.push({ name: '', agg: 'sum', col: '' }); renderForm(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });

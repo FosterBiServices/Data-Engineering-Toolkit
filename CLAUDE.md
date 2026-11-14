@@ -190,6 +190,13 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   `.ipynb` (nbformat 4.4). Same code in both.
 - Order in the script: settings > read (everything as text; only empty is missing) > trim > types (`CONVERT`, failures
   noted, never guessed) > Copilot columns > lookup from a second file > filter > dedupe > checks > summary > write.
+- Filters (owner, Nov 2026: "more than 1 filter... with AND or OR", and keep what is filtered out): `cfg.filters` [{when,
+  label, join}], each a pandas condition run with `df.eval(..., engine="python")`; from the second on joined with and / or,
+  left to right (`K.filterLogic` shows the grouping, e.g. "(A AND B) OR C"); a missing value never passes. The Copilot
+  FILTER is one more, joined with AND. `cfg.keepRemoved`: an "Original" sheet (every row before filtering, after cleaning)
+  and a "Filtered out" sheet with `failed_filters` (separate `_original` / `_filtered_out` files for CSV and Parquet); the
+  script asserts kept + filtered out = before. The old single `filter` is read into the list. Renaming a column renames it
+  inside the filters. Check: `psfiltertest.js`; pscoretest runs the AND and OR cases and reads the sheets back.
 - The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
 - Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
 - The pasted sample rows are never saved (only column names and types are); `st.example` refills the example sample.

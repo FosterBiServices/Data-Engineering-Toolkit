@@ -33,7 +33,7 @@ const run = (label, edit, expect) => {
 const ex = run('example (excel out, split, dedupe, summary, Copilot)', c => {}, ['Rows read: 10'.replace(': ', ':     '), 'Removed 1 duplicate']);
 run('csv out, report mode, no dedupe (key uniqueness check)', c => { c.output = { kind: 'csv', path: path.join(dir, 'o.csv') }; c.bad = 'report'; c.dedupe.on = false; c.aiReply = ''; c.aiReq = ''; c.rules.pop(); }, ['duplicate_key']);
 run('parquet out, stop mode', c => { c.output = { kind: 'parquet', path: path.join(dir, 'o.parquet') }; c.bad = 'stop'; }, 'fails');
-run('no rules, no keys, nothing optional', c => { c.cols.forEach(x => { x.key = false; x.req = false; }); c.rules = []; c.dedupe.on = false; c.summary.on = false; c.filter = ''; c.aiReply = ''; c.opts = { trim: false, emptyNa: false, dropBlank: false, dayFirst: true }; c.output = { kind: 'csv', path: path.join(dir, 'p.csv') }; });
+run('no rules, no keys, nothing optional', c => { c.cols.forEach(x => { x.key = false; x.req = false; }); c.rules = []; c.dedupe.on = false; c.summary.on = false; c.filters = []; c.aiReply = ''; c.opts = { trim: false, emptyNa: false, dropBlank: false, dayFirst: true }; c.output = { kind: 'csv', path: path.join(dir, 'p.csv') }; });
 run('all text, dedupe keep first', c => { c.cols.forEach(x => { x.type = 'text'; }); c.rules = []; c.summary.on = false; c.aiReply = ''; c.dedupe = { on: true, order: '', keep: 'first' }; });
 run('lookup join left', c => { c.join = { on: true, kind: 'csv', path: path.join(dir, 'regions.csv'), sheet: '', leftKey: 'sales_region', rightKey: 'Region', cols: 'Manager', how: 'left' }; }, ['no match in the lookup file']);
 run('lookup join inner, all columns', c => { c.join = { on: true, kind: 'csv', path: path.join(dir, 'regions.csv'), sheet: '', leftKey: 'sales_region', rightKey: 'Region', cols: '', how: 'inner' }; c.summary.group = ['Manager']; });
@@ -48,12 +48,17 @@ if (hasPandas) { cp.spawnSync('python3', ['-c', 'import pandas as pd,sys\nd=pd.r
   run('parquet in', c => { c.input.kind = 'parquet'; c.input.path = path.join(dir, 'orders.parquet'); }); }
 // setup checks and Copilot vetting
 run('dedupe without key', c => { c.cols.forEach(x => { x.key = false; }); }, 'blocked');
-run('filter with single =', c => { c.filter = 'status = "A"'; }, 'blocked');
+run('filter with single =', c => { c.filters = [{ when: 'status = "A"', join: 'and' }]; }, 'blocked');
+run('two filters with AND, keep what they remove (excel)', c => { c.output.path = path.join(dir, 'and.xlsx'); c.filters = [{ when: 'order_date >= "2026-01-06"', label: 'on or after 6 Jan', join: 'and' }, { when: 'status != "TEST"', label: '', join: 'and' }]; c.keepRemoved = true; }, ['Filters removed', 'Filtered out:']);
+run('three filters with OR (csv), keep what they remove', c => { c.output = { kind: 'csv', path: path.join(dir, 'or.csv') }; c.filters = [{ when: 'order_date >= "2026-01-08"', join: 'and' }, { when: 'sales_region == "South"', join: 'or' }, { when: 'amount > 1000', join: 'or' }]; c.keepRemoved = true; c.aiReply = ''; }, ['Filtered out:']);
 run('sum of a text column', c => { c.summary.metrics[1].col = 'status'; }, 'blocked');
 run('output same as input', c => { c.output.path = c.input.path; c.output.kind = 'csv'; }, 'blocked');
 const c2 = base(); c2.aiReply = '@@@ COLUMN @@@\nNAME: a\nEXPR: df["nope"] * 2\n@@@ COLUMN @@@\nNAME: b\nEXPR: __import__("os").system("x")\n@@@ COLUMN @@@\nNAME: c\nEXPR: df["amount"].apply(lambda v: v * 2)\n@@@ COLUMN @@@\nNAME: d\nEXPR: pd.read_csv("x")\n@@@ COLUMN @@@\nNAME: order_id\nEXPR: df["order_id"] + 1\n@@@ COLUMN @@@\nNAME: e\nEXPR: amount * 2\n@@@ COLUMN @@@\nNAME: good\nEXPR: np.where(df["amount"] > 100, "big", "small")\n@@@ COLUMN @@@\nNAME: column_name\nEXPR: pandas expression';
 const a2 = K.aiParse(c2.aiReply, c2, S.parseBlocks, S.fields); console.log('Copilot vetting: ok', a2.ok.map(i => i.name), '(expect good) | rejected', a2.items.filter(i => i.problems.length).map(i => i.name + ': ' + i.problems[0].slice(0, 46)));
 console.log('infer:', K.parseSample('zip\tn\td\tdt\tb\tm\tt\n02134\t1,200\t1/5/2026\t2026-01-05 13:30\tYes\t$1,200.50\tx\n10001\t7\t12/31/2025\t2026-01-06 08:00\tno\t(3.00)\t').cols.map(x => x.type).join(' '), '(expect text whole date datetime bool decimal text)');
 console.log('semicolon:', JSON.stringify(K.parseSample('a;b\n1;2').delim), '| dup header:', K.parseSample('a,a\n1,2').errors.length);
+// read back the sheets of the AND case: Original = Data + Filtered out (before dedupe and checks move rows)
+if (hasPandas) { const f = path.join(dir, 'and.xlsx'); const r = cp.spawnSync('python3', ['-c', 'import pandas as pd,sys\nx=pd.read_excel(sys.argv[1],sheet_name=None,dtype=str)\nprint("sheets", list(x))\nfo=x["Filtered out"]\nprint("filtered out", len(fo), "| reasons", sorted(set(fo["failed_filters"])))\nprint("original", len(x["Original"]))', f], { encoding: 'utf8' }); console.log('keep what the filters remove:', (r.stdout || r.stderr).trim().replace(/\n/g, ' | ')); }
+if (hasPandas) { const r = cp.spawnSync('python3', ['-c', 'import pandas as pd,sys,glob\nfor f in sorted(glob.glob(sys.argv[1]+"/or*.csv")): print(f.split("/")[-1], len(pd.read_csv(f)))', dir], { encoding: 'utf8' }); console.log('OR case files:', (r.stdout || r.stderr).trim().replace(/\n/g, ' | ')); }
 console.log(bad ? 'FAILED ' + bad : 'all scripts ' + (hasPandas ? 'ran' : 'parse'));
 if (process.argv[2] === 'show') console.log(K.build(EX(K), K.aiParse(EX(K).aiReply, EX(K), S.parseBlocks, S.fields)).py);

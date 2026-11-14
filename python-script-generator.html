@@ -417,6 +417,8 @@ td.flowname .ind{color:var(--ws)}
 .tokchip.v .mono { color: var(--accent); }
 .tokex { color: var(--muted, inherit); opacity: .8; }
 .tokres { font-size: 12px; overflow-wrap: anywhere; }
+.rrow.filt{grid-template-columns:auto minmax(0,1.8fr) minmax(0,1fr) auto}
+@media (max-width:700px){.rrow.filt{grid-template-columns:auto minmax(0,1fr) auto}.rrow.filt input[data-f=label]{grid-column:2}}
 </style>
 </head>
 <body>
@@ -495,7 +497,13 @@ td.flowname .ind{color:var(--ws)}
         <p>Everything here is optional. The script does them in this order and prints how many rows each one changed.</p>
       </div>
 
-      <label class="lab">Keep only rows where <span class="hint">optional; pandas query, with your new column names: amount &gt; 0 and status != "TEST"</span><input type="text" data-k="filter" spellcheck="false" autocomplete="off" placeholder='status != "TEST"' style="width:100%"></label>
+      <div class="sub">
+        <div class="details-head"><h3>Keep only rows where</h3><button type="button" class="btn" id="addFilter">Add a filter</button></div>
+        <p class="note small">Optional. Each filter is a pandas condition with your new column names, for example <span class="mono">amount &gt; 0</span>, <span class="mono">status != "TEST"</span> or <span class="mono">order_date &gt;= "2026-06-01"</span>. From the second one on, choose AND (both must pass) or OR (either can pass). A row with a missing value never passes that filter.</p>
+        <div id="filterList" class="rlist"></div>
+        <p class="note small" id="filterLogic"></p>
+        <label class="chk"><input type="checkbox" data-k="keepRemoved"> <span>Keep what the filters remove: a &ldquo;Filtered out&rdquo; sheet with the filters each row failed, and an &ldquo;Original&rdquo; sheet with every row before filtering (separate files for CSV or Parquet)</span></label>
+      </div>
 
       <div class="sub">
         <label class="chk"><input type="checkbox" data-k="dedupe.on"> <b>Remove duplicates</b>&nbsp;on the key</label>
@@ -799,11 +807,19 @@ td.flowname .ind{color:var(--ws)}
   K.AGGS = [['sum', 'Sum'], ['size', 'Count rows'], ['nunique', 'Count distinct'], ['mean', 'Average'], ['min', 'Minimum'], ['max', 'Maximum']];
   K.BAD = [['report', 'List them in the issues report and keep them'], ['split', 'Move them to a rejected-rows file or sheet'], ['stop', 'Stop the script']];
 
+  /* filters: each keeps rows where its condition holds; from the second on, joined to the ones before with and / or, left to right */
+  K.activeFilters = cfg => (Array.isArray(cfg.filters) ? cfg.filters : []).filter(x => x && String(x.when || '').trim());
+  K.filterLogic = function (list) {
+    let s = '';
+    list.forEach((x, i) => { const term = String(x.label || '').trim() ? x.label.trim() : x.when.trim();
+      s = i === 0 ? term : (i > 1 ? '(' + s + ')' : s) + ' ' + (x.join === 'or' ? 'OR' : 'AND') + ' ' + term; });
+    return s;
+  };
   K.blank = () => ({
     name: '',
     input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0 },
     cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dayFirst: false },
-    filter: '', dedupe: { on: false, order: '', keep: 'last' },
+    filters: [], keepRemoved: false, dedupe: { on: false, order: '', keep: 'last' },
     join: { on: false, kind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' },
     summary: { on: false, group: [], metrics: [] },
     rules: [], bad: 'report', output: { kind: 'csv', path: '' }, aiReq: '', aiReply: ''
@@ -896,8 +912,10 @@ td.flowname .ind{color:var(--ws)}
     const keys = on.filter(c => c.key).map(c => c.name);
     if (cfg.dedupe.on && !keys.length) add('err', 'Removing duplicates needs a key. Tick Key for the column or columns that identify one row.');
     if (cfg.dedupe.on && cfg.dedupe.order && names.indexOf(cfg.dedupe.order) < 0) add('err', 'The column to pick the latest row by, ' + cfg.dedupe.order + ', isn’t a kept column.');
-    const f = cfg.filter.trim();
-    if (f) { if (/@|__|`|;|\bimport\b/.test(f)) add('err', 'The filter can only compare columns with values, for example amount > 0 and status != "TEST".'); if (/(^|[^=!<>])=([^=]|$)/.test(f.replace(/"[^"]*"|'[^']*'/g, '""'))) add('err', 'In the filter, write == to compare (a single = doesn’t work in pandas).'); }
+    K.activeFilters(cfg).forEach((x, i) => { const f = x.when.trim(), n = 'Filter ' + (i + 1);
+      if (/@|__|`|;|\bimport\b/.test(f)) add('err', n + ' can only compare columns with values, for example amount > 0 and status != "TEST".');
+      if (/(^|[^=!<>])=([^=]|$)/.test(f.replace(/"[^"]*"|'[^']*'/g, '""'))) add('err', n + ': write == to compare (a single = doesn’t work in pandas).'); });
+    if (cfg.keepRemoved && !K.activeFilters(cfg).length && !(ai && ai.ok && ai.ok.some(i => i.kind === 'FILTER'))) add('info', 'Keeping what the filters remove does nothing until there is a filter.');
     if (cfg.join.on) {
       const j = cfg.join;
       if (!j.path.trim()) add('warn', 'No lookup file path: set LOOKUP_PATH in the script.');
@@ -1082,10 +1100,21 @@ td.flowname .ind{color:var(--ws)}
     }
 
     /* filter */
-    const F = [];
-    if (cfg.filter.trim()) F.push('before = len(df)', 'df = df.query(' + py(cfg.filter.trim()) + ')', 'print(f"Filter removed {before - len(df):,} row(s)")');
-    if (aiFilter) { const label = F.length ? 'Second filter' : 'Filter'; if (F.length) F.push(''); F.push('before = len(df)', 'keep = (' + aiFilter.expr + ')', 'df = df[keep.fillna(False).astype(bool)]', 'print(f"' + label + ' removed {before - len(df):,} row(s)")'); }
-    if (F.length) add('Keep only the rows you want', 'Rows that don’t pass are removed and counted.', F);
+    const FL = K.activeFilters(cfg).map((x, i) => ({ name: String(x.label || '').trim() || x.when.trim(), test: 'df.eval(' + py(x.when.trim()) + ', engine="python")', join: i ? (x.join === 'or' ? 'or' : 'and') : '' }));
+    if (aiFilter) FL.push({ name: 'Copilot filter', test: '(' + aiFilter.expr + ')', join: FL.length ? 'and' : '' });
+    const keepOut = !!cfg.keepRemoved && FL.length > 0;
+    if (FL.length) {
+      const fp = Math.max.apply(null, FL.map(f => py(f.name).length));
+      const F = ['# True for the rows each filter keeps. A missing value never passes a filter.', 'PASSES = {'].concat(FL.map(f => '    ' + (py(f.name) + ':').padEnd(fp + 1) + ' ' + f.test + ','), ['}',
+        'PASSES = {name: pd.Series(p, index=df.index).fillna(False).astype(bool) for name, p in PASSES.items()}', '']);
+      if (FL.length > 1) F.push('# Combined left to right: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])));
+      FL.forEach((f, i) => F.push(i === 0 ? 'keep = PASSES[' + py(f.name) + ']' : 'keep = keep ' + (f.join === 'or' ? '|' : '&') + ' PASSES[' + py(f.name) + ']   # ' + f.join));
+      if (keepOut) F.push('', '# Every row before filtering, and the rows the filters take out with the filters each one failed', 'original = df.copy()', 'filtered_out = df[~keep].copy()',
+        'filtered_out["failed_filters"] = [", ".join(n for n, p in PASSES.items() if not p.loc[i]) for i in filtered_out.index]');
+      F.push('', 'before = len(df)', 'df = df[keep]', 'rows_filtered = before - len(df)', 'print(f"Filters removed {rows_filtered:,} row(s)")');
+      if (keepOut) F.push('assert len(original) == len(df) + len(filtered_out), "Rows kept + rows filtered out must equal the rows before filtering"');
+      add('Keep only the rows you want', (FL.length > 1 ? 'Rows are kept when they pass: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])) + '. ' : '') + (keepOut ? 'All rows before filtering and the rows taken out are kept for the output.' : 'Rows that don’t pass are removed and counted.'), F);
+    }
 
     /* dedupe */
     let dd = false;
@@ -1126,20 +1155,23 @@ td.flowname .ind{color:var(--ws)}
     const sumOn = sm.on && sm.group.length && sm.metrics.length;
     if (xl) {
       W.push('with pd.ExcelWriter(OUTPUT_PATH) as book:', '    df.to_excel(book, sheet_name="Data", index=False)');
+      if (keepOut) W.push('    filtered_out.to_excel(book, sheet_name="Filtered out", index=False)', '    original.to_excel(book, sheet_name="Original", index=False)');
       if (sumOn) W.push('    summary.to_excel(book, sheet_name="Summary", index=False)');
       if (hasRules && !stop) W.push('    if len(rejected):', '        rejected.to_excel(book, sheet_name="' + (split ? 'Rejected rows' : 'Rows to review') + '", index=False)');
       W.push('    if len(issues_table):', '        issues_table.to_excel(book, sheet_name="Issues", index=False)');
     } else {
       const wr = cfg.output.kind === 'parquet' ? (v, p) => v + '.to_parquet(' + p + ', index=False)' : (v, p) => v + '.to_csv(' + p + ', index=False, encoding="utf-8-sig")   # utf-8-sig opens cleanly in Excel';
       W.push('def beside(tag):', '    """A file next to the output: orders_clean.csv -> orders_clean_<tag>.csv"""', '    return OUTPUT_PATH.with_name(f"{OUTPUT_PATH.stem}_{tag}{OUTPUT_PATH.suffix}")', '', wr('df', 'OUTPUT_PATH'));
+      if (keepOut) W.push(wr('filtered_out', 'beside("filtered_out")').replace(/   #.*$/, ''), wr('original', 'beside("original")').replace(/   #.*$/, ''));
       if (sumOn) W.push(wr('summary', 'beside("summary")').replace(/   #.*$/, ''));
       if (hasRules && !stop) W.push('if len(rejected):', '    ' + wr('rejected', 'beside("' + (split ? 'rejected' : 'review') + '")').replace(/   #.*$/, ''));
       W.push('if len(issues_table):', '    issues_table.to_csv(beside("issues").with_suffix(".csv"), index=False, encoding="utf-8-sig")');
     }
     W.push('', 'print()', 'print(f"Rows read:     {rows_read:,}")', 'print(f"Rows written:  {len(df):,}")');
+    if (keepOut) W.push('print(f"Filtered out:  {len(filtered_out):,} (kept ' + (xl ? 'on the Filtered out sheet' : 'in the _filtered_out file') + ')")');
     if (hasRules && !stop) W.push('print(f"Rows ' + (split ? 'rejected:' : 'to review:') + ' {len(rejected):,}")');
     W.push('print(f"Problems:      {len(issues):,} kind(s)")', 'print(f"Output:        {OUTPUT_PATH.resolve()}")');
-    add('Write the output', xl ? 'One workbook: the data' + (sumOn ? ', the summary' : '') + ', and sheets for rows with problems and the issues list when there are any.' : 'The data, plus files beside it for ' + (sumOn ? 'the summary, ' : '') + 'rows with problems and the issues list when there are any.', W);
+    add('Write the output', xl ? 'One workbook: the data' + (keepOut ? ', the rows the filters took out, all rows before filtering' : '') + (sumOn ? ', the summary' : '') + ', and sheets for rows with problems and the issues list when there are any.' : 'The data, plus files beside it for ' + (sumOn ? 'the summary, ' : '') + 'rows with problems and the issues list when there are any.', W);
 
     S.forEach((s, i) => { if (!/^\d/.test(s.title)) s.title = (i + 1) + '. ' + s.title; else s.title = (i + 1) + '. ' + s.title.replace(/^\d+\.\s*/, ''); });
     const intro = ['# ' + n.script, '', 'Reads `' + stem(n.inPath) + (n.inPath.match(/\.[^.\\/]+$/) || [''])[0] + '`, cleans and checks it, and writes `' + n.outPath.split(/[\\/]/).pop() + '`. The source file is never changed.', '', 'Needs: `pip install ' + needs.join(' ') + '`'];
@@ -1174,7 +1206,7 @@ td.flowname .ind{color:var(--ws)}
     c.cols = K.mapCols(K.parseSample(SAMPLE), []);
     c.cols.forEach(x => { if (x.name === 'order_id') { x.key = true; x.req = true; } if (x.name === 'order_date' || x.name === 'amount') x.req = true; });
     c.dedupe = { on: true, order: 'order_date', keep: 'last' };
-    c.filter = 'status != "TEST"';
+    c.filters = [{ when: 'status != "TEST"', label: '', join: 'and' }];
     c.rules = [{ kind: 'min', col: 'amount', val: '0' }, { kind: 'inlist', col: 'status', val: 'OPEN, SHIPPED, CANCELLED' }];
     c.bad = 'split';
     c.summary = { on: true, group: ['sales_region'], metrics: [{ name: 'orders', agg: 'size', col: '' }, { name: 'total_amount', agg: 'sum', col: 'amount' }] };
@@ -1206,7 +1238,9 @@ td.flowname .ind{color:var(--ws)}
     const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {}), arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);
     const copy = (to, from, keys) => keys.forEach(k => { if (typeof obj(from)[k] === typeof to[k]) to[k] = from[k]; });
     const kinds = K.KINDS.map(k => k[0]);
-    copy(c, s, ['name', 'filter', 'aiReq', 'aiReply']); c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
+    copy(c, s, ['name', 'aiReq', 'aiReply']); c.keepRemoved = s.keepRemoved === true;
+    c.filters = arr(s.filters).map(x => ({ when: str(x.when), label: str(x.label), join: x.join === 'or' ? 'or' : 'and' }));
+    if (!c.filters.length && str(s.filter).trim()) c.filters = [{ when: str(s.filter), label: '', join: 'and' }];   // saved before filters became a list c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
     copy(c.input, s.input, ['path', 'sheet', 'encoding']); c.input.kind = oneOf(kinds, obj(s.input).kind, 'csv'); c.input.sep = oneOf([',', ';', 'tab', '|'], obj(s.input).sep, ','); c.input.skip = Math.max(0, parseInt(obj(s.input).skip, 10) || 0);
     copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dayFirst']);
     c.cols = arr(s.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: oneOf(K.TYPES.map(t => t[0]), x.type, 'text'), on: x.on !== false, key: !!x.key, req: !!x.req }));
@@ -1255,6 +1289,12 @@ td.flowname .ind{color:var(--ws)}
     $('joinLeft').innerHTML = opts(n, cfg.join.leftKey, 'Choose a column');
     $('badSel').innerHTML = opts(K.BAD, cfg.bad);
     const all = K.known(cfg, ai).all;
+    $('filterList').innerHTML = cfg.filters.map((f, i) => '<div class="rrow filt" data-list="filters" data-i="' + i + '">'
+      + (i ? '<select data-f="join" aria-label="Combine with the filters before"><option value="and"' + (f.join !== 'or' ? ' selected' : '') + '>AND</option><option value="or"' + (f.join === 'or' ? ' selected' : '') + '>OR</option></select>' : '<span class="muted small" style="align-self:center">Keep if</span>')
+      + '<input type="text" data-f="when" value="' + esc(f.when) + '" placeholder=\'order_date >= "2026-06-01"\' spellcheck="false" aria-label="Condition">'
+      + '<input type="text" data-f="label" value="' + esc(f.label) + '" placeholder="name (optional)" spellcheck="false" aria-label="Name shown in Filtered out">'
+      + '<button type="button" class="x" data-del aria-label="Remove filter">&times;</button></div>').join('');
+    filterPreview();
     $('ruleList').innerHTML = cfg.rules.map((r, i) => '<div class="rrow" data-list="rules" data-i="' + i + '"><select data-f="col" aria-label="Column">' + opts(all, r.col, 'Column') + '</select><select data-f="kind" aria-label="Check">' + opts(K.RULES.map(x => [x[0], x[1]]), r.kind) + '</select>'
       + (r.kind === 'notfuture' ? '<span></span><span></span>' : '<input type="text" data-f="val" value="' + esc(r.val) + '" placeholder="' + esc((K.RULES.find(x => x[0] === r.kind) || [])[2] || '') + '" spellcheck="false" aria-label="Value" style="grid-column:span 2">') + '<button type="button" class="x" data-del aria-label="Remove check">&times;</button></div>').join('');
     $('groupChips').innerHTML = all.length ? all.map(c => '<button type="button" class="chip" data-group="' + esc(c) + '" aria-pressed="' + (cfg.summary.group.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
@@ -1264,7 +1304,11 @@ td.flowname .ind{color:var(--ws)}
     renderOut();
   }
 
+  function filterPreview() {
+    const act = K.activeFilters(cfg); $('filterLogic').textContent = act.length > 1 ? 'Rows are kept when: ' + K.filterLogic(act) + (act.some((f, i) => i && f.join === 'or') && act.some((f, i) => i && f.join !== 'or') && act.length > 2 ? '. Read left to right: each AND or OR applies to everything before it.' : '.') : '';
+  }
   function renderOut() {
+    filterPreview();
     const nm = K.names(cfg); $('outPath').placeholder = nm.outPath; $('scriptName').placeholder = nm.script;
     $('sampleStats').innerHTML = cfg.cols.length ? '<span class="stat"><b>' + cfg.cols.length + '</b> columns</span><span class="stat"><b>' + cfg.cols.filter(c => c.on && c.type !== 'text').length + '</b> converted from text</span>' : '';
     ai = null; const want = cfg.aiReq.trim().length > 0, msgs = [];
@@ -1302,7 +1346,7 @@ td.flowname .ind{color:var(--ws)}
     prune(); fill($('sampleIn'));
   }
   function toBlank(keep) { cfg = K.blank(); st.example = false; ai = null; $('sampleMsg').innerHTML = ''; fill(keep); renderForm(); }
-  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : cfg.cols);
+  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : cfg.cols);
 
   function init() {
     load(); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
@@ -1317,6 +1361,9 @@ td.flowname .ind{color:var(--ws)}
           const sw = v => (v === was ? el.value : v);
           cfg.dedupe.order = sw(cfg.dedupe.order); cfg.join.leftKey = sw(cfg.join.leftKey); cfg.summary.group = cfg.summary.group.map(sw);
           cfg.summary.metrics.forEach(m => { m.col = sw(m.col); }); cfg.rules.forEach(r => { r.col = sw(r.col); });
+          const word = new RegExp('(^|[^\\w"\'])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w"\'])', 'g');
+          cfg.filters.forEach(f => { f.when = f.when.replace(word, (m0, p) => p + el.value); });
+          document.querySelectorAll('#filterList [data-i]').forEach(r => { const f = cfg.filters[Number(r.dataset.i)], b = r.querySelector('[data-f="when"]'); if (f && b && b.value !== f.when) b.value = f.when; });
         }
         renderOut(); return;
       }
@@ -1328,7 +1375,7 @@ td.flowname .ind{color:var(--ws)}
       const row = el.closest('[data-i]');
       if (row && el.dataset.f) {
         const it = listOf(row)[Number(row.dataset.i)]; if (!it) return;
-        if (el.type === 'checkbox') it[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') it[el.dataset.f] = el.value; else { prune(); renderForm(); return; }
+        if (el.type === 'checkbox') it[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') it[el.dataset.f] = el.value; else if (row.dataset.list === 'filters') { renderOut(); return; } else { prune(); renderForm(); return; }   /* a redraw here would take the cursor out of the next box */
         if (!row.dataset.list && el.dataset.f === 'key' && it.key) it.req = true;
         prune(); renderForm(); return;
       }
@@ -1340,6 +1387,7 @@ td.flowname .ind{color:var(--ws)}
       else if (g) { const a = cfg.summary.group, i = a.indexOf(g.dataset.group); if (i >= 0) a.splice(i, 1); else a.push(g.dataset.group); renderForm(); }
     });
     $('addRule').addEventListener('click', () => { cfg.rules.push({ kind: 'min', col: '', val: '' }); renderForm(); });
+    $('addFilter').addEventListener('click', () => { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); });
     $('addMetric').addEventListener('click', () => { cfg.summary.metrics.push({ name: '', agg: 'sum', col: '' }); renderForm(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });

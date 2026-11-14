@@ -73,7 +73,13 @@
         <p>Everything here is optional. The script does them in this order and prints how many rows each one changed.</p>
       </div>
 
-      <label class="lab">Keep only rows where <span class="hint">optional; pandas query, with your new column names: amount &gt; 0 and status != "TEST"</span><input type="text" data-k="filter" spellcheck="false" autocomplete="off" placeholder='status != "TEST"' style="width:100%"></label>
+      <div class="sub">
+        <div class="details-head"><h3>Keep only rows where</h3><button type="button" class="btn" id="addFilter">Add a filter</button></div>
+        <p class="note small">Optional. Each filter is a pandas condition with your new column names, for example <span class="mono">amount &gt; 0</span>, <span class="mono">status != "TEST"</span> or <span class="mono">order_date &gt;= "2026-06-01"</span>. From the second one on, choose AND (both must pass) or OR (either can pass). A row with a missing value never passes that filter.</p>
+        <div id="filterList" class="rlist"></div>
+        <p class="note small" id="filterLogic"></p>
+        <label class="chk"><input type="checkbox" data-k="keepRemoved"> <span>Keep what the filters remove: a &ldquo;Filtered out&rdquo; sheet with the filters each row failed, and an &ldquo;Original&rdquo; sheet with every row before filtering (separate files for CSV or Parquet)</span></label>
+      </div>
 
       <div class="sub">
         <label class="chk"><input type="checkbox" data-k="dedupe.on"> <b>Remove duplicates</b>&nbsp;on the key</label>

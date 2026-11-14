@@ -98,3 +98,5 @@ td.flowname .ind{color:var(--ws)}
 .tokchip.v .mono { color: var(--accent); }
 .tokex { color: var(--muted, inherit); opacity: .8; }
 .tokres { font-size: 12px; overflow-wrap: anywhere; }
+.rrow.filt{grid-template-columns:auto minmax(0,1.8fr) minmax(0,1fr) auto}
+@media (max-width:700px){.rrow.filt{grid-template-columns:auto minmax(0,1fr) auto}.rrow.filt input[data-f=label]{grid-column:2}}

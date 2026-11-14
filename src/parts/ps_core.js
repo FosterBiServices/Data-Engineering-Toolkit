@@ -14,11 +14,19 @@
   K.AGGS = [['sum', 'Sum'], ['size', 'Count rows'], ['nunique', 'Count distinct'], ['mean', 'Average'], ['min', 'Minimum'], ['max', 'Maximum']];
   K.BAD = [['report', 'List them in the issues report and keep them'], ['split', 'Move them to a rejected-rows file or sheet'], ['stop', 'Stop the script']];
 
+  /* filters: each keeps rows where its condition holds; from the second on, joined to the ones before with and / or, left to right */
+  K.activeFilters = cfg => (Array.isArray(cfg.filters) ? cfg.filters : []).filter(x => x && String(x.when || '').trim());
+  K.filterLogic = function (list) {
+    let s = '';
+    list.forEach((x, i) => { const term = String(x.label || '').trim() ? x.label.trim() : x.when.trim();
+      s = i === 0 ? term : (i > 1 ? '(' + s + ')' : s) + ' ' + (x.join === 'or' ? 'OR' : 'AND') + ' ' + term; });
+    return s;
+  };
   K.blank = () => ({
     name: '',
     input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0 },
     cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dayFirst: false },
-    filter: '', dedupe: { on: false, order: '', keep: 'last' },
+    filters: [], keepRemoved: false, dedupe: { on: false, order: '', keep: 'last' },
     join: { on: false, kind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' },
     summary: { on: false, group: [], metrics: [] },
     rules: [], bad: 'report', output: { kind: 'csv', path: '' }, aiReq: '', aiReply: ''
@@ -111,8 +119,10 @@
     const keys = on.filter(c => c.key).map(c => c.name);
     if (cfg.dedupe.on && !keys.length) add('err', 'Removing duplicates needs a key. Tick Key for the column or columns that identify one row.');
     if (cfg.dedupe.on && cfg.dedupe.order && names.indexOf(cfg.dedupe.order) < 0) add('err', 'The column to pick the latest row by, ' + cfg.dedupe.order + ', isn’t a kept column.');
-    const f = cfg.filter.trim();
-    if (f) { if (/@|__|`|;|\bimport\b/.test(f)) add('err', 'The filter can only compare columns with values, for example amount > 0 and status != "TEST".'); if (/(^|[^=!<>])=([^=]|$)/.test(f.replace(/"[^"]*"|'[^']*'/g, '""'))) add('err', 'In the filter, write == to compare (a single = doesn’t work in pandas).'); }
+    K.activeFilters(cfg).forEach((x, i) => { const f = x.when.trim(), n = 'Filter ' + (i + 1);
+      if (/@|__|`|;|\bimport\b/.test(f)) add('err', n + ' can only compare columns with values, for example amount > 0 and status != "TEST".');
+      if (/(^|[^=!<>])=([^=]|$)/.test(f.replace(/"[^"]*"|'[^']*'/g, '""'))) add('err', n + ': write == to compare (a single = doesn’t work in pandas).'); });
+    if (cfg.keepRemoved && !K.activeFilters(cfg).length && !(ai && ai.ok && ai.ok.some(i => i.kind === 'FILTER'))) add('info', 'Keeping what the filters remove does nothing until there is a filter.');
     if (cfg.join.on) {
       const j = cfg.join;
       if (!j.path.trim()) add('warn', 'No lookup file path: set LOOKUP_PATH in the script.');
@@ -297,10 +307,21 @@
     }
 
     /* filter */
-    const F = [];
-    if (cfg.filter.trim()) F.push('before = len(df)', 'df = df.query(' + py(cfg.filter.trim()) + ')', 'print(f"Filter removed {before - len(df):,} row(s)")');
-    if (aiFilter) { const label = F.length ? 'Second filter' : 'Filter'; if (F.length) F.push(''); F.push('before = len(df)', 'keep = (' + aiFilter.expr + ')', 'df = df[keep.fillna(False).astype(bool)]', 'print(f"' + label + ' removed {before - len(df):,} row(s)")'); }
-    if (F.length) add('Keep only the rows you want', 'Rows that don’t pass are removed and counted.', F);
+    const FL = K.activeFilters(cfg).map((x, i) => ({ name: String(x.label || '').trim() || x.when.trim(), test: 'df.eval(' + py(x.when.trim()) + ', engine="python")', join: i ? (x.join === 'or' ? 'or' : 'and') : '' }));
+    if (aiFilter) FL.push({ name: 'Copilot filter', test: '(' + aiFilter.expr + ')', join: FL.length ? 'and' : '' });
+    const keepOut = !!cfg.keepRemoved && FL.length > 0;
+    if (FL.length) {
+      const fp = Math.max.apply(null, FL.map(f => py(f.name).length));
+      const F = ['# True for the rows each filter keeps. A missing value never passes a filter.', 'PASSES = {'].concat(FL.map(f => '    ' + (py(f.name) + ':').padEnd(fp + 1) + ' ' + f.test + ','), ['}',
+        'PASSES = {name: pd.Series(p, index=df.index).fillna(False).astype(bool) for name, p in PASSES.items()}', '']);
+      if (FL.length > 1) F.push('# Combined left to right: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])));
+      FL.forEach((f, i) => F.push(i === 0 ? 'keep = PASSES[' + py(f.name) + ']' : 'keep = keep ' + (f.join === 'or' ? '|' : '&') + ' PASSES[' + py(f.name) + ']   # ' + f.join));
+      if (keepOut) F.push('', '# Every row before filtering, and the rows the filters take out with the filters each one failed', 'original = df.copy()', 'filtered_out = df[~keep].copy()',
+        'filtered_out["failed_filters"] = [", ".join(n for n, p in PASSES.items() if not p.loc[i]) for i in filtered_out.index]');
+      F.push('', 'before = len(df)', 'df = df[keep]', 'rows_filtered = before - len(df)', 'print(f"Filters removed {rows_filtered:,} row(s)")');
+      if (keepOut) F.push('assert len(original) == len(df) + len(filtered_out), "Rows kept + rows filtered out must equal the rows before filtering"');
+      add('Keep only the rows you want', (FL.length > 1 ? 'Rows are kept when they pass: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])) + '. ' : '') + (keepOut ? 'All rows before filtering and the rows taken out are kept for the output.' : 'Rows that don’t pass are removed and counted.'), F);
+    }
 
     /* dedupe */
     let dd = false;
@@ -341,20 +362,23 @@
     const sumOn = sm.on && sm.group.length && sm.metrics.length;
     if (xl) {
       W.push('with pd.ExcelWriter(OUTPUT_PATH) as book:', '    df.to_excel(book, sheet_name="Data", index=False)');
+      if (keepOut) W.push('    filtered_out.to_excel(book, sheet_name="Filtered out", index=False)', '    original.to_excel(book, sheet_name="Original", index=False)');
       if (sumOn) W.push('    summary.to_excel(book, sheet_name="Summary", index=False)');
       if (hasRules && !stop) W.push('    if len(rejected):', '        rejected.to_excel(book, sheet_name="' + (split ? 'Rejected rows' : 'Rows to review') + '", index=False)');
       W.push('    if len(issues_table):', '        issues_table.to_excel(book, sheet_name="Issues", index=False)');
     } else {
       const wr = cfg.output.kind === 'parquet' ? (v, p) => v + '.to_parquet(' + p + ', index=False)' : (v, p) => v + '.to_csv(' + p + ', index=False, encoding="utf-8-sig")   # utf-8-sig opens cleanly in Excel';
       W.push('def beside(tag):', '    """A file next to the output: orders_clean.csv -> orders_clean_<tag>.csv"""', '    return OUTPUT_PATH.with_name(f"{OUTPUT_PATH.stem}_{tag}{OUTPUT_PATH.suffix}")', '', wr('df', 'OUTPUT_PATH'));
+      if (keepOut) W.push(wr('filtered_out', 'beside("filtered_out")').replace(/   #.*$/, ''), wr('original', 'beside("original")').replace(/   #.*$/, ''));
       if (sumOn) W.push(wr('summary', 'beside("summary")').replace(/   #.*$/, ''));
       if (hasRules && !stop) W.push('if len(rejected):', '    ' + wr('rejected', 'beside("' + (split ? 'rejected' : 'review') + '")').replace(/   #.*$/, ''));
       W.push('if len(issues_table):', '    issues_table.to_csv(beside("issues").with_suffix(".csv"), index=False, encoding="utf-8-sig")');
     }
     W.push('', 'print()', 'print(f"Rows read:     {rows_read:,}")', 'print(f"Rows written:  {len(df):,}")');
+    if (keepOut) W.push('print(f"Filtered out:  {len(filtered_out):,} (kept ' + (xl ? 'on the Filtered out sheet' : 'in the _filtered_out file') + ')")');
     if (hasRules && !stop) W.push('print(f"Rows ' + (split ? 'rejected:' : 'to review:') + ' {len(rejected):,}")');
     W.push('print(f"Problems:      {len(issues):,} kind(s)")', 'print(f"Output:        {OUTPUT_PATH.resolve()}")');
-    add('Write the output', xl ? 'One workbook: the data' + (sumOn ? ', the summary' : '') + ', and sheets for rows with problems and the issues list when there are any.' : 'The data, plus files beside it for ' + (sumOn ? 'the summary, ' : '') + 'rows with problems and the issues list when there are any.', W);
+    add('Write the output', xl ? 'One workbook: the data' + (keepOut ? ', the rows the filters took out, all rows before filtering' : '') + (sumOn ? ', the summary' : '') + ', and sheets for rows with problems and the issues list when there are any.' : 'The data, plus files beside it for ' + (sumOn ? 'the summary, ' : '') + 'rows with problems and the issues list when there are any.', W);
 
     S.forEach((s, i) => { if (!/^\d/.test(s.title)) s.title = (i + 1) + '. ' + s.title; else s.title = (i + 1) + '. ' + s.title.replace(/^\d+\.\s*/, ''); });
     const intro = ['# ' + n.script, '', 'Reads `' + stem(n.inPath) + (n.inPath.match(/\.[^.\\/]+$/) || [''])[0] + '`, cleans and checks it, and writes `' + n.outPath.split(/[\\/]/).pop() + '`. The source file is never changed.', '', 'Needs: `pip install ' + needs.join(' ') + '`'];
