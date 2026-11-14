@@ -1191,6 +1191,11 @@ td.flowname .ind{color:var(--ws)}
     return A.STEP_NUMERIC.test(path) ? 'string(coalesce(' + read + ', 0))' : "string(coalesce(" + read + ", ''))";   /* a count that is missing is 0, so int() still reads it */
   };
   A.STEP_NUMERIC = /^(rowsCopied|rowsRead|filesWritten|filesRead|copyDuration|dataWritten|dataRead|executionDuration|count)$/;
+  /* the owner's own logging notebook layout (Nov 2026: "default the selections to my actual selections"): one row per
+     object and step, for the bronze, silver and gold pattern; other patterns have no object or layer, so they keep the plain set */
+  A.notebookLogParams = kind => kind === 'medallion'
+    ? [['obj_id', 'obj_id', ''], ['obj_name', 'obj_name', ''], ['error_details', 'error', 'no error'], ['status', 'status', ''], ['number_rows', 'rows_written', ''], ['duration', 'duration', ''], ['layer', 'layer', ''], ['storage_name', 'global', 'StorageAccountName']].map(a => ({ name: a[0], use: a[1], value: a[2] }))
+    : A.defaultLogParams();
   A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
 
   /* ---- datasets: one the page creates, or the user's own, read from its code-view JSON ---- */
@@ -2715,7 +2720,12 @@ td.flowname .ind{color:var(--ws)}
       document.querySelectorAll('[data-k="' + el.dataset.k + '"]').forEach(o => { if (o !== el && o.type !== 'radio') o.value = el.value; });
     } else if (el.dataset.s) {
       const k = el.dataset.s; std[k] = el.type === 'number' ? Math.max(Number(el.min) || 0, parseInt(el.value, 10) || 0) : el.value.trim();
-    } else if (el.dataset.l) std.log[el.dataset.l] = el.tagName === 'SELECT' ? el.value : el.value.trim();
+    } else if (el.dataset.l) {
+      const was = std.log.method; std.log[el.dataset.l] = el.tagName === 'SELECT' ? el.value : el.value.trim();
+      /* choosing your own notebook fills in the usual rows, unless the rows were already changed */
+      const plain = JSON.stringify((std.log.params || []).map(r => [r.name, r.use, r.value || ''])) === JSON.stringify(A.defaultLogParams().map(r => [r.name, r.use, '']));
+      if (el.dataset.l === 'method' && el.value === 'notebook' && was !== 'notebook' && (plain || !(std.log.params || []).length)) std.log.params = A.notebookLogParams(cfg.src.kind);
+    }
     else if (el.dataset.dsjson) { cfg.ds[el.dataset.dsjson].json = el.value; cfg.ds[el.dataset.dsjson].map = {}; }
     else if (el.dataset.dsmode) { if (el.checked) cfg.ds[el.dataset.dsmode].mode = el.value; }
     else if (el.id === 'runBy') st.runBy = el.value;

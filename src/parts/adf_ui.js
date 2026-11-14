@@ -66,7 +66,12 @@
       document.querySelectorAll('[data-k="' + el.dataset.k + '"]').forEach(o => { if (o !== el && o.type !== 'radio') o.value = el.value; });
     } else if (el.dataset.s) {
       const k = el.dataset.s; std[k] = el.type === 'number' ? Math.max(Number(el.min) || 0, parseInt(el.value, 10) || 0) : el.value.trim();
-    } else if (el.dataset.l) std.log[el.dataset.l] = el.tagName === 'SELECT' ? el.value : el.value.trim();
+    } else if (el.dataset.l) {
+      const was = std.log.method; std.log[el.dataset.l] = el.tagName === 'SELECT' ? el.value : el.value.trim();
+      /* choosing your own notebook fills in the usual rows, unless the rows were already changed */
+      const plain = JSON.stringify((std.log.params || []).map(r => [r.name, r.use, r.value || ''])) === JSON.stringify(A.defaultLogParams().map(r => [r.name, r.use, '']));
+      if (el.dataset.l === 'method' && el.value === 'notebook' && was !== 'notebook' && (plain || !(std.log.params || []).length)) std.log.params = A.notebookLogParams(cfg.src.kind);
+    }
     else if (el.dataset.dsjson) { cfg.ds[el.dataset.dsjson].json = el.value; cfg.ds[el.dataset.dsjson].map = {}; }
     else if (el.dataset.dsmode) { if (el.checked) cfg.ds[el.dataset.dsmode].mode = el.value; }
     else if (el.id === 'runBy') st.runBy = el.value;

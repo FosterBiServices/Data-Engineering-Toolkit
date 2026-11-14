@@ -118,6 +118,11 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   text", then "keep ADF expression"): `A.logChoices(kind)` is the short list; "Output of an earlier step" stores
   `activity|field` (or `activity|=path`) and `A.stepExpr` writes `coalesce(activity('a')?.output?.field, '')`. Outputs per
   type in `A.STEP_FIELDS`. Object values exist only in medallion loops; the error message only fills in the failure log.
+- Choosing "My own Databricks notebook" fills the owner's usual rows (`A.notebookLogParams(kind)`, owner: "default the
+  selections to my actual selections"): for bronze/silver/gold obj_id, obj_name, error_details ("no error" on success),
+  status, number_rows (rows written by the step being logged), duration, layer, storage_name (global parameter
+  StorageAccountName); other patterns keep the plain set. Only when the rows are still the untouched defaults; the
+  notebook path stays empty. Check: `adflogdefaulttest.js`.
 - Expression helper (owner: "assistance in writing the adf expression and what outputs are available from the previous
   step"): an `fx` button beside every "ADF expression" box (logging, dataset parameter, notebook parameter) opens a dialog:
   chips for each step's outputs (`A.exprContext` from the built pipeline), variables, run values and functions

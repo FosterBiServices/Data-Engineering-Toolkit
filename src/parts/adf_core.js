@@ -45,6 +45,11 @@
     return A.STEP_NUMERIC.test(path) ? 'string(coalesce(' + read + ', 0))' : "string(coalesce(" + read + ", ''))";   /* a count that is missing is 0, so int() still reads it */
   };
   A.STEP_NUMERIC = /^(rowsCopied|rowsRead|filesWritten|filesRead|copyDuration|dataWritten|dataRead|executionDuration|count)$/;
+  /* the owner's own logging notebook layout (Nov 2026: "default the selections to my actual selections"): one row per
+     object and step, for the bronze, silver and gold pattern; other patterns have no object or layer, so they keep the plain set */
+  A.notebookLogParams = kind => kind === 'medallion'
+    ? [['obj_id', 'obj_id', ''], ['obj_name', 'obj_name', ''], ['error_details', 'error', 'no error'], ['status', 'status', ''], ['number_rows', 'rows_written', ''], ['duration', 'duration', ''], ['layer', 'layer', ''], ['storage_name', 'global', 'StorageAccountName']].map(a => ({ name: a[0], use: a[1], value: a[2] }))
+    : A.defaultLogParams();
   A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
 
   /* ---- datasets: one the page creates, or the user's own, read from its code-view JSON ---- */
