@@ -9,6 +9,11 @@ described in plain words, and the page checks its reply before using it.
 
 ## Standing rules (same as the Power BI toolkit)
 
+- **Nothing that ties back to the owner's company** (owner, Nov 2026): no client, project, pipeline, dataset, notebook,
+  linked service, container or folder names from his work in pages, placeholders, examples, tests or these notes. Use
+  generic placeholders (yourproject, yourcontainer, ls_yourstorage, sales). Tests that need his private samples read every
+  specific value from files in the samples folder, never from the repo.
+
 - Examples use generic customer and sales data (Orders, Customer, sales). Never real client names or data.
 - Each page loads with example data. The first entry of the user's own in a main box (`data-own`) replaces the whole
   example (`S.ownEntry`), so no example content reaches a Copilot prompt.
@@ -77,8 +82,8 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   corrected pipeline, which is pasted back into the same box and checked again.
 
 - **Files through bronze, silver and gold** (`adf_med.js`, `src.kind: 'medallion'`, the default and the example). Built in
-  Nov 2026 from the owner's real pipelines (yourproject, yourproject, pipeline three) and datasets (ds_csv_folder, ds_parquet_folder,
-  ds_parquet_file): his main process, kept general.
+  Nov 2026 from three of the owner's real pipelines and datasets (a folder-only CSV dataset, a folder-only Parquet dataset
+  and a Parquet file dataset): his main process, kept general.
   - Every folder and file name is a pattern the user types, with `{object} {file} {name} {yyyy} {MM} {dd} {HH}
     {yesterday} {run} {pipeline}` (`A.compilePattern` -> `concat(...)`); a live preview (`A.medPreview`) shows where an
     example file goes. With "Keep paths in pipeline variables" the fixed start of each pattern becomes a variable.
@@ -92,7 +97,7 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   - Four dataset roles (`cfg.ds.list/read/sink/meta`), each the user's own or created. Logging per file and per layer
     run uses the shared logging setup (`std.log`), with values for object id/name, file, duration, layer, global
     parameter and ADF expression. `med.ls` is the storage linked service for created datasets; `nbLs` for notebooks.
-- Folder-only datasets (owner, Nov 2026: ds_csv_folder has just a folder parameter; the page refused it because it copied file
+- Folder-only datasets (owner, Nov 2026: his CSV dataset has just a folder parameter; the page refused it because it copied file
   by file): in "Copy or move files", a source dataset with no file name parameter copies the whole folder in ONE Copy
   activity (`wildcardFileName` from starts/ends, sink `copyBehavior: PreserveHierarchy`, a wildcard Delete after it for
   a move). Only archive-and-quarantine still needs a file name parameter. A folder parameter set to fixed text is
@@ -120,13 +125,14 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   parameter names, a step inside a ForEach/If read from elsewhere), and an optional Copilot prompt (`A.exprPrompt`,
   reply `@@@ EXPRESSION @@@`, `A.exprParse`, refused when the check finds errors). "Use" writes back by dispatching an
   input event on the original box. Check: `adfexprtest.js` (no samples needed).
-- Rebuild of pl_yourproject_region through the page (Nov 2026, owner: "recreate it, document what went well and
+- Rebuild of the owner's first sample pipeline through the page (Nov 2026, owner: "recreate it, document what went well and
   what didn't, fix it"). Fixes from it: `med.container` (bronze, archive and layer folders in another container; pattern,
   `{var:}` allowed); dataset parameter rows say what they get (`fillsWith`); the preview shows containers, the real
   object folder name and each layer notebook's parameter values (folder loop: `{name}`/`{file}` = folder, `{object}` =
   folder with - to _); counts and durations from a step default to 0, not '' (`A.stepExpr`); the Error message log value
   takes optional text for success; checker rule: an archive copy inside an `exists` If must read what the main copy
-  writes. `adfrebuildtest.js` drives the whole rebuild and `adfcompare.py` (with `adfeval.py`, a small ADF expression
+  writes. `adfrebuildtest.js` drives the whole rebuild from a private recipe (`rebuild.json` beside the samples, never
+  committed: every client-specific value lives there) and `adfcompare.py` (with `adfeval.py`, a small ADF expression
   evaluator) compares every dataset, notebook and log value with the original for one file: only the 4 known
   corrections may differ.
 - Token bar (owner: "how does a user know to add {var:...} or {object}?"): focusing any medallion folder or file name box
@@ -142,7 +148,7 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   object list is a warning (sent empty); an info that ADF can't write Parquet column names with spaces or `,;{}()=`
   (no fix in ADF; notebook bronze or rename at source); Build steps start with "BEFORE YOU START" (global parameters,
   notebooks, linked services the JSON uses). Gaps left: a database/ERP source for bronze, a generic bronze notebook.
-- `adfmedtest.js` sets up the owner's yourproject pipeline through the page with his datasets (`/home/claude/samples`,
+- `adfmedtest.js` sets up a medallion pipeline through the page with his sample datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
 
 ## Python Notebook Generator (`py_core.js`)

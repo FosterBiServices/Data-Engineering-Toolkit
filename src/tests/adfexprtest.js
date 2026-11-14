@@ -3,7 +3,7 @@ const { open } = require('./lib');
 (async () => {
   const { browser, page, errors } = await open('adf-pipeline-generator.html');
   const T = async (label, fn) => console.log(label, JSON.stringify(await page.evaluate(fn)));
-  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/log_run');
+  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/yourproject/log_run');
   await page.click('#addLogParam'); const r = '#logRows [data-logrow="4"] ';
   await page.fill(r + 'input[data-lf=name]', 'duration_min'); await page.selectOption(r + 'select[data-lf=use]', 'expr');
   await T('fx button beside the expression box', () => !!document.querySelector('#logRows [data-logrow="4"] [data-fx]'));

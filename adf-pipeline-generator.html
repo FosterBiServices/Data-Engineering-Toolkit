@@ -536,7 +536,7 @@ td.flowname .ind{color:var(--ws)}
         </div>
         <label class="chk"><input type="checkbox" data-k="med.lookup.on"> <b>Look up each object in a list</b>&nbsp;returned by a notebook (for its id)</label>
         <div class="qgrid" id="lookupBox">
-          <label class="lab wide">Notebook that returns the list <span class="hint">it ends with dbutils.notebook.exit(json.dumps(rows))</span><input type="text" data-k="med.lookup.nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/platform/object_list"></label>
+          <label class="lab wide">Notebook that returns the list <span class="hint">it ends with dbutils.notebook.exit(json.dumps(rows))</span><input type="text" data-k="med.lookup.nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/yourproject/object_list"></label>
           <label class="lab">Id field<input type="text" data-k="med.lookup.idField" spellcheck="false" autocomplete="off" placeholder="id"></label>
           <label class="lab">Name field <span class="hint">matched to the object name</span><input type="text" data-k="med.lookup.nameField" spellcheck="false" autocomplete="off" placeholder="object_name"></label>
           <label class="lab">A file whose object isn&rsquo;t in the list<select data-k="med.lookup.unknown"><option value="stop">Fails with a clear message</option><option value="continue">Is loaded anyway, with an empty id</option></select></label>
@@ -620,7 +620,7 @@ td.flowname .ind{color:var(--ws)}
               <label><input type="radio" name="dsModelist" value="new" data-dsmode="list"><span>Use the file dataset below</span></label>
               <label><input type="radio" name="dsModelist" value="own" data-dsmode="list"><span>Use one I already have</span></label>
             </div></div>
-          <p class="note small">Used by Get Metadata to list the folder. A folder parameter is enough (like ds_csv_folder).</p>
+          <p class="note small">Used by Get Metadata to list the folder. A folder parameter is enough.</p>
           <div data-dsown="list" style="display:flex;flex-direction:column;gap:10px" hidden>
             <textarea class="mid" data-dsjson="list" spellcheck="false" aria-label="Lists the incoming files JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
             <div class="stats" id="dsInfolist"></div>
@@ -648,7 +648,7 @@ td.flowname .ind{color:var(--ws)}
               <label><input type="radio" name="dsModesink" value="new" data-dsmode="sink"><span>Create one for me</span></label>
               <label><input type="radio" name="dsModesink" value="own" data-dsmode="sink"><span>Use one I already have</span></label>
             </div></div>
-          <p class="note small">Where each file is written, and checked before archiving. Needs folder and file name parameters (like ds_parquet_file).</p>
+          <p class="note small">Where each file is written, and checked before archiving. Needs folder and file name parameters.</p>
           <div data-dsown="sink" style="display:flex;flex-direction:column;gap:10px" hidden>
             <textarea class="mid" data-dsjson="sink" spellcheck="false" aria-label="Bronze dataset JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
             <div class="stats" id="dsInfosink"></div>
@@ -662,7 +662,7 @@ td.flowname .ind{color:var(--ws)}
               <label><input type="radio" name="dsModemeta" value="new" data-dsmode="meta"><span>Use the bronze dataset</span></label>
               <label><input type="radio" name="dsModemeta" value="own" data-dsmode="meta"><span>Use one I already have</span></label>
             </div></div>
-          <p class="note small">Used by Get Metadata to list the object folders before each layer. A folder parameter is enough (like ds_parquet_folder).</p>
+          <p class="note small">Used by Get Metadata to list the object folders before each layer. A folder parameter is enough.</p>
           <div data-dsown="meta" style="display:flex;flex-direction:column;gap:10px" hidden>
             <textarea class="mid" data-dsjson="meta" spellcheck="false" aria-label="Lists layer folders JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
             <div class="stats" id="dsInfometa"></div>
@@ -2629,7 +2629,7 @@ td.flowname .ind{color:var(--ws)}
     c.src.container = 'datalake'; c.src.folder = 'sales/landing'; c.src.ends = '.csv'; c.nbLs = 'ls_databricks';
     Object.assign(c.med, { ls: 'ls_adls_datalake', lookup: { on: true, nbPath: '/Shared/platform/lu_object_list', idField: 'id', nameField: 'object_name', unknown: 'stop' },
       bronzeFolder: 'sales/bronze/{object}', bronzeFile: '{object}.parquet', archive: true, archiveFolder: 'sales/archive/{object}', archiveFile: '{yyyy}-{MM}-{dd}_{object}.parquet',
-      stages: [Object.assign(root.ADF.medStage('silver', 'folders', 'sales/bronze'), { nbPath: '/Shared/sales/bronze_to_silver', params: [{ name: 'file_name', use: 'text', value: '{object}.parquet' }, { name: 'obj_name', use: 'object', value: '' }, { name: 'obj_id', use: 'obj_id', value: '' }, { name: 'storage_name', use: 'global', value: 'StorageAccountName' }, { name: 'layer', use: 'layer', value: '' }] }),
+      stages: [Object.assign(root.ADF.medStage('silver', 'folders', 'sales/bronze'), { nbPath: '/Shared/sales/bronze_to_silver', params: [{ name: 'file_name', use: 'text', value: '{object}.parquet' }, { name: 'obj_name', use: 'object', value: '' }, { name: 'obj_id', use: 'obj_id', value: '' }, { name: 'storage_account', use: 'global', value: 'StorageAccountName' }, { name: 'layer', use: 'layer', value: '' }] }),
         Object.assign(root.ADF.medStage('gold', 'folders', 'sales/silver'), { nbPath: '/Shared/sales/silver_to_gold', params: [{ name: 'obj_name', use: 'object', value: '' }, { name: 'obj_id', use: 'obj_id', value: '' }, { name: 'layer', use: 'layer', value: '' }] })] });
     c.ai.request = 'Convert OrderDate from US Eastern time to UTC.';
     c.ai.reply = ['```', '@@@ COLUMN @@@', 'NAME: OrderDate', 'TYPE: datetime2(7)', "EXPR: CAST([OrderDate] AT TIME ZONE 'Eastern Standard Time' AT TIME ZONE 'UTC' AS datetime2(7))", '@@@ NOTES @@@', 'OrderDate is assumed to be stored in US Eastern local time, with no offset.', '```'].join('\n');

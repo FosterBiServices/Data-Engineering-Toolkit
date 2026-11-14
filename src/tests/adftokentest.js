@@ -4,12 +4,12 @@ const { open } = require('./lib');
 (async () => {
   const { browser, page, errors } = await open('adf-pipeline-generator.html');
   const T = async (label, fn) => console.log(label, JSON.stringify(await page.evaluate(fn)));
-  await page.click('#addVar'); await page.fill('[data-vi="0"] [data-vf=name]', 'bronze_root'); await page.fill('[data-vi="0"] [data-vf=value]', 'yourproject/bronze/');
+  await page.click('#addVar'); await page.fill('[data-vi="0"] [data-vf=name]', 'your_bronze_path'); await page.fill('[data-vi="0"] [data-vf=value]', 'yourproject/bronze/');
   await page.fill('[data-k="med.example"]', 'Customer-Orders.csv');
   await page.click('[data-k="med.bronzeFolder"]');
   await T('bar shown under the bronze folder', () => { const b = document.getElementById('tokBar'); return [!b.hidden, b.previousElementSibling && b.previousElementSibling.textContent.trim().slice(0, 20)]; });
   await T('chips', () => [...document.querySelectorAll('#tokBar .tokchip')].map(c => c.textContent));
-  await page.fill('[data-k="med.bronzeFolder"]', ''); await page.click('[data-tok="{var:bronze_root}"]'); await page.click('[data-tok="{name}"]');
+  await page.fill('[data-k="med.bronzeFolder"]', ''); await page.click('[data-tok="{var:your_bronze_path}"]'); await page.click('[data-tok="{name}"]');
   await T('after two clicks: value, result, focus kept', () => [document.querySelector('[data-k="med.bronzeFolder"]').value, document.getElementById('tokRes').textContent, document.activeElement.dataset.k]);
   await page.click('[data-k="med.container"]');
   await T('container: run scope has no object/file/name', () => [document.querySelector('#tokBar .tokhead').textContent.slice(0, 30), [...document.querySelectorAll('#tokBar [data-tok]')].map(c => c.dataset.tok).filter(t => /object|file\}|name\}/.test(t))]);

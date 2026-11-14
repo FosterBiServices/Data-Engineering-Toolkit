@@ -114,7 +114,7 @@
         </div>
         <label class="chk"><input type="checkbox" data-k="med.lookup.on"> <b>Look up each object in a list</b>&nbsp;returned by a notebook (for its id)</label>
         <div class="qgrid" id="lookupBox">
-          <label class="lab wide">Notebook that returns the list <span class="hint">it ends with dbutils.notebook.exit(json.dumps(rows))</span><input type="text" data-k="med.lookup.nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/platform/object_list"></label>
+          <label class="lab wide">Notebook that returns the list <span class="hint">it ends with dbutils.notebook.exit(json.dumps(rows))</span><input type="text" data-k="med.lookup.nbPath" spellcheck="false" autocomplete="off" placeholder="/Shared/yourproject/object_list"></label>
           <label class="lab">Id field<input type="text" data-k="med.lookup.idField" spellcheck="false" autocomplete="off" placeholder="id"></label>
           <label class="lab">Name field <span class="hint">matched to the object name</span><input type="text" data-k="med.lookup.nameField" spellcheck="false" autocomplete="off" placeholder="object_name"></label>
           <label class="lab">A file whose object isn&rsquo;t in the list<select data-k="med.lookup.unknown"><option value="stop">Fails with a clear message</option><option value="continue">Is loaded anyway, with an empty id</option></select></label>
@@ -198,7 +198,7 @@
               <label><input type="radio" name="dsModelist" value="new" data-dsmode="list"><span>Use the file dataset below</span></label>
               <label><input type="radio" name="dsModelist" value="own" data-dsmode="list"><span>Use one I already have</span></label>
             </div></div>
-          <p class="note small">Used by Get Metadata to list the folder. A folder parameter is enough (like ds_csv_folder).</p>
+          <p class="note small">Used by Get Metadata to list the folder. A folder parameter is enough.</p>
           <div data-dsown="list" style="display:flex;flex-direction:column;gap:10px" hidden>
             <textarea class="mid" data-dsjson="list" spellcheck="false" aria-label="Lists the incoming files JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
             <div class="stats" id="dsInfolist"></div>
@@ -226,7 +226,7 @@
               <label><input type="radio" name="dsModesink" value="new" data-dsmode="sink"><span>Create one for me</span></label>
               <label><input type="radio" name="dsModesink" value="own" data-dsmode="sink"><span>Use one I already have</span></label>
             </div></div>
-          <p class="note small">Where each file is written, and checked before archiving. Needs folder and file name parameters (like ds_parquet_file).</p>
+          <p class="note small">Where each file is written, and checked before archiving. Needs folder and file name parameters.</p>
           <div data-dsown="sink" style="display:flex;flex-direction:column;gap:10px" hidden>
             <textarea class="mid" data-dsjson="sink" spellcheck="false" aria-label="Bronze dataset JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
             <div class="stats" id="dsInfosink"></div>
@@ -240,7 +240,7 @@
               <label><input type="radio" name="dsModemeta" value="new" data-dsmode="meta"><span>Use the bronze dataset</span></label>
               <label><input type="radio" name="dsModemeta" value="own" data-dsmode="meta"><span>Use one I already have</span></label>
             </div></div>
-          <p class="note small">Used by Get Metadata to list the object folders before each layer. A folder parameter is enough (like ds_parquet_folder).</p>
+          <p class="note small">Used by Get Metadata to list the object folders before each layer. A folder parameter is enough.</p>
           <div data-dsown="meta" style="display:flex;flex-direction:column;gap:10px" hidden>
             <textarea class="mid" data-dsjson="meta" spellcheck="false" aria-label="Lists layer folders JSON" placeholder='Paste the dataset JSON from its code view {}'></textarea>
             <div class="stats" id="dsInfometa"></div>

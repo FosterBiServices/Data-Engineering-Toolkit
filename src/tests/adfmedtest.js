@@ -18,7 +18,7 @@ const S = f => fs.readFileSync(DIR + '/' + f + '.json', 'utf8');
   for (const [k, f] of [['list', 'ds_sample1'], ['sink', 'ds_sample3'], ['meta', 'ds_sample2']]) { await pick('dsMode' + k, 'own'); await page.fill('[data-dsjson=' + k + ']', S(f)); }
   await T('datasets read', () => ['list', 'sink', 'meta'].map(k => document.getElementById('dsInfo' + k).innerText.replace(/\n/g, ' ')));
   // objects and bronze
-  await page.check('[data-k="med.lookup.on"]'); await page.fill('[data-k="med.lookup.nbPath"]', '/Shared/platform/object_list');
+  await page.check('[data-k="med.lookup.on"]'); await page.fill('[data-k="med.lookup.nbPath"]', '/Shared/yourproject/object_list');
   await page.fill('[data-k="med.bronzeFolder"]', 'yourproject/bronze/{object}'); await page.fill('[data-k="med.bronzeFile"]', '{object}.parquet');
   await page.check('[data-k="med.archive"]'); await page.fill('[data-k="med.archiveFolder"]', 'yourproject/archive/{object}'); await page.fill('[data-k="med.archiveFile"]', '{object}.parquet');
   await page.fill('[data-k="med.example"]', 'Customer-Orders.csv');
@@ -30,15 +30,15 @@ const S = f => fs.readFileSync(DIR + '/' + f + '.json', 'utf8');
   await page.fill('[data-si="1"] [data-sf=nbPath]', '/Shared/yourproject/to_gold'); await page.fill('[data-si="1"] [data-sf=path]', 'yourproject/silver');
   await page.click('[data-addp=s0]'); await page.fill('[data-pkey=s0][data-pi="2"] [data-pf=name]', 'obj_id'); await page.selectOption('[data-pkey=s0][data-pi="2"] [data-pf=use]', 'obj_id');
   await page.click('[data-addp=s0]'); await page.fill('[data-pkey=s0][data-pi="3"] [data-pf=name]', 'region_name'); await page.fill('[data-pkey=s0][data-pi="3"] [data-pf=value]', 'Region A');
-  await page.click('[data-addp=s0]'); await page.fill('[data-pkey=s0][data-pi="4"] [data-pf=name]', 'storage_name'); await page.selectOption('[data-pkey=s0][data-pi="4"] [data-pf=use]', 'global'); await page.fill('[data-pkey=s0][data-pi="4"] [data-pf=value]', 'StorageAccountName');
-  // logging: his log_run notebook
-  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/platform/log_run'); await page.fill('[data-l=nbLs]', 'ls_databricks');
+  await page.click('[data-addp=s0]'); await page.fill('[data-pkey=s0][data-pi="4"] [data-pf=name]', 'storage_account'); await page.selectOption('[data-pkey=s0][data-pi="4"] [data-pf=use]', 'global'); await page.fill('[data-pkey=s0][data-pi="4"] [data-pf=value]', 'StorageAccountName');
+  // logging: a logging notebook
+  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/yourproject/log_run'); await page.fill('[data-l=nbLs]', 'ls_databricks');
   const row = i => '#logRows [data-logrow="' + i + '"] ';
   const setRow = async (i, name, use, value) => { if (!(await page.$(row(i)))) await page.click('#addLogParam'); await page.fill(row(i) + 'input[data-lf=name]', name); await page.selectOption(row(i) + 'select[data-lf=use]', use); if (value != null) await page.fill(row(i) + 'input[data-lf=value]', value); };
   const setStep = async (i, name, act, field) => { await setRow(i, name, 'step'); await page.selectOption(row(i) + 'select[data-lf=stepAct]', act); await page.selectOption(row(i) + 'select[data-lf=stepField]', field); };
-  await setRow(0, 'obj_id', 'obj_id'); await setRow(1, 'obj_name', 'obj_name'); await setRow(2, 'status', 'status'); await setRow(3, 'error_details', 'error');
-  await setStep(4, 'number_rows', 'cp_file_to_bronze', 'rowsCopied'); await setStep(5, 'duration', 'cp_file_to_bronze', 'copyDuration');
-  await setRow(6, 'layer', 'layer'); await setRow(7, 'storage_name', 'global', 'StorageAccountName');
+  await setRow(0, 'obj_id', 'obj_id'); await setRow(1, 'obj_name', 'obj_name'); await setRow(2, 'status', 'status'); await setRow(3, 'error_message', 'error');
+  await setStep(4, 'rows_written', 'cp_file_to_bronze', 'rowsCopied'); await setStep(5, 'duration', 'cp_file_to_bronze', 'copyDuration');
+  await setRow(6, 'layer', 'layer'); await setRow(7, 'storage_account', 'global', 'StorageAccountName');
   await T('problems shown (expect none)', () => [...document.querySelectorAll('#briefMsg .msg.err')].map(m => m.textContent));
   await T('flow', () => [...document.querySelectorAll('#flowBody tr')].map(r => r.children[1].textContent.trim()));
   await T('own checks and placeholders (expect empty)', () => [document.getElementById('outMsg').textContent, document.getElementById('phMsg').textContent]);
@@ -53,7 +53,7 @@ const S = f => fs.readFileSync(DIR + '/' + f + '.json', 'utf8');
   await page.click('#modeBar [data-tab=check]'); await page.fill('#checkInput', json);
   await T('checker on generated (expect no findings)', () => document.getElementById('checkStats').innerText);
   await page.fill('#checkInput', S('pl_sample_1'));
-  await T('checker on his yourproject pipeline', () => [...document.querySelectorAll('#findBody tr')].map(r => r.children[0].textContent + ' ' + r.children[1].textContent + ': ' + r.children[3].textContent.slice(0, 80)));
+  await T('checker on the first sample pipeline', () => [...document.querySelectorAll('#findBody tr')].map(r => r.children[0].textContent + ' ' + r.children[1].textContent + ': ' + r.children[3].textContent.slice(0, 80)));
   await page.selectOption('#runBy', 'child'); await page.fill('#checkInput', S('pl_Sample3'));
   await T('pagination child pipeline, run by another pipeline', () => [...document.querySelectorAll('#findBody tr')].map(r => r.children[0].textContent + ': ' + r.children[3].textContent.slice(0, 60)));
   await page.setViewportSize({ width: 390, height: 800 }); await page.click('#modeBar [data-tab=build]');

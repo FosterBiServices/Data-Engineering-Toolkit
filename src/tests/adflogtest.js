@@ -8,12 +8,12 @@ const CSV = fs.readFileSync(DIR + '/ds_sample1.json', 'utf8');
   const T = async (label, fn) => console.log(label, JSON.stringify(await page.evaluate(fn)));
   const pick = (n, v) => page.click('label:has(input[name=' + n + '][value=' + v + '])');
   await pick('srcKind', 'files');
-  await page.fill('[data-k="src.folder"]', 'yourproject/yourproject/yourfolder'); await page.fill('[data-k="src.ends"]', '.csv'); await page.fill('[data-k="src.dest"]', 'yourproject/yourfolder');
+  await page.fill('[data-k="src.folder"]', 'yourproject/incoming/yourfolder'); await page.fill('[data-k="src.ends"]', '.csv'); await page.fill('[data-k="src.dest"]', 'yourproject/yourfolder');
   for (const k of ['src', 'tgt']) { await pick('dsMode' + k, 'own'); await page.fill('[data-dsjson=' + k + ']', CSV); }
-  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/log_run');
+  await page.selectOption('#logMethod', 'notebook'); await page.fill('[data-l=nbPath]', '/Shared/yourproject/log_run');
   await T('the list in Copy or move files', () => [...document.querySelectorAll('#logRows [data-logrow="0"] select[data-lf=use] option')].map(o => o.textContent));
   await page.click('#addLogParam'); const r = '#logRows [data-logrow="4"] ';
-  await page.fill(r + 'input[data-lf=name]', 'number_rows'); await page.selectOption(r + 'select[data-lf=use]', 'step');
+  await page.fill(r + 'input[data-lf=name]', 'rows_written'); await page.selectOption(r + 'select[data-lf=use]', 'step');
   await T('steps offered', () => [...document.querySelectorAll('#logRows [data-logrow="4"] select[data-lf=stepAct] option')].map(o => o.textContent));
   await page.selectOption(r + 'select[data-lf=stepAct]', { index: 1 });
   await T('outputs offered for a Copy', () => [...document.querySelectorAll('#logRows [data-logrow="4"] select[data-lf=stepField] option')].map(o => o.textContent));
