@@ -47,6 +47,8 @@ if (hasPandas) { cp.spawnSync('python3', ['-c', 'import pandas as pd,sys\nd=pd.r
   run('excel in (named sheet)', c => { c.input = { kind: 'excel', path: path.join(dir, 'orders.xlsx'), sheet: 'Orders', sep: ',', encoding: 'utf-8', skip: 0 }; });
   run('parquet in', c => { c.input.kind = 'parquet'; c.input.path = path.join(dir, 'orders.parquet'); }); }
 // setup checks and Copilot vetting
+run('paths without extensions (csv in, excel out)', c => { c.input.path = path.join(dir, 'orders'); c.output.path = path.join(dir, 'noext_out'); }, ['noext_out.xlsx']);
+if (hasPandas) run('excel in without extension', c => { c.input = { kind: 'excel', path: path.join(dir, 'orders'), sheet: 'Orders', sep: ',', encoding: 'utf-8', skip: 0 }; c.output.path = path.join(dir, 'noext2'); }, ['Rows read:']);
 run('dedupe without key', c => { c.cols.forEach(x => { x.key = false; }); }, 'blocked');
 run('filter with single =', c => { c.filters = [{ when: 'status = "A"', join: 'and' }]; }, 'blocked');
 run('two filters with AND, keep what they remove (excel)', c => { c.output.path = path.join(dir, 'and.xlsx'); c.filters = [{ when: 'order_date >= "2026-01-06"', label: 'on or after 6 Jan', join: 'and' }, { when: 'status != "TEST"', label: '', join: 'and' }]; c.keepRemoved = true; }, ['Filters removed', 'Filtered out:']);

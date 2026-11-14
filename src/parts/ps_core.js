@@ -91,6 +91,10 @@
   /* ---------- names ---------- */
   const stem = p => String(p || '').split(/[\\/]/).pop().replace(/\.[^.]*$/, '');
   const ext = k => (K.KINDS.find(x => x[0] === k) || K.KINDS[0])[2];
+  /* extensions each kind of file may have; a path typed without one gets the first (owner: "my paths do not include the file extension") */
+  K.EXTS = { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx', '.xlsm', '.xls'], parquet: ['.parquet', '.pq'] };
+  K.hasExt = p => { const m = /\.[^.\\/]+$/.exec(String(p || '').trim()); return !!m && Object.keys(K.EXTS).some(k => K.EXTS[k].indexOf(m[0].toLowerCase()) >= 0); };
+  K.withExt = (p, kind) => (K.hasExt(p) ? String(p).trim() : String(p).trim() + K.EXTS[kind][0]);
   K.names = function (cfg) {
     const inPath = cfg.input.path.trim() || 'input' + ext(cfg.input.kind);
     const base = snake(cfg.name) || (snake(stem(cfg.input.path)) ? snake(stem(cfg.input.path)) + '_prep' : 'data_prep');
@@ -152,7 +156,9 @@
     }
     const n = K.names(cfg), oe = (n.outPath.match(/\.[^.\\/]+$/) || [''])[0].toLowerCase();
     if (cfg.output.path.trim() && oe && { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx'], parquet: ['.parquet', '.pq'] }[cfg.output.kind].indexOf(oe) < 0) add('warn', 'The output path ends in ' + oe + ' but the format is ' + cfg.output.kind + '.');
-    if (n.outPath.trim().toLowerCase() === n.inPath.trim().toLowerCase()) add('err', 'The output path is the same as the input. The script never overwrites its source: choose another name.');
+    [['input', cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].concat(cfg.join.on ? [['lookup', cfg.join.path, cfg.join.kind]] : []).forEach(([w, p, k]) => {
+      if (String(p || '').trim() && !K.hasExt(p)) add('info', 'The ' + w + ' path has no file extension. ' + (w === 'output' ? 'The script adds ' + K.EXTS[k][0] + '.' : 'If no file has exactly that name, the script uses the one ending in ' + K.EXTS[k].join(', ') + '.')); });
+    if (K.withExt(n.outPath, cfg.output.kind).toLowerCase() === K.withExt(n.inPath, cfg.input.kind).toLowerCase()) add('err', 'The output path is the same as the input. The script never overwrites its source: choose another name.');
     if (keys.length && !cfg.dedupe.on) add('info', 'A key is ticked and duplicates aren’t removed, so the script checks that the key is unique and reports rows that share one.');
     return R;
   };
@@ -251,7 +257,10 @@
     /* 1 settings */
     const pad = Math.max.apply(null, on.map(c => py(c.src).length).concat([4]));
     const C = ['from pathlib import Path', '', 'import pandas as pd'].concat(usesNp ? ['import numpy as np'] : [], ['',
-      'INPUT_PATH  = Path(' + py(n.inPath) + ')', 'OUTPUT_PATH = Path(' + py(n.outPath) + ')'], j.on ? ['LOOKUP_PATH = Path(' + py(j.path.trim() || 'lookup' + ext(j.kind)) + ')'] : [], ['',
+      'def with_extension(path, extensions):', '    """A path typed without its extension: use the file that has one (for the output, add the first)."""',
+      '    if path.suffix.lower() in extensions or path.exists():', '        return path', '    for e in extensions:', '        if path.with_name(path.name + e).exists():', '            return path.with_name(path.name + e)',
+      '    return path.with_name(path.name + extensions[0])', '',
+      'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], j.on ? ['LOOKUP_PATH = with_extension(Path(' + py(j.path.trim() || 'lookup' + ext(j.kind)) + '), ' + pyList(K.EXTS[j.kind]) + ')'] : [], ['',
       '# Column in the file -> name in the output. Only these columns are kept.', 'COLUMNS = {'], on.map(c => '    ' + (py(c.src) + ':').padEnd(pad + 1) + ' ' + py(c.name) + ','), ['}'],
       keys.length ? ['KEY_COLS = ' + pyList(keys) + '   # identify one row'] : [], ['',
       'issues = []   # one entry per problem found; shown as you go and written out at the end', '', 'def note(check, rows, detail=""):', '    """Record a problem and show it."""',

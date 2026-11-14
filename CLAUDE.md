@@ -197,6 +197,10 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   and a "Filtered out" sheet with `failed_filters` (separate `_original` / `_filtered_out` files for CSV and Parquet); the
   script asserts kept + filtered out = before. The old single `filter` is read into the list. Renaming a column renames it
   inside the filters. Check: `psfiltertest.js`; pscoretest runs the AND and OR cases and reads the sheets back.
+- Paths typed without an extension (owner: "my paths do not include the file extension"): the script's `with_extension`
+  uses the path as typed if it exists or already ends in a known extension (`K.EXTS`), else the first existing file with
+  one of the kind's extensions, else adds the first (always for the output). The page says so (info). Input, output and
+  lookup. pscoretest runs csv-in and excel-in cases with bare paths.
 - The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
 - Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
 - The pasted sample rows are never saved (only column names and types are); `st.example` refills the example sample.
