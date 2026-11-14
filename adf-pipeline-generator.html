@@ -1386,9 +1386,13 @@ td.flowname .ind{color:var(--ws)}
       ['src', 'tgt'].forEach(k => { const d = cfg.ds && cfg.ds[k]; if (d && d.mode === 'own') { const r = A.readDataset(d.json); if (!r) add('err', 'Paste the JSON of your ' + (k === 'src' ? 'source' : 'destination') + ' dataset, or let the page create one.'); else if (r.error) add('err', (k === 'src' ? 'Source' : 'Destination') + ' dataset: ' + r.error); else if (r.kind !== 'file') add('err', 'The ' + (k === 'src' ? 'source' : 'destination') + ' dataset ' + r.name + ' is a ' + r.type + ', not a file dataset.'); } });
       if (!cfg.src.folder.trim() && (!oS || oS.has('folder'))) add('err', 'Give the folder the files arrive in.');
       if (!cfg.src.container.trim() && (!oS || oS.has('container'))) add('warn', 'No source container: the JSON uses the placeholder <LANDING_CONTAINER>.');
-      if (oS && !oS.has('file')) add('err', 'Your source dataset ' + oS.name + ' has no parameter for the file name, so the loop can\u2019t point it at each file. Add a file name parameter to it, map one below, or let the page create the dataset.');
-      if (oT && !oT.has('file')) add('warn', 'Your destination dataset ' + oT.name + ' has no parameter for the file name. Copied files keep their names only if its file name is left empty in the dataset.');
-      if (oT && !oT.has('folder') && mode === 'archive') add('err', 'Landing with archive and quarantine writes to three folders, so the destination dataset ' + oT.name + ' needs a folder parameter. Map one below, or choose a simpler option under After copying.');
+      const wild = oS && !oS.has('file');
+      if (wild && mode === 'archive') add('err', 'Your source dataset ' + oS.name + ' has no file name parameter, so the page can\u2019t handle each file on its own, which archive and quarantine need. Under After copying choose \u201CLeave the originals\u201D or \u201CDelete the originals\u201D (the whole folder is copied in one step), or add a file name parameter to the dataset.');
+      else if (wild) add('info', 'Your source dataset ' + oS.name + ' has no file name parameter, so the pipeline copies the whole folder in one Copy activity: every file matching ' + ((cfg.src.starts.trim() || '') + '*' + (cfg.src.ends.trim() || '')) + ', keeping its name.' + (cfg.src.dest.trim() && oT && !oT.has('folder') ? '' : ''));
+      if (oT && !oT.has('file') && !wild) add('warn', 'Your destination dataset ' + oT.name + ' has no parameter for the file name. Copied files keep their names only if its file name is left empty in the dataset.');
+      const fixedFolder = d => d && d.params.filter(k => d.auto[k] === 'folder' && d.map[k].use === 'fixed').map(k => d.map[k].value)[0];
+      if (oT && !oT.has('folder') && cfg.src.dest.trim()) { const f = fixedFolder(oT); add('info', f != null ? 'Files go to ' + (f || '(empty)') + ', the fixed text you gave the destination dataset\u2019s folder parameter. The Destination folder box isn\u2019t used.' : 'Your destination dataset ' + oT.name + ' has no folder parameter, so files go to the folder set inside the dataset, not to \u201C' + cfg.src.dest.trim() + '\u201D.'); }
+      if (oT && !oT.has('folder') && mode === 'archive') add('err', 'Landing with archive and quarantine writes to three folders, so the destination dataset ' + oT.name + ' needs a parameter set to Folder path' + (fixedFolder(oT) != null ? ' (yours is set to fixed text)' : '') + '. Change it below, or choose a simpler option under After copying.');
       if (oS && oT && oS.type !== oT.type && (oS.type === 'Binary' || oT.type === 'Binary')) add('err', 'A Binary dataset can only be copied to another Binary dataset. Yours are ' + oS.type + ' and ' + oT.type + '.');
       { const ty = (oS || oT || {}).type; if (ty && ty !== 'Binary') add('info', 'Your datasets are ' + ty + ', so each file is read and written again (quoting and line endings can change' + (ty === 'DelimitedText' ? ', and the page sets the sink to quote all text' : '') + '). For an exact, byte-for-byte copy use Binary datasets.'); }
       if (oS && !oT && oS.type !== 'Binary') add('err', 'Your source dataset is ' + oS.type + ' and the page\u2019s destination dataset is Binary. Use your own destination dataset too, or let the page create both.');
@@ -1540,6 +1544,22 @@ td.flowname .ind{color:var(--ws)}
       const rSrc = role(n.ownSrc, fileDs(n.srcDs, n.srcLs, 'Binary'));
       const rDst = n.ownTgt ? role(n.ownTgt, null) : (n.ownSrc ? role(null, fileDs(std.dsPrefix + 'adls_' + n.tgtShort.replace(/^adls_?/, '') + '_binary', n.tgtLs, 'Binary')) : rSrc);
       const read = readSet(rSrc), ex = v => (/@\{/.test(v) ? X(v) : v);
+      if (n.ownSrc && !n.ownSrc.has('file') && mode !== 'archive') {
+        const custom0 = (cfg.src.dest || '').trim().replace(/^\/+|\/+$/g, ''), dest = custom0 ? pathExpr(custom0, n) : pathExpr(std.rawPath, n) + '/@{pipeline().RunId}';
+        const pattern = (cfg.src.starts.trim() || '') + '*' + (cfg.src.ends.trim() || '');
+        const wildRead = Object.assign(readSet(rSrc), { wildcardFileName: pattern });
+        const FMT = /^(Binary|DelimitedText|Json|Parquet|Xml)$/;
+        const cpName = 'cp_folder_to_' + (snake((custom0 || 'destination').split('/').filter(Boolean).pop().replace(/\{.*$/, '')) || 'destination');
+        push({ name: cpName, type: 'Copy', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: {
+          source: Object.assign({ type: rSrc.type + 'Source', storeSettings: wildRead }, FMT.test(rSrc.type) ? { formatSettings: { type: rSrc.type + 'ReadSettings' } } : {}),
+          sink: Object.assign({ type: rDst.type + 'Sink', storeSettings: { type: rDst.store + 'WriteSettings', copyBehavior: 'PreserveHierarchy' } }, rDst.type === 'DelimitedText' ? { formatSettings: { type: 'DelimitedTextWriteSettings', quoteAllText: true, fileExtension: (cfg.src.ends.trim() || '.csv') } } : rDst.type === 'Parquet' ? { formatSettings: { type: 'ParquetWriteSettings' } } : {}),
+          enableStaging: false },
+          inputs: [rSrc.ref({ container: lc, folder: landing, file: '' })], outputs: [rDst.ref({ container, folder: ex(dest), file: '' })] });
+        if (mode === 'delete') push({ name: 'del_copied_files', type: 'Delete', dependsOn: dep(cpName), policy: policy(true), userProperties: [], typeProperties: { dataset: rSrc.ref({ container: lc, folder: landing, file: '' }), enableLogging: false, storeSettings: Object.assign(readSet(rSrc), { wildcardFileName: pattern }) } });
+        rowsRead = "@activity('" + cpName + "').output.filesRead"; rowsWritten = "@activity('" + cpName + "').output.filesWritten";
+        nbPath = 'abfss://' + container + '@' + storage + '.dfs.core.windows.net/' + dest;
+        n.fileMode = mode; n.destFolder = dest; n.wild = true;
+      } else {
       push({ name: 'gm_list_landing_files', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rSrc.ref({ container: lc, folder: landing, file: '' }), fieldList: ['childItems'], storeSettings: read }, FMT_READ.test(rSrc.type) ? { formatSettings: { type: rSrc.type + 'ReadSettings' } } : {}) });
       const conds = ["equals(item().type, 'File')"];
       if (cfg.src.starts.trim()) conds.push("startswith(toLower(item().name), '" + cfg.src.starts.trim().toLowerCase().replace(/'/g, "''") + "')");
@@ -1563,6 +1583,7 @@ td.flowname .ind{color:var(--ws)}
       rowsRead = "@activity('" + flt + "').output.FilteredItemsCount"; rowsWritten = mode === 'archive' ? "@sub(activity('" + flt + "').output.FilteredItemsCount, length(variables('v_quarantined')))" : rowsRead;
       nbPath = 'abfss://' + container + '@' + storage + '.dfs.core.windows.net/' + raw;
       n.fileMode = mode; n.destFolder = raw;
+      }
     }
 
     /* notebooks */
@@ -1576,7 +1597,7 @@ td.flowname .ind{color:var(--ws)}
         chain.push({ name, type: 'DatabricksNotebook', dependsOn: prev ? dep(prev) : [], policy: policy(false), userProperties: [], typeProperties: { notebookPath: p, baseParameters: bp }, linkedServiceName: lsRef(nbLs) });
         prev = name;
       });
-      if (files) push({ name: 'if_files_landed', type: 'IfCondition', dependsOn: dep(last), userProperties: [], typeProperties: { expression: X('@greater(' + rowsWritten.slice(1) + ', 0)'), ifTrueActivities: chain } });
+      if (files) push({ name: 'if_files_landed', type: 'IfCondition', dependsOn: dep(last), userProperties: [], typeProperties: { expression: X('@greater(' + (n.wild ? 'coalesce(' + rowsWritten.slice(1) + ', 0)' : rowsWritten.slice(1)) + ', 0)'), ifTrueActivities: chain } });
       else { chain[0].dependsOn = dep(last); chain.forEach(push); }
     }
     if (inc) push(sp('sp_update_watermark', ctl + '.' + q('usp_update_watermark'), { table_name: P(n.wmKey), watermark_value: P(winEnd) }, dep(last)));
@@ -2371,7 +2392,7 @@ td.flowname .ind{color:var(--ws)}
     Object.assign(c.tgt, { kind: 'sql', system: 'azuresql', ls: 'ls_azuresql_dw_prod', schema: 'dw', table: 'fact_orders', write: 'merge', container: 'datalake', storage: '' });
     Object.assign(c.load, { type: 'incremental', wmCol: 'ModifiedDate', wmType: 'datetime', keys: ['OrderID'], overlap: 120 });
     c.filter = 'CustomerID <> 999999';
-    c.alert = 'none'; c.src.after = 'archive'; c.sched.freq = 'none';
+    c.alert = 'none'; c.src.after = 'leave'; c.sched.freq = 'none';
     /* files through bronze, silver and gold */
     c.src.kind = 'medallion';
     c.src.container = 'datalake'; c.src.folder = 'sales/landing'; c.src.ends = '.csv'; c.nbLs = 'ls_databricks';

@@ -12,7 +12,7 @@
     Object.assign(c.tgt, { kind: 'sql', system: 'azuresql', ls: 'ls_azuresql_dw_prod', schema: 'dw', table: 'fact_orders', write: 'merge', container: 'datalake', storage: '' });
     Object.assign(c.load, { type: 'incremental', wmCol: 'ModifiedDate', wmType: 'datetime', keys: ['OrderID'], overlap: 120 });
     c.filter = 'CustomerID <> 999999';
-    c.alert = 'none'; c.src.after = 'archive'; c.sched.freq = 'none';
+    c.alert = 'none'; c.src.after = 'leave'; c.sched.freq = 'none';
     /* files through bronze, silver and gold */
     c.src.kind = 'medallion';
     c.src.container = 'datalake'; c.src.folder = 'sales/landing'; c.src.ends = '.csv'; c.nbLs = 'ls_databricks';

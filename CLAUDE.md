@@ -92,6 +92,12 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   - Four dataset roles (`cfg.ds.list/read/sink/meta`), each the user's own or created. Logging per file and per layer
     run uses the shared logging setup (`std.log`), with values for object id/name, file, duration, layer, global
     parameter and ADF expression. `med.ls` is the storage linked service for created datasets; `nbLs` for notebooks.
+- Folder-only datasets (owner, Nov 2026: ds_csv_folder has just a folder parameter; the page refused it because it copied file
+  by file): in "Copy or move files", a source dataset with no file name parameter copies the whole folder in ONE Copy
+  activity (`wildcardFileName` from starts/ends, sink `copyBehavior: PreserveHierarchy`, a wildcard Delete after it for
+  a move). Only archive-and-quarantine still needs a file name parameter. A folder parameter set to fixed text is
+  reported as the folder used. Check: `adffoldertest.js`. Not yet run in ADF: wildcard with the folder from the dataset
+  parameter and no `wildcardFolderPath`.
 - Pipeline variables (owner: "my dataset has a parameter, however there is nowhere to set pipeline variables"): the
   user's own variables (`cfg.vars`: name, type String/Integer/Boolean/Array, plain default; `A.addUserVars`, checked by
   `A.varProblems`), in every pipeline type. Used as `{var:name}` in any folder or file pattern, or as the value
