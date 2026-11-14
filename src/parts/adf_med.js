@@ -9,7 +9,7 @@
   const snake = A.snake;
 
   A.TOKENS = [['object', 'object name'], ['file', 'file name'], ['name', 'file name without extension'], ['yyyy', 'year'], ['MM', 'month'], ['dd', 'day'], ['HH', 'hour'], ['yesterday', "yesterday's date"], ['run', 'run id'], ['pipeline', 'pipeline name']];
-  A.NB_VALUES = [['object', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer'], ['text', 'Text (tokens allowed)'], ['global', 'Global parameter'], ['run', 'Run ID'], ['pipeline', 'Pipeline name'], ['expr', 'ADF expression']];
+  A.NB_VALUES = [['object', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer'], ['text', 'Text (tokens allowed)'], ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['run', 'Run ID'], ['pipeline', 'Pipeline name'], ['expr', 'ADF expression']];
   A.medStage = (label, loop, path) => ({ label, loop, path, nbPath: '', params: [{ name: 'obj_name', use: 'object', value: '' }, { name: 'layer', use: 'layer', value: '' }], log: false });
   A.medDefaults = () => ({
     ls: '',
@@ -25,9 +25,9 @@
   });
 
   /* ---- patterns: text with {tokens} -> an ADF value (literal, or an expression built with concat) ---- */
-  const TOKEN_RX = /\{([A-Za-z_]+)\}/g;
-  A.patternTokens = p => (String(p || '').match(TOKEN_RX) || []).map(s => s.slice(1, -1));
-  const tokenExpr = (t, ctx) => ({
+  const TOKEN_RX = /\{((?:var:\s*)?[A-Za-z_]\w*)\}/g;
+  A.patternTokens = p => (String(p || '').match(TOKEN_RX) || []).map(s => s.slice(1, -1)).filter(t => !/^var:/.test(t));
+  const tokenExpr = (t, ctx) => (/^var:/.test(t) ? "variables('" + t.slice(4).trim() + "')" : {
     object: ctx.obj, file: ctx.file, name: ctx.name,
     yyyy: "formatDateTime(utcNow(), 'yyyy')", MM: "formatDateTime(utcNow(), 'MM')", dd: "formatDateTime(utcNow(), 'dd')", HH: "formatDateTime(utcNow(), 'HH')",
     yesterday: "formatDateTime(addDays(utcNow(), -1), 'yyyy-MM-dd')", run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline'
@@ -38,7 +38,7 @@
     const parts = []; let last = 0, m; TOKEN_RX.lastIndex = 0;
     while ((m = TOKEN_RX.exec(p))) { if (m.index > last) parts.push({ lit: p.slice(last, m.index) }); const e = tokenExpr(m[1], ctx); parts.push(e ? { expr: e } : { lit: m[0] }); last = TOKEN_RX.lastIndex; }
     if (last < p.length) parts.push({ lit: p.slice(last) });
-    if (varName && vars && parts.length && parts[0].lit && parts[0].lit.trim()) { vars.add(varName, parts[0].lit); parts[0] = { expr: "variables('" + varName + "')" }; }
+    if (varName && vars && parts.length && parts[0].lit && parts[0].lit.trim() && !vars.taken(varName)) { vars.add(varName, parts[0].lit); parts[0] = { expr: "variables('" + varName + "')" }; }
     if (!parts.some(x => x.expr)) return { lit: parts.map(x => x.lit).join('') };
     const items = parts.map(x => (x.expr ? x.expr : sq(x.lit)));
     return { expr: items.length === 1 ? items[0] : 'concat(' + items.join(', ') + ')' };
@@ -60,7 +60,8 @@
     if (med.obj.dash) obj = obj.replace(/-/g, '_');
     const d = new Date(), pad = n => String(n).padStart(2, '0'), y = new Date(d.getTime() - 864e5);
     const tok = { object: obj, file, name: file.replace(/\.[^.]*$/, ''), yyyy: String(d.getFullYear()), MM: pad(d.getMonth() + 1), dd: pad(d.getDate()), HH: pad(d.getHours()), yesterday: y.getFullYear() + '-' + pad(y.getMonth() + 1) + '-' + pad(y.getDate()), run: '<run id>', pipeline: '<pipeline>' };
-    const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (t in tok ? tok[t] : m0));
+    const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
+    const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in tok ? tok[t] : m0));
     const j = (f, n) => (r(f).replace(/\/+$/, '') + '/' + r(n)).replace(/^\/+/, '');
     const L = [['File', (cfg.src.container || '<container>') + ' / ' + j(cfg.src.folder, '{file}')], ['Object name', obj]];
     if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', j(med.bronzeFolder, med.bronzeFile) + '  →  ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', j(med.bronzeFolder, med.bronzeFile)]); }
@@ -115,7 +116,8 @@
     const dep = (a, c) => [{ activity: a, dependencyConditions: Array.isArray(c) ? c : [c || 'Succeeded'] }];
     const lsRef = name => ({ referenceName: name, type: 'LinkedServiceReference' });
     const variables = {}, datasets = [], reused = [];
-    const vars = med.vars ? { add: (k, v) => { if (!variables[k]) variables[k] = { type: 'String', defaultValue: v.replace(/\/+$/, '') + (/\/$/.test(v) ? '/' : '') }; } } : null;
+    const userNames = new Set(A.userVars(cfg).map(v => v.name.trim()));
+    const vars = med.vars ? { taken: k => userNames.has(k), add: (k, v) => { if (!variables[k]) variables[k] = { type: 'String', defaultValue: v.replace(/\/+$/, '') + (/\/$/.test(v) ? '/' : '') }; } } : null;
     const ls = String(med.ls || '').trim() || ph('LS_ADLS'), nbLs = cfg.nbLs.trim() || ph('LS_DATABRICKS');
     const ends = (cfg.src.ends || '').trim(), fmt = /\.parquet$/i.test(ends) ? 'Parquet' : /\.json$/i.test(ends) ? 'Json' : 'DelimitedText';
     /* datasets: the user's own, or one the page creates */
@@ -125,7 +127,7 @@
     const role = (own, def) => {
       if (!own) { if (!datasets.some(d => d.name === def.name)) datasets.push(def); return { name: def.name, type: def.properties.type, store: 'AzureBlobFS', ref: v => ({ referenceName: def.name, type: 'DatasetReference', parameters: { container: v.container, folder_path: v.folder, file_name: v.file == null ? '' : v.file } }) }; }
       if (reused.indexOf(own) < 0) reused.push(own);
-      return { name: own.name, type: own.type, store: own.store, own, ref: v => { const ps = {}; own.params.forEach(k => { const m = own.map[k]; if (m.use === 'none' && own.defaults.indexOf(k) >= 0) return; ps[k] = m.use === 'fixed' ? m.value : m.use === 'none' ? '' : (v[m.use] == null ? '' : v[m.use]); }); const r = { referenceName: own.name, type: 'DatasetReference' }; if (Object.keys(ps).length) r.parameters = ps; return r; } };
+      return { name: own.name, type: own.type, store: own.store, own, ref: v => { const ps = {}; own.params.forEach(k => { const m = own.map[k]; if (m.use === 'none' && own.defaults.indexOf(k) >= 0) return; ps[k] = A.dsValue(m, v); }); const r = { referenceName: own.name, type: 'DatasetReference' }; if (Object.keys(ps).length) r.parameters = ps; return r; } };
     };
     const oRead = A.ownDs(cfg, 'read'), oSink = A.ownDs(cfg, 'sink'), oList = A.ownDs(cfg, 'list'), oMeta = A.ownDs(cfg, 'meta');
     const rRead = role(oRead, fileDs(std.dsPrefix + 'adls_' + (fmt === 'DelimitedText' ? 'csv' : fmt.toLowerCase()) + '_file', fmt));
@@ -165,7 +167,7 @@
       const u = r.use, v = String(r.value == null ? '' : r.value);
       const e = { object: ctx.obj, obj_name: ctx.obj, file: ctx.file, obj_id: x.id, layer: sq(x.layer || ''), run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline', factory: 'pipeline().DataFactory', trig_time: 'string(pipeline().TriggerTime)', trig_name: 'pipeline().TriggerName',
         status: sq(x.status || ''), error: x.err || "''", rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
-        source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
+        source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", variable: "string(variables('" + (v.trim() || 'NAME') + "'))", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
       if (u === 'text' || u === 'fixed') { const c = C(v, ctx.obj ? ctx : topCtx); return val(c); }
       if (e == null) return '';
       if (/^'(?:[^']|'')*'$/.test(e)) return e.slice(1, -1).replace(/''/g, "'");
@@ -246,7 +248,7 @@
       const ctx = s.loop === 'folders' ? folderCtx : fileCtx;
       let items;
       if (s.loop === 'folders') {
-        const sp = C(s.path, topCtx, tag + '_path');
+        const sp = C(s.path, topCtx, tag + '_path'); A.AUTO_VARS.add(tag + '_path');
         top({ name: 'gm_list_' + tag + '_folders', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rMeta.ref({ container, folder: val(sp), file: '' }), fieldList: ['childItems'], storeSettings: readSet(rMeta) }, fmtRead(rMeta)) });
         top({ name: 'flt_' + tag + '_folders', type: 'Filter', dependsOn: [], userProperties: [], typeProperties: { items: X("@activity('gm_list_" + tag + "_folders').output.childItems"), condition: X("@equals(item().type, 'Folder')") } });
         items = "@activity('flt_" + tag + "_folders').output.value";
@@ -267,6 +269,8 @@
         body: X('{"title":"Pipeline failed","pipeline":"@{pipeline().Pipeline}","runId":"@{pipeline().RunId}","dataFactory":"@{pipeline().DataFactory}"}') } });
       acts.push({ name: 'fail_pipeline', type: 'Fail', dependsOn: dep('web_alert_failure', 'Completed'), userProperties: [], typeProperties: { message: X("@concat('Pipeline ', pipeline().Pipeline, ' failed. Run ', pipeline().RunId)"), errorCode: 'PIPELINE_FAILED' } });
     }
+    { const used = JSON.stringify(acts); Object.keys(variables).forEach(k => { if (used.indexOf("variables('" + k + "')") < 0) delete variables[k]; }); }   // page-made variables nothing reads
+    A.addUserVars(variables, cfg);
     const pipeline = { name: n.pipeline, properties: Object.assign({ activities: acts }, Object.keys(variables).length ? { variables } : {}, { annotations: [] }) };
     if ((cfg.goal || '').trim()) pipeline.properties.description = cfg.goal.trim().slice(0, 400);
     let trigger = null;

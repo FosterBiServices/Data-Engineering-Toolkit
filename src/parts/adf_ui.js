@@ -29,6 +29,7 @@
     c.med.bronzeNb.params = isObj(sm.bronzeNb) && Array.isArray(sm.bronzeNb.params) ? rows(sm.bronzeNb.params) : A.medDefaults().bronzeNb.params;
     c.med.stages = (Array.isArray(sm.stages) ? sm.stages : []).filter(isObj).slice(0, 12).map(s => ({ label: String(s.label || '').slice(0, 40), loop: ['folders', 'files', 'once'].indexOf(s.loop) >= 0 ? s.loop : 'folders', path: String(s.path || '').slice(0, 300), nbPath: String(s.nbPath || '').slice(0, 300), params: rows(s.params), log: s.log === true }));
     if (['medallion', 'sql', 'files'].indexOf(c.src.kind) < 0) c.src.kind = 'medallion';
+    c.vars = (isObj(saved) && Array.isArray(saved.vars) ? saved.vars : []).filter(isObj).slice(0, 40).map(v => ({ name: String(v.name == null ? '' : v.name).slice(0, 80), type: A.VAR_TYPES.some(t => t[0] === v.type) ? v.type : 'String', value: String(v.value == null ? '' : v.value).slice(0, 500) }));
     return c;
   }
   function load() {
@@ -181,6 +182,7 @@
       $('phMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you build:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ') + '. Fill in the matching box in Step 2 and they disappear.') : '';
     }
     $('rawNote').hidden = sqlT || files; if (!sqlT && !files) $('rawNote').textContent = 'Files land under ' + std.rawPath.replace('{source}', names.srcShort).replace('{object}', names.obj) + (files ? '/<run id>/' : '/') + ' in the data lake container. Change the path under Team standards.';
+    renderVars();
     renderCheck();
     save();
   }
@@ -201,12 +203,12 @@
       if (typing(map)) return;
       const uses = A.DS_USES[wantFile ? 'file' : 'table'];
       map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
-        + (m.use === 'fixed' ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="value to pass" spellcheck="false" aria-label="Fixed value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
+        + (/^(fixed|variable|global|expr)$/.test(m.use) ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
     });
   }
   const NBV = A.NB_VALUES;
   const paramRows = (list, key) => list.map((r, i) => '<div class="rrow log4" data-pkey="' + key + '" data-pi="' + i + '"><input type="text" data-pf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-pf="use" aria-label="Value">' + optsHtml(NBV, r.use) + '</select>'
-    + (/^(text|global|expr)$/.test(r.use) ? '<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')" }[r.use]) + '" spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
+    + (/^(text|global|expr|variable)$/.test(r.use) ? '<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
   const listFor = key => (key === 'bronze' ? cfg.med.bronzeNb.params : (cfg.med.stages[Number(key.slice(1))] || {}).params);
   function renderMed() {
     const m = cfg.med;
@@ -222,6 +224,14 @@
       + '<label class="chk small"><input type="checkbox" data-sf="log"' + (s.log ? ' checked' : '') + '> Log each run of this notebook with my logging setup</label></div>').join('') || '<p class="note small">No layers yet. Bronze only, or add silver and gold.</p>';
     $('medPreview').innerHTML = A.medPreview(cfg).map(r => '<div><span class="muted">' + esc(r[0]) + ':</span> <span class="mono" style="overflow-wrap:anywhere">' + esc(r[1]) + '</span></div>').join('');
   }
+  function renderVars() {
+    const box = $('varRows');
+    if (!typing(box)) box.innerHTML = cfg.vars.map((v, i) => '<div class="rrow log4" data-vi="' + i + '"><input type="text" data-vf="name" value="' + esc(v.name) + '" placeholder="bronze_root" spellcheck="false" aria-label="Variable name"><select data-vf="type" aria-label="Type">' + optsHtml(A.VAR_TYPES, v.type) + '</select>'
+      + '<input type="text" data-vf="value" value="' + esc(v.value) + '" placeholder="default value" spellcheck="false" aria-label="Default value"><button type="button" class="x" data-vdel aria-label="Remove variable">&times;</button></div>').join('');
+    const made = out && out.pipeline.properties.variables ? Object.keys(out.pipeline.properties.variables).filter(k => !A.userVars(cfg).some(v => v.name.trim() === k)) : [];
+    $('autoVars').innerHTML = made.length ? 'Made by the page from your paths: ' + made.map(k => { const d = out.pipeline.properties.variables[k].defaultValue; return '<span class="mono">' + esc(k) + (d != null ? ' = ' + esc(d) : '') + '</span>'; }).join(', ') + '. Add a variable here with the same name to set it yourself.' : '';
+    $('varNames').innerHTML = A.userVars(cfg).map(v => v.name.trim()).concat(made).map(k => '<option value="' + esc(k) + '">').join('');
+  }
   function renderLogging(files, sqlT, inc) {
     const lg = std.log, m = lg.method;
     $('logMethod').innerHTML = optsHtml(A.LOG_METHODS, m);
@@ -234,7 +244,7 @@
           : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
     const box = $('logRows'); if (typing(box)) return;
     box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(A.LOG_VALUES, r.use) + '</select>'
-      + (/^(fixed|global|expr)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')" }[r.use]) + '" spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+      + (/^(fixed|global|expr|variable)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
   }
 
   function renderCheck() {
@@ -284,8 +294,9 @@
     document.addEventListener('input', e => { fromInput = true; try {
       const el = e.target, row = el.closest && el.closest('[data-logrow]');
       if (row && el.dataset.lf && el.tagName === 'INPUT') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; render(); return; }
-      if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed]; d.map[el.dataset.p] = { use: 'fixed', value: el.value }; render(); return; }
-      if (el.closest('[data-pi]') || el.closest('[data-si]')) return;
+      const vr = el.closest && el.closest('[data-vi]'); if (vr && el.dataset.vf && el.tagName === 'INPUT') { const v = cfg.vars[Number(vr.dataset.vi)]; if (v) v[el.dataset.vf] = el.value; render(); return; }
+      if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed], own = A.ownDs(cfg, el.dataset.dsfixed), cur = own && own.map[el.dataset.p]; d.map[el.dataset.p] = { use: cur ? cur.use : 'fixed', value: el.value }; render(); return; }
+      if (el.closest('[data-pi]') || el.closest('[data-si]') || el.closest('[data-vi]')) return;
       if (!ownField(el) && el.id !== 'checkInput') return; readEl(el); render();
     } finally { fromInput = false; }
     });
@@ -295,6 +306,7 @@
       const pr = el.closest && el.closest('[data-pi]'), sc = el.closest && el.closest('[data-si]');
       if (pr && el.dataset.pf === 'use') { const r = (listFor(pr.dataset.pkey) || [])[Number(pr.dataset.pi)]; if (r) r.use = el.value; render(); return; }
       if (sc && el.dataset.sf && (el.tagName === 'SELECT' || el.type === 'checkbox')) { const s = cfg.med.stages[Number(sc.dataset.si)]; if (s) s[el.dataset.sf] = el.type === 'checkbox' ? el.checked : el.value; render(); return; }
+      const vr2 = el.closest && el.closest('[data-vi]'); if (vr2 && el.dataset.vf === 'type') { const v = cfg.vars[Number(vr2.dataset.vi)]; if (v) v.type = el.value; render(); return; }
       const row = el.closest && el.closest('[data-logrow]');
       if (row && el.dataset.lf === 'use') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r.use = el.value; render(); return; }
       if (el.dataset && el.dataset.dsmap) { const own = A.ownDs(cfg, el.dataset.dsmap); const prev = own && own.map[el.dataset.p]; cfg.ds[el.dataset.dsmap].map[el.dataset.p] = { use: el.value, value: prev ? prev.value : '' }; render(); return; }
@@ -306,6 +318,7 @@
       else if (c && !c.disabled) { const n = c.dataset.col, i = cfg.exclude.indexOf(n); if (i >= 0) cfg.exclude.splice(i, 1); else cfg.exclude.push(n); render(); }
     });
     document.addEventListener('click', e => {
+      const vd = e.target.closest('[data-vdel]'); if (vd) { cfg.vars.splice(Number(vd.closest('[data-vi]').dataset.vi), 1); render(); return; }
       const ap = e.target.closest('[data-addp]'), dp = e.target.closest('[data-delp]'), ds = e.target.closest('[data-delstage]');
       if (ap) { (listFor(ap.dataset.addp) || []).push({ name: '', use: 'text', value: '' }); render(); return; }
       if (dp) { const pr = dp.closest('[data-pi]'); (listFor(pr.dataset.pkey) || []).splice(Number(pr.dataset.pi), 1); render(); return; }
@@ -314,8 +327,9 @@
       if (off) { const g = off.dataset.off, i = std.off.indexOf(g); if (i >= 0) std.off.splice(i, 1); else std.off.push(g); render(); }
       else if (del) { std.log.params.splice(Number(del.closest('[data-logrow]').dataset.logrow), 1); render(); }
     });
+    $('addVar').addEventListener('click', () => { cfg.vars.push({ name: '', type: 'String', value: '' }); render(); });
     $('addStage').addEventListener('click', () => { const n = cfg.med.stages.length, label = ['silver', 'gold'][n] || 'layer_' + (n + 2), prev = cfg.med.stages[n - 1];
-      const base = (cfg.med.bronzeFolder.split('{')[0] || '').replace(/\/+$/, '');
+      const base = String(cfg.med.bronzeFolder || '').replace(/\{(?!var:)[^}]*\}.*$/, '').replace(/\/+$/, '');   // keeps a leading {var:...}
       cfg.med.stages.push(A.medStage(label, 'folders', n === 0 ? base : (prev && prev.path ? prev.path.replace(/bronze/i, 'silver') : ''))); render(); });
     $('addLogParam').addEventListener('click', () => { std.log.params.push({ name: '', use: 'fixed', value: '' }); render(); });
     $('startOwn').addEventListener('click', () => toBlank(null));

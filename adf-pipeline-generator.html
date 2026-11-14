@@ -701,6 +701,14 @@ td.flowname .ind{color:var(--ws)}
         </details>
       </div>
 
+
+      <div class="sub" id="varSub">
+        <div class="details-head"><h3>Pipeline variables</h3><button type="button" class="btn" id="addVar">Add a variable</button></div>
+        <p class="note small" style="margin-top:-8px">Your own variables, with their default values. Use one in a folder or file name as <span class="mono">{var:name}</span>, or choose <b>Pipeline variable</b> for a dataset, notebook or logging parameter. A default is plain text: ADF never evaluates one that starts with @.</p>
+        <div class="rowlist" id="varRows"></div>
+        <p class="note small" id="autoVars"></p>
+        <datalist id="varNames"></datalist>
+      </div>
       <div class="sub" id="logSub">
         <h3>Logging</h3>
         <p class="note small" style="margin-top:-6px">How a run is recorded, on success and on failure. Set it once: it is saved with your team standards and used for every pipeline.</p>
@@ -1100,11 +1108,21 @@ td.flowname .ind{color:var(--ws)}
   A.LOG_METHODS = [['sp_new', 'A stored procedure and log table the page creates'], ['sp_own', 'My own stored procedure'], ['notebook', 'My own Databricks notebook'], ['none', 'No logging']];
   A.LOG_VALUES = [['pipeline', 'Pipeline name'], ['run', 'Run ID'], ['status', 'Status (Succeeded or Failed)'], ['rows_read', 'Rows or files read'], ['rows_written', 'Rows or files written'], ['win_start', 'Window start'], ['win_end', 'Window end'],
     ['error', 'Error message'], ['duration', 'Copy or run duration'], ['obj_id', 'Object id (files and layers)'], ['obj_name', 'Object name (files and layers)'], ['file', 'File name (files)'], ['layer', 'Layer'], ['factory', 'Data factory name'], ['trig_time', 'Trigger time'], ['trig_name', 'Trigger name'], ['source', 'Source object'], ['target', 'Target object'],
-    ['global', 'Global parameter'], ['expr', 'ADF expression'], ['fixed', 'Fixed text']];
+    ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression'], ['fixed', 'Fixed text']];
   A.defaultLogParams = () => [['pipeline_name', 'pipeline'], ['run_id', 'run'], ['status', 'status'], ['rows_read', 'rows_read'], ['rows_written', 'rows_written'], ['window_start', 'win_start'], ['window_end', 'win_end'], ['error_message', 'error']].map(a => ({ name: a[0], use: a[1], value: '' }));
 
   /* ---- datasets: one the page creates, or the user's own, read from its code-view JSON ---- */
-  A.DS_USES = { table: [['schema', 'Schema name'], ['table', 'Table name'], ['fixed', 'Fixed text'], ['none', 'Leave empty']], file: [['container', 'Container'], ['folder', 'Folder path'], ['file', 'File name'], ['fixed', 'Fixed text'], ['none', 'Leave empty']] };
+  const EXTRA_USES = [['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['expr', 'ADF expression']];
+  A.dsValue = function (m, v) {
+    const s = String(m.value == null ? '' : m.value).trim();
+    if (m.use === 'fixed') return m.value;
+    if (m.use === 'none') return '';
+    if (m.use === 'variable') return { value: "@variables('" + (s || 'NAME') + "')", type: 'Expression' };
+    if (m.use === 'global') return { value: '@pipeline().globalParameters.' + (s.replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), type: 'Expression' };
+    if (m.use === 'expr') return s ? { value: /^@/.test(s) ? s : '@' + s, type: 'Expression' } : '';
+    return v[m.use] == null ? '' : v[m.use];
+  };
+  A.DS_USES = { table: [['schema', 'Schema name'], ['table', 'Table name'], ['fixed', 'Fixed text']].concat(EXTRA_USES, [['none', 'Leave empty']]), file: [['container', 'Container'], ['folder', 'Folder path'], ['file', 'File name'], ['fixed', 'Fixed text']].concat(EXTRA_USES, [['none', 'Leave empty']]) };
   const DS_SYS = { SqlServerTable: 'sqlserver', AzureSqlTable: 'azuresql', AzureSqlDWTable: 'synapse', AzureSqlMITable: 'azuresql' };
   A.readDataset = function (text) {
     let s = String(text || '').trim(); if (!s) return null;
@@ -1145,6 +1163,7 @@ td.flowname .ind{color:var(--ws)}
     src: { kind: 'medallion', system: 'sqlserver', ls: '', ir: '', onprem: false, schema: 'dbo', table: '', container: '', folder: '', starts: '', ends: '.csv', after: 'leave', dest: '' },
     ds: { src: { mode: 'new', json: '', map: {} }, tgt: { mode: 'new', json: '', map: {} }, list: { mode: 'new', json: '', map: {} }, read: { mode: 'new', json: '', map: {} }, sink: { mode: 'new', json: '', map: {} }, meta: { mode: 'new', json: '', map: {} } },
     med: A.medDefaults ? A.medDefaults() : {},
+    vars: [],
     schemaText: '', exclude: [],
     tgt: { kind: 'sql', system: 'azuresql', ls: '', schema: '', table: '', write: 'merge', container: '', storage: '' },
     ctlLs: '',
@@ -1359,7 +1378,8 @@ td.flowname .ind{color:var(--ws)}
   A.problems = function (cfg, std) {
     const P = [], add = (sev, msg) => P.push({ sev, msg });
     const cols = A.tableCols(cfg), by = n => cols.find(c => c.name.toLowerCase() === String(n).toLowerCase());
-    if (cfg.src.kind === 'medallion' && A.medProblems) return A.medProblems(cfg, std);
+    if (cfg.src.kind === 'medallion' && A.medProblems) return A.medProblems(cfg, std).concat(A.varProblems(cfg));
+    P.push.apply(P, A.varProblems(cfg));
     const files = cfg.src.kind === 'files', sql = cfg.tgt.kind === 'sql' && !files, w = cfg.tgt.write, inc = !files && cfg.load.type === 'incremental';
     if (files) {
       const oS = A.ownDs(cfg, 'src'), oT = A.ownDs(cfg, 'tgt'), mode = cfg.src.after || 'archive';
@@ -1443,7 +1463,7 @@ td.flowname .ind{color:var(--ws)}
     const role = (own, def) => {
       if (!own) { addDs(def); const file = !!def.properties.parameters.container; return { name: def.name, type: def.properties.type, store: 'AzureBlobFS', ref: v => dsRef(def.name, file ? { container: v.container, folder_path: v.folder, file_name: v.file } : { schema_name: v.schema, table_name: v.table }) }; }
       if (reused.indexOf(own) < 0) reused.push(own);
-      return { name: own.name, type: own.type, store: own.store, own, ref: v => { const ps = {}; own.params.forEach(k => { const m = own.map[k]; if (m.use === 'none' && own.defaults.indexOf(k) >= 0) return; ps[k] = m.use === 'fixed' ? m.value : m.use === 'none' ? '' : (v[m.use] == null ? '' : v[m.use]); }); const r = { referenceName: own.name, type: 'DatasetReference' }; if (Object.keys(ps).length) r.parameters = ps; return r; } };
+      return { name: own.name, type: own.type, store: own.store, own, ref: v => { const ps = {}; own.params.forEach(k => { const m = own.map[k]; if (m.use === 'none' && own.defaults.indexOf(k) >= 0) return; ps[k] = A.dsValue(m, v); }); const r = { referenceName: own.name, type: 'DatasetReference' }; if (Object.keys(ps).length) r.parameters = ps; return r; } };
     };
     const FMT_READ = /^(Binary|DelimitedText|Json|Parquet|Xml)$/, fmtWrite = t => (t === 'DelimitedText' ? { type: 'DelimitedTextWriteSettings', quoteAllText: true, fileExtension: '.txt' } : t === 'Parquet' ? { type: 'ParquetWriteSettings' } : t === 'Json' ? { type: 'JsonWriteSettings' } : null);
     const readSet = r => ({ type: r.store + 'ReadSettings', recursive: false });
@@ -1566,7 +1586,7 @@ td.flowname .ind{color:var(--ws)}
     const srcObj = files ? (cfg.src.folder.trim() || (n.ownSrc ? n.ownSrc.name : '')) : (cfg.src.schema || 'dbo') + '.' + (cfg.src.table || ph('TABLE'));
     const tgtObj = files ? (n.destFolder || '') : sql ? (cfg.tgt.schema || 'dbo') + '.' + (cfg.tgt.table || ph('TARGET_TABLE')) : pathExpr(std.rawPath, n);
     const logValue = (use, ok, err, fixed) => ({ pipeline: ['@pipeline().Pipeline'], run: ['@pipeline().RunId'], status: [ok ? 'Succeeded' : 'Failed'], rows_read: [ok ? rowsRead : '0', 1], rows_written: [ok ? rowsWritten : '0', 1],
-      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [err || ''], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')] }[use] || ['']);
+      win_start: [ok ? winStart : ''], win_end: [ok ? winEnd : ''], error: [err || ''], duration: [''], obj_id: [''], obj_name: [''], file: [''], layer: [''], variable: ['@string(variables(\'' + (String(fixed || '').trim() || 'NAME') + '\'))'], global: ['@pipeline().globalParameters.' + (String(fixed || '').trim() || 'NAME')], expr: [String(fixed || '').trim() ? (/^@/.test(String(fixed).trim()) ? String(fixed).trim() : '@' + String(fixed).trim()) : ''], factory: ['@pipeline().DataFactory'], trig_time: ['@pipeline().TriggerTime'], trig_name: ['@pipeline().TriggerName'], source: [srcObj], target: [tgtObj], fixed: [String(fixed || '')] }[use] || ['']);
     const logAct = (ok, err, after) => {
       const tag = ok ? 'success' : 'failure';
       if (method === 'none') return null;
@@ -1592,6 +1612,7 @@ td.flowname .ind{color:var(--ws)}
     if (tail) acts.push({ name: 'fail_pipeline', type: 'Fail', dependsOn: dep(tail, 'Completed'), userProperties: [], typeProperties: { message: X("@concat('Pipeline ', pipeline().Pipeline, ' failed. Run ', pipeline().RunId)"), errorCode: 'PIPELINE_FAILED' } });
     n.logMethod = method; n.noHandler = !tail;
 
+    A.addUserVars(variables, cfg);
     const pipeline = { name: n.pipeline, properties: { description: (cfg.goal || '').trim().slice(0, 400) || undefined, activities: acts, parameters: params, variables, annotations: [] } };
     if (!pipeline.properties.description) delete pipeline.properties.description;
     if (!Object.keys(variables).length) delete pipeline.properties.variables;
@@ -1616,6 +1637,40 @@ td.flowname .ind{color:var(--ws)}
     return out;
   };
 
+  /* the user's own pipeline variables: typed defaults, never expressions */
+  A.VAR_TYPES = [['String', 'Text'], ['Integer', 'Whole number'], ['Boolean', 'True / false'], ['Array', 'List']];
+  A.userVars = cfg => (Array.isArray(cfg.vars) ? cfg.vars : []).filter(v => v && /^[A-Za-z_]\w*$/.test(String(v.name || '').trim()));
+  A.addUserVars = function (variables, cfg) {
+    A.userVars(cfg).forEach(v => {
+      const name = v.name.trim(), type = A.VAR_TYPES.some(t => t[0] === v.type) ? v.type : 'String', raw = String(v.value == null ? '' : v.value).trim(), d = { type };
+      if (raw !== '') {
+        if (type === 'Integer') { const n = parseInt(raw, 10); if (!isNaN(n)) d.defaultValue = n; }
+        else if (type === 'Boolean') d.defaultValue = /^(true|yes|1)$/i.test(raw);
+        else if (type === 'Array') { try { const a = JSON.parse(raw); d.defaultValue = Array.isArray(a) ? a : raw.split(',').map(s => s.trim()); } catch (e) { d.defaultValue = raw.split(',').map(s => s.trim()).filter(Boolean); } }
+        else d.defaultValue = raw;
+      }
+      variables[name] = d;      // the user's own definition wins over one the page made from a path
+    });
+    return variables;
+  };
+  A.varProblems = function (cfg) {
+    const R = [], names = A.userVars(cfg).map(v => v.name.trim());
+    (Array.isArray(cfg.vars) ? cfg.vars : []).forEach((v, i) => { const n = String(v && v.name || '').trim(); if (!n) { if (String(v && v.value || '').trim()) R.push({ sev: 'err', msg: 'Pipeline variable ' + (i + 1) + ' has a default but no name.' }); } else if (!/^[A-Za-z_]\w*$/.test(n)) R.push({ sev: 'err', msg: 'The variable name \u201C' + n + '\u201D can only have letters, digits and underscores, starting with a letter.' }); });
+    names.filter((x, i) => names.indexOf(x) !== i).forEach(x => R.push({ sev: 'err', msg: 'Two pipeline variables are named ' + x + '.' }));
+    A.userVars(cfg).forEach(v => { if (/^@(?!@)/.test(String(v.value || '').trim())) R.push({ sev: 'err', msg: 'The variable ' + v.name.trim() + ' has a default that starts with @. ADF never evaluates a default, so it would hold that text. Leave the default empty and set it with a Set Variable activity, or type the plain value.' }); if (v.type === 'Integer' && String(v.value || '').trim() && isNaN(parseInt(v.value, 10))) R.push({ sev: 'err', msg: 'The variable ' + v.name.trim() + ' is a whole number, but its default \u201C' + v.value + '\u201D isn\u2019t one.' }); });
+    /* everything that names a variable must find it */
+    const known = new Set(names), used = [];
+    const scan = (where, s) => { (String(s || '').match(/\{var:([^}]*)\}/g) || []).forEach(t => used.push([where, t.slice(5, -1).trim()])); };
+    const med = cfg.med || {};
+    [['the folder the files arrive in', cfg.src && cfg.src.folder], ['the bronze folder', med.bronzeFolder], ['the bronze file name', med.bronzeFile], ['the archive folder', med.archiveFolder], ['the archive file name', med.archiveFile]].forEach(([w, s]) => scan(w, s));
+    (med.stages || []).forEach(s => scan('the ' + (s.label || 'layer') + ' folder', s.path));
+    const rowsWith = (where, rows) => (rows || []).forEach(r => { if (r && r.use === 'variable') used.push([where, String(r.value || '').trim()]); else if (r && /^(text|fixed)$/.test(r.use)) scan(where, r.value); });
+    rowsWith('the bronze notebook', (med.bronzeNb || {}).params); (med.stages || []).forEach(s => rowsWith('the ' + (s.label || 'layer') + ' notebook', s.params));
+    Object.keys(cfg.ds || {}).forEach(k => { const m = (cfg.ds[k] || {}).map || {}; Object.keys(m).forEach(p => { if (m[p] && m[p].use === 'variable' && cfg.ds[k].mode === 'own') used.push(['dataset parameter ' + p, String(m[p].value || '').trim()]); }); });
+    used.forEach(([w, n]) => { if (!n) R.push({ sev: 'err', msg: 'A pipeline variable is used in ' + w + ' without a name.' }); else if (!known.has(n) && !A.AUTO_VARS.has(n)) R.push({ sev: 'err', msg: w.charAt(0).toUpperCase() + w.slice(1) + ' uses the variable ' + n + ', which isn\u2019t defined. Add it under Pipeline variables.' }); });
+    return R;
+  };
+  A.AUTO_VARS = new Set(['container', 'landing_path', 'bronze_path', 'archive_path', 'object_name']);
   A.placeholders = text => Array.from(new Set(String(text).match(/<[A-Z][A-Z0-9_]{2,}>/g) || []));
 
   /* ---------- supporting SQL ---------- */
@@ -2000,7 +2055,7 @@ td.flowname .ind{color:var(--ws)}
   const snake = A.snake;
 
   A.TOKENS = [['object', 'object name'], ['file', 'file name'], ['name', 'file name without extension'], ['yyyy', 'year'], ['MM', 'month'], ['dd', 'day'], ['HH', 'hour'], ['yesterday', "yesterday's date"], ['run', 'run id'], ['pipeline', 'pipeline name']];
-  A.NB_VALUES = [['object', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer'], ['text', 'Text (tokens allowed)'], ['global', 'Global parameter'], ['run', 'Run ID'], ['pipeline', 'Pipeline name'], ['expr', 'ADF expression']];
+  A.NB_VALUES = [['object', 'Object name'], ['obj_id', 'Object id (from the object list)'], ['file', 'File name'], ['layer', 'Layer'], ['text', 'Text (tokens allowed)'], ['variable', 'Pipeline variable'], ['global', 'Global parameter'], ['run', 'Run ID'], ['pipeline', 'Pipeline name'], ['expr', 'ADF expression']];
   A.medStage = (label, loop, path) => ({ label, loop, path, nbPath: '', params: [{ name: 'obj_name', use: 'object', value: '' }, { name: 'layer', use: 'layer', value: '' }], log: false });
   A.medDefaults = () => ({
     ls: '',
@@ -2016,9 +2071,9 @@ td.flowname .ind{color:var(--ws)}
   });
 
   /* ---- patterns: text with {tokens} -> an ADF value (literal, or an expression built with concat) ---- */
-  const TOKEN_RX = /\{([A-Za-z_]+)\}/g;
-  A.patternTokens = p => (String(p || '').match(TOKEN_RX) || []).map(s => s.slice(1, -1));
-  const tokenExpr = (t, ctx) => ({
+  const TOKEN_RX = /\{((?:var:\s*)?[A-Za-z_]\w*)\}/g;
+  A.patternTokens = p => (String(p || '').match(TOKEN_RX) || []).map(s => s.slice(1, -1)).filter(t => !/^var:/.test(t));
+  const tokenExpr = (t, ctx) => (/^var:/.test(t) ? "variables('" + t.slice(4).trim() + "')" : {
     object: ctx.obj, file: ctx.file, name: ctx.name,
     yyyy: "formatDateTime(utcNow(), 'yyyy')", MM: "formatDateTime(utcNow(), 'MM')", dd: "formatDateTime(utcNow(), 'dd')", HH: "formatDateTime(utcNow(), 'HH')",
     yesterday: "formatDateTime(addDays(utcNow(), -1), 'yyyy-MM-dd')", run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline'
@@ -2029,7 +2084,7 @@ td.flowname .ind{color:var(--ws)}
     const parts = []; let last = 0, m; TOKEN_RX.lastIndex = 0;
     while ((m = TOKEN_RX.exec(p))) { if (m.index > last) parts.push({ lit: p.slice(last, m.index) }); const e = tokenExpr(m[1], ctx); parts.push(e ? { expr: e } : { lit: m[0] }); last = TOKEN_RX.lastIndex; }
     if (last < p.length) parts.push({ lit: p.slice(last) });
-    if (varName && vars && parts.length && parts[0].lit && parts[0].lit.trim()) { vars.add(varName, parts[0].lit); parts[0] = { expr: "variables('" + varName + "')" }; }
+    if (varName && vars && parts.length && parts[0].lit && parts[0].lit.trim() && !vars.taken(varName)) { vars.add(varName, parts[0].lit); parts[0] = { expr: "variables('" + varName + "')" }; }
     if (!parts.some(x => x.expr)) return { lit: parts.map(x => x.lit).join('') };
     const items = parts.map(x => (x.expr ? x.expr : sq(x.lit)));
     return { expr: items.length === 1 ? items[0] : 'concat(' + items.join(', ') + ')' };
@@ -2051,7 +2106,8 @@ td.flowname .ind{color:var(--ws)}
     if (med.obj.dash) obj = obj.replace(/-/g, '_');
     const d = new Date(), pad = n => String(n).padStart(2, '0'), y = new Date(d.getTime() - 864e5);
     const tok = { object: obj, file, name: file.replace(/\.[^.]*$/, ''), yyyy: String(d.getFullYear()), MM: pad(d.getMonth() + 1), dd: pad(d.getDate()), HH: pad(d.getHours()), yesterday: y.getFullYear() + '-' + pad(y.getMonth() + 1) + '-' + pad(y.getDate()), run: '<run id>', pipeline: '<pipeline>' };
-    const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (t in tok ? tok[t] : m0));
+    const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
+    const r = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in tok ? tok[t] : m0));
     const j = (f, n) => (r(f).replace(/\/+$/, '') + '/' + r(n)).replace(/^\/+/, '');
     const L = [['File', (cfg.src.container || '<container>') + ' / ' + j(cfg.src.folder, '{file}')], ['Object name', obj]];
     if (med.action === 'copy') { if (med.archive) L.push(['Archived first (if it exists)', j(med.bronzeFolder, med.bronzeFile) + '  →  ' + j(med.archiveFolder, med.archiveFile)]); L.push(['Copied to bronze', j(med.bronzeFolder, med.bronzeFile)]); }
@@ -2106,7 +2162,8 @@ td.flowname .ind{color:var(--ws)}
     const dep = (a, c) => [{ activity: a, dependencyConditions: Array.isArray(c) ? c : [c || 'Succeeded'] }];
     const lsRef = name => ({ referenceName: name, type: 'LinkedServiceReference' });
     const variables = {}, datasets = [], reused = [];
-    const vars = med.vars ? { add: (k, v) => { if (!variables[k]) variables[k] = { type: 'String', defaultValue: v.replace(/\/+$/, '') + (/\/$/.test(v) ? '/' : '') }; } } : null;
+    const userNames = new Set(A.userVars(cfg).map(v => v.name.trim()));
+    const vars = med.vars ? { taken: k => userNames.has(k), add: (k, v) => { if (!variables[k]) variables[k] = { type: 'String', defaultValue: v.replace(/\/+$/, '') + (/\/$/.test(v) ? '/' : '') }; } } : null;
     const ls = String(med.ls || '').trim() || ph('LS_ADLS'), nbLs = cfg.nbLs.trim() || ph('LS_DATABRICKS');
     const ends = (cfg.src.ends || '').trim(), fmt = /\.parquet$/i.test(ends) ? 'Parquet' : /\.json$/i.test(ends) ? 'Json' : 'DelimitedText';
     /* datasets: the user's own, or one the page creates */
@@ -2116,7 +2173,7 @@ td.flowname .ind{color:var(--ws)}
     const role = (own, def) => {
       if (!own) { if (!datasets.some(d => d.name === def.name)) datasets.push(def); return { name: def.name, type: def.properties.type, store: 'AzureBlobFS', ref: v => ({ referenceName: def.name, type: 'DatasetReference', parameters: { container: v.container, folder_path: v.folder, file_name: v.file == null ? '' : v.file } }) }; }
       if (reused.indexOf(own) < 0) reused.push(own);
-      return { name: own.name, type: own.type, store: own.store, own, ref: v => { const ps = {}; own.params.forEach(k => { const m = own.map[k]; if (m.use === 'none' && own.defaults.indexOf(k) >= 0) return; ps[k] = m.use === 'fixed' ? m.value : m.use === 'none' ? '' : (v[m.use] == null ? '' : v[m.use]); }); const r = { referenceName: own.name, type: 'DatasetReference' }; if (Object.keys(ps).length) r.parameters = ps; return r; } };
+      return { name: own.name, type: own.type, store: own.store, own, ref: v => { const ps = {}; own.params.forEach(k => { const m = own.map[k]; if (m.use === 'none' && own.defaults.indexOf(k) >= 0) return; ps[k] = A.dsValue(m, v); }); const r = { referenceName: own.name, type: 'DatasetReference' }; if (Object.keys(ps).length) r.parameters = ps; return r; } };
     };
     const oRead = A.ownDs(cfg, 'read'), oSink = A.ownDs(cfg, 'sink'), oList = A.ownDs(cfg, 'list'), oMeta = A.ownDs(cfg, 'meta');
     const rRead = role(oRead, fileDs(std.dsPrefix + 'adls_' + (fmt === 'DelimitedText' ? 'csv' : fmt.toLowerCase()) + '_file', fmt));
@@ -2156,7 +2213,7 @@ td.flowname .ind{color:var(--ws)}
       const u = r.use, v = String(r.value == null ? '' : r.value);
       const e = { object: ctx.obj, obj_name: ctx.obj, file: ctx.file, obj_id: x.id, layer: sq(x.layer || ''), run: 'pipeline().RunId', pipeline: 'pipeline().Pipeline', factory: 'pipeline().DataFactory', trig_time: 'string(pipeline().TriggerTime)', trig_name: 'pipeline().TriggerName',
         status: sq(x.status || ''), error: x.err || "''", rows_read: x.rowsRead ? 'string(' + x.rowsRead + ')' : "''", rows_written: x.rowsWritten ? 'string(' + x.rowsWritten + ')' : "''", duration: x.duration ? 'string(' + x.duration + ')' : "''",
-        source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
+        source: x.source ? asExpr(x.source) : "''", target: x.target ? asExpr(x.target) : "''", win_start: "''", win_end: "''", variable: "string(variables('" + (v.trim() || 'NAME') + "'))", global: 'pipeline().globalParameters.' + (v.trim().replace(/^pipeline\(\)\.globalParameters\./, '') || 'NAME'), expr: v.trim().replace(/^@/, '') || "''" }[u];
       if (u === 'text' || u === 'fixed') { const c = C(v, ctx.obj ? ctx : topCtx); return val(c); }
       if (e == null) return '';
       if (/^'(?:[^']|'')*'$/.test(e)) return e.slice(1, -1).replace(/''/g, "'");
@@ -2237,7 +2294,7 @@ td.flowname .ind{color:var(--ws)}
       const ctx = s.loop === 'folders' ? folderCtx : fileCtx;
       let items;
       if (s.loop === 'folders') {
-        const sp = C(s.path, topCtx, tag + '_path');
+        const sp = C(s.path, topCtx, tag + '_path'); A.AUTO_VARS.add(tag + '_path');
         top({ name: 'gm_list_' + tag + '_folders', type: 'GetMetadata', dependsOn: [], policy: policy(true), userProperties: [], typeProperties: Object.assign({ dataset: rMeta.ref({ container, folder: val(sp), file: '' }), fieldList: ['childItems'], storeSettings: readSet(rMeta) }, fmtRead(rMeta)) });
         top({ name: 'flt_' + tag + '_folders', type: 'Filter', dependsOn: [], userProperties: [], typeProperties: { items: X("@activity('gm_list_" + tag + "_folders').output.childItems"), condition: X("@equals(item().type, 'Folder')") } });
         items = "@activity('flt_" + tag + "_folders').output.value";
@@ -2258,6 +2315,8 @@ td.flowname .ind{color:var(--ws)}
         body: X('{"title":"Pipeline failed","pipeline":"@{pipeline().Pipeline}","runId":"@{pipeline().RunId}","dataFactory":"@{pipeline().DataFactory}"}') } });
       acts.push({ name: 'fail_pipeline', type: 'Fail', dependsOn: dep('web_alert_failure', 'Completed'), userProperties: [], typeProperties: { message: X("@concat('Pipeline ', pipeline().Pipeline, ' failed. Run ', pipeline().RunId)"), errorCode: 'PIPELINE_FAILED' } });
     }
+    { const used = JSON.stringify(acts); Object.keys(variables).forEach(k => { if (used.indexOf("variables('" + k + "')") < 0) delete variables[k]; }); }   // page-made variables nothing reads
+    A.addUserVars(variables, cfg);
     const pipeline = { name: n.pipeline, properties: Object.assign({ activities: acts }, Object.keys(variables).length ? { variables } : {}, { annotations: [] }) };
     if ((cfg.goal || '').trim()) pipeline.properties.description = cfg.goal.trim().slice(0, 400);
     let trigger = null;
@@ -2367,6 +2426,7 @@ td.flowname .ind{color:var(--ws)}
     c.med.bronzeNb.params = isObj(sm.bronzeNb) && Array.isArray(sm.bronzeNb.params) ? rows(sm.bronzeNb.params) : A.medDefaults().bronzeNb.params;
     c.med.stages = (Array.isArray(sm.stages) ? sm.stages : []).filter(isObj).slice(0, 12).map(s => ({ label: String(s.label || '').slice(0, 40), loop: ['folders', 'files', 'once'].indexOf(s.loop) >= 0 ? s.loop : 'folders', path: String(s.path || '').slice(0, 300), nbPath: String(s.nbPath || '').slice(0, 300), params: rows(s.params), log: s.log === true }));
     if (['medallion', 'sql', 'files'].indexOf(c.src.kind) < 0) c.src.kind = 'medallion';
+    c.vars = (isObj(saved) && Array.isArray(saved.vars) ? saved.vars : []).filter(isObj).slice(0, 40).map(v => ({ name: String(v.name == null ? '' : v.name).slice(0, 80), type: A.VAR_TYPES.some(t => t[0] === v.type) ? v.type : 'String', value: String(v.value == null ? '' : v.value).slice(0, 500) }));
     return c;
   }
   function load() {
@@ -2519,6 +2579,7 @@ td.flowname .ind{color:var(--ws)}
       $('phMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you build:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ') + '. Fill in the matching box in Step 2 and they disappear.') : '';
     }
     $('rawNote').hidden = sqlT || files; if (!sqlT && !files) $('rawNote').textContent = 'Files land under ' + std.rawPath.replace('{source}', names.srcShort).replace('{object}', names.obj) + (files ? '/<run id>/' : '/') + ' in the data lake container. Change the path under Team standards.';
+    renderVars();
     renderCheck();
     save();
   }
@@ -2539,12 +2600,12 @@ td.flowname .ind{color:var(--ws)}
       if (typing(map)) return;
       const uses = A.DS_USES[wantFile ? 'file' : 'table'];
       map.innerHTML = own.params.map(p => { const m = own.map[p]; return '<div class="rrow map3"><span class="mono" style="overflow-wrap:anywhere">' + esc(p) + '</span><select data-dsmap="' + k + '" data-p="' + esc(p) + '" aria-label="What to pass to ' + esc(p) + '">' + optsHtml(uses.some(u => u[0] === m.use) ? uses : uses.concat([[m.use, m.use]]), m.use) + '</select>'
-        + (m.use === 'fixed' ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="value to pass" spellcheck="false" aria-label="Fixed value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
+        + (/^(fixed|variable|global|expr)$/.test(m.use) ? '<input type="text" data-dsfixed="' + k + '" data-p="' + esc(p) + '" value="' + esc(m.value) + '" placeholder="' + ({ fixed: 'value to pass', variable: 'variable name', global: 'StorageAccountName', expr: "@concat(variables('path'), item().name)" }[m.use]) + '"' + (m.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value for ' + esc(p) + '">' : '<span class="note small">' + (m.use === 'none' ? (own.defaults.indexOf(p) >= 0 ? 'its default is used' : 'passed empty') : 'filled in by the pipeline') + '</span>') + '</div>'; }).join('');
     });
   }
   const NBV = A.NB_VALUES;
   const paramRows = (list, key) => list.map((r, i) => '<div class="rrow log4" data-pkey="' + key + '" data-pi="' + i + '"><input type="text" data-pf="name" value="' + esc(r.name) + '" placeholder="widget name" spellcheck="false" aria-label="Parameter name"><select data-pf="use" aria-label="Value">' + optsHtml(NBV, r.use) + '</select>'
-    + (/^(text|global|expr)$/.test(r.use) ? '<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')" }[r.use]) + '" spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
+    + (/^(text|global|expr|variable)$/.test(r.use) ? '<input type="text" data-pf="value" value="' + esc(r.value) + '" placeholder="' + ({ text: 'text, tokens allowed', global: 'StorageAccountName', expr: "@string('Region A')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-delp aria-label="Remove parameter">&times;</button></div>').join('');
   const listFor = key => (key === 'bronze' ? cfg.med.bronzeNb.params : (cfg.med.stages[Number(key.slice(1))] || {}).params);
   function renderMed() {
     const m = cfg.med;
@@ -2560,6 +2621,14 @@ td.flowname .ind{color:var(--ws)}
       + '<label class="chk small"><input type="checkbox" data-sf="log"' + (s.log ? ' checked' : '') + '> Log each run of this notebook with my logging setup</label></div>').join('') || '<p class="note small">No layers yet. Bronze only, or add silver and gold.</p>';
     $('medPreview').innerHTML = A.medPreview(cfg).map(r => '<div><span class="muted">' + esc(r[0]) + ':</span> <span class="mono" style="overflow-wrap:anywhere">' + esc(r[1]) + '</span></div>').join('');
   }
+  function renderVars() {
+    const box = $('varRows');
+    if (!typing(box)) box.innerHTML = cfg.vars.map((v, i) => '<div class="rrow log4" data-vi="' + i + '"><input type="text" data-vf="name" value="' + esc(v.name) + '" placeholder="bronze_root" spellcheck="false" aria-label="Variable name"><select data-vf="type" aria-label="Type">' + optsHtml(A.VAR_TYPES, v.type) + '</select>'
+      + '<input type="text" data-vf="value" value="' + esc(v.value) + '" placeholder="default value" spellcheck="false" aria-label="Default value"><button type="button" class="x" data-vdel aria-label="Remove variable">&times;</button></div>').join('');
+    const made = out && out.pipeline.properties.variables ? Object.keys(out.pipeline.properties.variables).filter(k => !A.userVars(cfg).some(v => v.name.trim() === k)) : [];
+    $('autoVars').innerHTML = made.length ? 'Made by the page from your paths: ' + made.map(k => { const d = out.pipeline.properties.variables[k].defaultValue; return '<span class="mono">' + esc(k) + (d != null ? ' = ' + esc(d) : '') + '</span>'; }).join(', ') + '. Add a variable here with the same name to set it yourself.' : '';
+    $('varNames').innerHTML = A.userVars(cfg).map(v => v.name.trim()).concat(made).map(k => '<option value="' + esc(k) + '">').join('');
+  }
   function renderLogging(files, sqlT, inc) {
     const lg = std.log, m = lg.method;
     $('logMethod').innerHTML = optsHtml(A.LOG_METHODS, m);
@@ -2572,7 +2641,7 @@ td.flowname .ind{color:var(--ws)}
           : 'Nothing is recorded. A failed run still shows as Failed in Monitor.';
     const box = $('logRows'); if (typing(box)) return;
     box.innerHTML = (m === 'sp_own' || m === 'notebook') ? lg.params.map((r, i) => '<div class="rrow log4" data-logrow="' + i + '"><input type="text" data-lf="name" value="' + esc(r.name) + '" placeholder="parameter name" spellcheck="false" aria-label="Parameter name"><select data-lf="use" aria-label="Value">' + optsHtml(A.LOG_VALUES, r.use) + '</select>'
-      + (/^(fixed|global|expr)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')" }[r.use]) + '" spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
+      + (/^(fixed|global|expr|variable)$/.test(r.use) ? '<input type="text" data-lf="value" value="' + esc(r.value) + '" placeholder="' + ({ fixed: 'text to pass', global: 'StorageAccountName', expr: "@string('no error')", variable: 'variable name' }[r.use]) + '"' + (r.use === 'variable' ? ' list="varNames"' : '') + ' spellcheck="false" aria-label="Value">' : '<span></span>') + '<button type="button" class="x" data-logdel aria-label="Remove parameter">&times;</button></div>').join('') : '';
   }
 
   function renderCheck() {
@@ -2622,8 +2691,9 @@ td.flowname .ind{color:var(--ws)}
     document.addEventListener('input', e => { fromInput = true; try {
       const el = e.target, row = el.closest && el.closest('[data-logrow]');
       if (row && el.dataset.lf && el.tagName === 'INPUT') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; render(); return; }
-      if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed]; d.map[el.dataset.p] = { use: 'fixed', value: el.value }; render(); return; }
-      if (el.closest('[data-pi]') || el.closest('[data-si]')) return;
+      const vr = el.closest && el.closest('[data-vi]'); if (vr && el.dataset.vf && el.tagName === 'INPUT') { const v = cfg.vars[Number(vr.dataset.vi)]; if (v) v[el.dataset.vf] = el.value; render(); return; }
+      if (el.dataset && el.dataset.dsfixed) { const d = cfg.ds[el.dataset.dsfixed], own = A.ownDs(cfg, el.dataset.dsfixed), cur = own && own.map[el.dataset.p]; d.map[el.dataset.p] = { use: cur ? cur.use : 'fixed', value: el.value }; render(); return; }
+      if (el.closest('[data-pi]') || el.closest('[data-si]') || el.closest('[data-vi]')) return;
       if (!ownField(el) && el.id !== 'checkInput') return; readEl(el); render();
     } finally { fromInput = false; }
     });
@@ -2633,6 +2703,7 @@ td.flowname .ind{color:var(--ws)}
       const pr = el.closest && el.closest('[data-pi]'), sc = el.closest && el.closest('[data-si]');
       if (pr && el.dataset.pf === 'use') { const r = (listFor(pr.dataset.pkey) || [])[Number(pr.dataset.pi)]; if (r) r.use = el.value; render(); return; }
       if (sc && el.dataset.sf && (el.tagName === 'SELECT' || el.type === 'checkbox')) { const s = cfg.med.stages[Number(sc.dataset.si)]; if (s) s[el.dataset.sf] = el.type === 'checkbox' ? el.checked : el.value; render(); return; }
+      const vr2 = el.closest && el.closest('[data-vi]'); if (vr2 && el.dataset.vf === 'type') { const v = cfg.vars[Number(vr2.dataset.vi)]; if (v) v.type = el.value; render(); return; }
       const row = el.closest && el.closest('[data-logrow]');
       if (row && el.dataset.lf === 'use') { const r = std.log.params[Number(row.dataset.logrow)]; if (r) r.use = el.value; render(); return; }
       if (el.dataset && el.dataset.dsmap) { const own = A.ownDs(cfg, el.dataset.dsmap); const prev = own && own.map[el.dataset.p]; cfg.ds[el.dataset.dsmap].map[el.dataset.p] = { use: el.value, value: prev ? prev.value : '' }; render(); return; }
@@ -2644,6 +2715,7 @@ td.flowname .ind{color:var(--ws)}
       else if (c && !c.disabled) { const n = c.dataset.col, i = cfg.exclude.indexOf(n); if (i >= 0) cfg.exclude.splice(i, 1); else cfg.exclude.push(n); render(); }
     });
     document.addEventListener('click', e => {
+      const vd = e.target.closest('[data-vdel]'); if (vd) { cfg.vars.splice(Number(vd.closest('[data-vi]').dataset.vi), 1); render(); return; }
       const ap = e.target.closest('[data-addp]'), dp = e.target.closest('[data-delp]'), ds = e.target.closest('[data-delstage]');
       if (ap) { (listFor(ap.dataset.addp) || []).push({ name: '', use: 'text', value: '' }); render(); return; }
       if (dp) { const pr = dp.closest('[data-pi]'); (listFor(pr.dataset.pkey) || []).splice(Number(pr.dataset.pi), 1); render(); return; }
@@ -2652,8 +2724,9 @@ td.flowname .ind{color:var(--ws)}
       if (off) { const g = off.dataset.off, i = std.off.indexOf(g); if (i >= 0) std.off.splice(i, 1); else std.off.push(g); render(); }
       else if (del) { std.log.params.splice(Number(del.closest('[data-logrow]').dataset.logrow), 1); render(); }
     });
+    $('addVar').addEventListener('click', () => { cfg.vars.push({ name: '', type: 'String', value: '' }); render(); });
     $('addStage').addEventListener('click', () => { const n = cfg.med.stages.length, label = ['silver', 'gold'][n] || 'layer_' + (n + 2), prev = cfg.med.stages[n - 1];
-      const base = (cfg.med.bronzeFolder.split('{')[0] || '').replace(/\/+$/, '');
+      const base = String(cfg.med.bronzeFolder || '').replace(/\{(?!var:)[^}]*\}.*$/, '').replace(/\/+$/, '');   // keeps a leading {var:...}
       cfg.med.stages.push(A.medStage(label, 'folders', n === 0 ? base : (prev && prev.path ? prev.path.replace(/bronze/i, 'silver') : ''))); render(); });
     $('addLogParam').addEventListener('click', () => { std.log.params.push({ name: '', use: 'fixed', value: '' }); render(); });
     $('startOwn').addEventListener('click', () => toBlank(null));

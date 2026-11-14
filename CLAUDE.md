@@ -92,6 +92,12 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   - Four dataset roles (`cfg.ds.list/read/sink/meta`), each the user's own or created. Logging per file and per layer
     run uses the shared logging setup (`std.log`), with values for object id/name, file, duration, layer, global
     parameter and ADF expression. `med.ls` is the storage linked service for created datasets; `nbLs` for notebooks.
+- Pipeline variables (owner: "my dataset has a parameter, however there is nowhere to set pipeline variables"): the
+  user's own variables (`cfg.vars`: name, type String/Integer/Boolean/Array, plain default; `A.addUserVars`, checked by
+  `A.varProblems`), in every pipeline type. Used as `{var:name}` in any folder or file pattern, or as the value
+  "Pipeline variable" for a dataset parameter (`A.dsValue`, with Global parameter and ADF expression), a notebook
+  parameter or a logging parameter. The user's definition wins over a page-made one of the same name; page-made
+  variables nothing reads are dropped. Check: `adfvartest.js`.
 - Checker rules from real pipelines: default values that start with @ (never evaluated), wildcards inside a ForEach
   that ignore item(), an existence check pointing at a different file than the copy writes, first item of a Filter with
   no empty-check, notebook parameter names differing only by case, notebooks in /Users folders, typed-in environment

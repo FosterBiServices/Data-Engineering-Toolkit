@@ -309,6 +309,14 @@
         </details>
       </div>
 
+
+      <div class="sub" id="varSub">
+        <div class="details-head"><h3>Pipeline variables</h3><button type="button" class="btn" id="addVar">Add a variable</button></div>
+        <p class="note small" style="margin-top:-8px">Your own variables, with their default values. Use one in a folder or file name as <span class="mono">{var:name}</span>, or choose <b>Pipeline variable</b> for a dataset, notebook or logging parameter. A default is plain text: ADF never evaluates one that starts with @.</p>
+        <div class="rowlist" id="varRows"></div>
+        <p class="note small" id="autoVars"></p>
+        <datalist id="varNames"></datalist>
+      </div>
       <div class="sub" id="logSub">
         <h3>Logging</h3>
         <p class="note small" style="margin-top:-6px">How a run is recorded, on success and on failure. Set it once: it is saved with your team standards and used for every pipeline.</p>
