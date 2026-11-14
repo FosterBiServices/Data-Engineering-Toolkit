@@ -338,6 +338,44 @@
     getters.fxPrompt = () => fxPromptText();
   }
 
+  /* ---- token bar: shown under a folder or file name box while it has focus ---- */
+  const TOK_SCOPE = { 'src.folder': 'run', 'med.container': 'run', 'med.bronzeFolder': 'file', 'med.bronzeFile': 'file', 'med.archiveFolder': 'file', 'med.archiveFile': 'file' };
+  function tokScope(el) {
+    if (cfg.src.kind !== 'medallion' || !el || el.tagName !== 'INPUT') return null;
+    if (el.dataset.k && TOK_SCOPE[el.dataset.k]) return TOK_SCOPE[el.dataset.k];
+    if (el.dataset.sf === 'path') return 'run';
+    if (el.dataset.pf === 'value') { const row = el.closest('[data-pkey]'); if (!row) return null; const use = (row.querySelector('[data-pf="use"]') || {}).value; if (use !== 'text') return null;
+      if (row.dataset.pkey === 'bronze') return 'file'; const s = cfg.med.stages[+String(row.dataset.pkey).slice(1)]; return !s ? null : s.loop === 'folders' ? 'folder' : s.loop === 'files' ? 'file' : 'run'; }
+    return null;
+  }
+  let tokFor = null, tokBarEl = null, tokPending = false;
+  const tokLater = () => { tokPending = true; };   /* kept by reference: a redraw can take the bar out of the page */
+  function tokShow(el) {
+    const scope = tokScope(el), bar = tokBarEl; if (!scope) { tokLater(); return; }
+    tokFor = el; const h = A.medTokenHelp(cfg, scope);
+    const where = el.closest('.rrow') || el.closest('label') || el; if (where.nextSibling !== bar) where.parentNode.insertBefore(bar, where.nextSibling);
+    bar.innerHTML = '<div class="tokhead">' + (scope === 'run' ? 'Read once per run: dates, run values and your variables only.' : scope === 'folder' ? 'Runs once per object folder: {object}, {file} and {name} come from the folder.' : 'Runs once per file: example file ' + esc(h.file) + '.') + ' Click to insert:</div>'
+      + '<div class="tokchips">' + h.chips.map(c => '<button type="button" class="tokchip' + (c.v ? ' v' : '') + '" data-tok="' + esc(c.ins) + '" title="' + esc(c.meaning) + '"><span class="mono">' + esc(c.ins) + '</span><span class="tokex">' + esc(c.example === '' ? '(empty)' : c.example) + '</span></button>').join('') + '</div>'
+      + (h.hasVars ? '' : '<div class="note small">Your own pipeline variables show here as {var:name} once you add them under Pipeline variables.</div>')
+      + '<div class="tokres">Becomes: <span class="mono" id="tokRes"></span></div>';
+    bar.hidden = false; tokResult();
+  }
+  function tokResult() { if (!tokFor || tokBarEl.hidden) return; const h = A.medTokenHelp(cfg, tokScope(tokFor) || 'run'), v = tokFor.value; tokBarEl.querySelector('#tokRes').textContent = v.trim() ? h.resolve(v) : '(empty)'; }
+  function tokHide() { tokFor = null; if (tokBarEl) { tokBarEl.hidden = true; if (tokBarEl.parentNode !== document.body) document.body.appendChild(tokBarEl); } }
+  function tokWire() {
+    const bar = tokBarEl = document.createElement('div'); bar.id = 'tokBar'; bar.className = 'tokbar'; bar.hidden = true; document.body.appendChild(bar);
+    document.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('#tokBar')) return; tokShow(e.target); });
+    /* hiding moves the page up, so it waits until the click (or key) that left the box is over; otherwise that click lands on whatever moved under the pointer */
+    document.addEventListener('focusout', () => tokLater());
+    const settle = () => { if (!tokPending) return; tokPending = false; const a = document.activeElement; if (!a || (a !== tokFor && !(a.closest && a.closest('#tokBar')))) tokHide(); };
+    document.addEventListener('click', () => setTimeout(settle, 0)); document.addEventListener('keyup', () => setTimeout(settle, 0));
+    bar.addEventListener('mousedown', e => { if (e.target.closest('[data-tok]')) e.preventDefault(); });   /* keep the cursor in the box */
+    bar.addEventListener('click', e => { const c = e.target.closest('[data-tok]'); if (!c || !tokFor) return; const el = tokFor, a = el.selectionStart == null ? el.value.length : el.selectionStart, b = el.selectionEnd == null ? a : el.selectionEnd;
+      el.value = el.value.slice(0, a) + c.dataset.tok + el.value.slice(b); el.setSelectionRange(a + c.dataset.tok.length, a + c.dataset.tok.length); el.focus(); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    document.addEventListener('input', () => { if (tokFor) { if (!document.body.contains(tokFor)) { tokHide(); return; } const where = tokFor.closest('.rrow') || tokFor.closest('label') || tokFor; if (where.nextSibling !== tokBarEl) where.parentNode.insertBefore(tokBarEl, where.nextSibling); tokResult(); } });
+    document.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.pf === 'use') setTimeout(() => tokHide(), 0); });
+  }
+
   function renderCheck() {
     $('offChips').innerHTML = A.CHECK_GROUPS.map(g => '<button type="button" class="chip" data-off="' + esc(g) + '" aria-pressed="' + (std.off.indexOf(g) < 0 ? 'true' : 'false') + '">' + esc(g) + '</button>').join('');
     const r = A.readPipeline(st.check); checkRes = null;
@@ -445,7 +483,7 @@
       fixPrompt: () => checkRes && checkRes.prompt && ({ name: 'adf-fix-prompt.txt', text: checkRes.prompt })
     };
     document.addEventListener('click', e => { const b = e.target.closest('[data-copy^="ds"]'); if (b && out) { const d = out.datasets[Number(b.dataset.copy.slice(2))]; if (d) S.copyText(JSON.stringify(d, null, 4), b); } });
-    fxWire(getters);
+    fxWire(getters); tokWire();
     S.wireCopy(getters);
     render();
   }

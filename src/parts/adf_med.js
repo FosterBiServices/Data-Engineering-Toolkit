@@ -53,6 +53,26 @@
     if (med.obj.dash) e = "replace(" + e + ", '-', '_')";
     return e;
   };
+  /* what a folder or file name box accepts, and what each token becomes for the example file.
+     scope: 'run' (read once per run), 'file' (per incoming file) or 'folder' (per object folder in a layer loop) */
+  A.medTokenHelp = function (cfg, scope) {
+    const med = cfg.med, ends = (cfg.src.ends || '').trim(), file = (med.example || '').trim() || 'orders-2026.' + (ends.replace(/^\./, '') || 'csv');
+    let obj = file; if (med.obj.stripExt) obj = ends && file.toLowerCase().endsWith(ends.toLowerCase()) ? file.slice(0, -ends.length) : (file.lastIndexOf('.') > 0 ? file.slice(0, file.lastIndexOf('.')) : file);
+    if (med.obj.dash) obj = obj.replace(/-/g, '_');
+    const d = new Date(), pad = n => String(n).padStart(2, '0'), y = new Date(d.getTime() - 864e5), name = file.replace(/\.[^.]*$/, '');
+    const uv = {}; A.userVars(cfg).forEach(v => { uv[v.name.trim()] = String(v.value == null ? '' : v.value); });
+    const base = { yyyy: String(d.getFullYear()), MM: pad(d.getMonth() + 1), dd: pad(d.getDate()), HH: pad(d.getHours()), yesterday: y.getFullYear() + '-' + pad(y.getMonth() + 1) + '-' + pad(y.getDate()), run: '<run id>', pipeline: '<pipeline>' };
+    const fileTok = Object.assign({ object: obj, file, name }, base);
+    const rv = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<' + t.slice(4).trim() + '>') : t in fileTok ? fileTok[t] : m0));
+    const folder = (rv(med.bronzeFolder).replace(/\/+$/, '').split('/').pop()) || obj, fobj = med.obj.dash ? folder.replace(/-/g, '_') : folder;
+    const tok = scope === 'folder' ? Object.assign({}, base, { object: fobj, file: folder, name: folder }) : scope === 'file' ? fileTok : base;
+    const meaning = { object: scope === 'folder' ? 'object folder name, - to _' : 'object name', file: scope === 'folder' ? 'object folder name' : 'file name', name: scope === 'folder' ? 'object folder name' : 'file name without extension' };
+    const chips = A.TOKENS.filter(t => t[0] in tok).map(t => ({ ins: '{' + t[0] + '}', meaning: meaning[t[0]] || t[1], example: tok[t[0]] }))
+      .concat(Object.keys(uv).map(k => ({ ins: '{var:' + k + '}', meaning: 'your variable', example: uv[k], v: true })));
+    const resolve = p => String(p || '').replace(TOKEN_RX, (m0, t) => (/^var:/.test(t) ? (t.slice(4).trim() in uv ? uv[t.slice(4).trim()] : '<no variable ' + t.slice(4).trim() + '>') : t in tok ? tok[t] : '<' + m0 + ' not here>'));
+    return { chips, resolve, file, scope, hasVars: Object.keys(uv).length > 0 };
+  };
+
   /* a JavaScript mirror of the same rules, for the preview */
   A.medPreview = function (cfg) {
     const med = cfg.med, ends = (cfg.src.ends || '').trim(), file = (med.example || '').trim() || 'orders-2026.' + (ends.replace(/^\./, '') || 'csv');

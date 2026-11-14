@@ -129,6 +129,11 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   writes. `adfrebuildtest.js` drives the whole rebuild and `adfcompare.py` (with `adfeval.py`, a small ADF expression
   evaluator) compares every dataset, notebook and log value with the original for one file: only the 4 known
   corrections may differ.
+- Token bar (owner: "how does a user know to add {var:...} or {object}?"): focusing any medallion folder or file name box
+  (`src.folder`, `med.container`, bronze/archive patterns, layer folder, a Text notebook parameter) shows `#tokBar` under
+  it: the tokens that box allows for its scope (`A.medTokenHelp(cfg, scope)`: run / file / folder), the user's variables as
+  `{var:name}`, each with its value for the example file, click-to-insert at the cursor, and "Becomes:" the resolved
+  value. Check: `adftokentest.js`.
 - `adfmedtest.js` sets up the owner's yourproject pipeline through the page with his datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
 

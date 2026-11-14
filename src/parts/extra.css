@@ -88,3 +88,13 @@ td.flowname .ind{color:var(--ws)}
 .fxchip:hover, .fxchip:focus-visible { border-color: var(--gold); background: var(--accent-soft); }
 .fxchip.fn { font-family: var(--mono); }
 .fxfoot { justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 10px; }
+/* token bar under folder and file name boxes */
+.tokbar { grid-column: 1 / -1; margin: 6px 0 4px; padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 6px; background: var(--code-bg); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tokbar[hidden] { display: none; }
+.tokhead { font-size: 12px; color: var(--muted, inherit); }
+.tokchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tokchip { display: inline-flex; gap: 6px; align-items: baseline; font-size: 12px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.tokchip:hover, .tokchip:focus-visible { border-color: var(--gold); background: var(--accent-soft); }
+.tokchip.v .mono { color: var(--accent); }
+.tokex { color: var(--muted, inherit); opacity: .8; }
+.tokres { font-size: 12px; overflow-wrap: anywhere; }
