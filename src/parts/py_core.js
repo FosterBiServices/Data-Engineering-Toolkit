@@ -331,12 +331,69 @@
     return { code: s, recon };
   };
 
+  /* ---------- logging from inside the notebook, through the team's shared utility ---------- */
+  P.LOG_TOKENS = [['notebook', 'the notebook’s name'], ['layer', 'bronze, silver or gold'], ['entity', 'the entity'], ['batch_id', 'the batch id from ADF'], ['status', 'started, succeeded or failed'], ['error', 'the error message (None unless it failed)'],
+    ['rows_read', 'rows read (None until known)'], ['rows_written', 'rows written'], ['rows_quarantined', 'rows quarantined'], ['source', 'the source table or path'], ['target_table', 'the target table']];
+  P.LOG_LOADS = [['run', '%run a notebook that defines it'], ['import', 'An import line'], ['none', 'It is already available (cluster library or init script)']];
+  P.defaultLog = () => ({ on: false, load: 'run', line: '', call: '', start: false, ok: true, fail: true });
+  P.LOG_EXAMPLE = 'log_run(notebook={notebook}, batch_id={batch_id}, status={status}, rows_read={rows_read}, rows_written={rows_written}, message={error})';
+  P.logProblems = function (log) {
+    const R = [], add = (sev, msg) => R.push({ sev, msg }); if (!log || !log.on) return R;
+    const call = String(log.call || '').trim(), line = String(log.line || '').trim();
+    if (!call) { add('err', 'Logging: write the call to your logging utility, for example ' + P.LOG_EXAMPLE); return R; }
+    if (/\n/.test(call)) add('err', 'Logging: write the call on one line.');
+    (call.match(/\{[^{}]*\}/g) || []).map(s => s.slice(1, -1)).filter(k => !P.LOG_TOKENS.some(x => x[0] === k)).forEach(k => add('err', 'Logging: {' + k + '} isn’t a value the notebook has. Use one of: ' + P.LOG_TOKENS.map(x => '{' + x[0] + '}').join(' ') + '.'));
+    const bare = call.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""'); let d = 0; for (const ch of bare) { if ('([{'.indexOf(ch) >= 0) d++; if (')]}'.indexOf(ch) >= 0) d--; if (d < 0) break; }
+    if (d !== 0) add('err', 'Logging: the brackets in the call don’t balance.');
+    if (!/^[A-Za-z_][\w.]*\s*\(/.test(call)) add('err', 'Logging: the call should start with the function’s name, like log_run(...).');
+    if (log.load === 'run' && !/^\/|^\.{1,2}\//.test(line)) add('err', 'Logging: give the path of the notebook to %run, starting with / (or ./ for one next to this notebook).');
+    if (log.load === 'import' && !/^(from\s+[\w.]+\s+import\s+.+|import\s+[\w., ]+)$/.test(line)) add('err', 'Logging: the import line should look like  from shared.logging import log_run');
+    if (!log.start && !log.ok && !log.fail) add('warn', 'Logging is on but no moment is ticked, so the utility is never called.');
+    return R;
+  };
+  const SPLIT = /\n# COMMAND ----------\n\n# MAGIC %md ## (.+)\n\n# COMMAND ----------\n\n/;
+  P.applyLog = function (code, cfg, log, n) {
+    if (!log || !log.on || P.logProblems(log).some(p => p.sev === 'err')) return code;
+    const parts = code.split(SPLIT), headTxt = parts[0], secs = []; for (let i = 1; i < parts.length; i += 2) secs.push({ title: parts[i], code: parts[i + 1].replace(/\n$/, '') });
+    const L = cfg.layer, val = { notebook: py(n.nb), layer: py(L), entity: py(n.entity), batch_id: 'batch_id', status: 'status', error: 'error', rows_read: 'known("rows_read")', rows_written: 'known("rows_written")', rows_quarantined: 'known("rows_quarantined")', source: L === 'bronze' ? 'source_path' : 'source_table', target_table: 'target_table' };
+    const call = String(log.call).trim().replace(/\{([^{}]*)\}/g, (m, k) => val[k] || m), line = String(log.line || '').trim();
+    const out = [], cell = (title, body) => out.push({ title, code: body });
+    secs.forEach(s => {
+      const num = parseInt(s.title, 10);
+      if (num === 7 && log.ok) { const i = s.code.lastIndexOf('dbutils.notebook.exit('); s.code = s.code.slice(0, i) + '_log_run_status("succeeded")\n' + s.code.slice(i); }
+      out.push(s);
+      if (num === 2) {
+        if (log.load === 'run') cell('Shared logging utility', '# MAGIC %run ' + line);
+        cell('Logging', (log.load === 'import' ? [line, ''] : []).concat(['def _log_run_status(status, error=None):', '    """Calls the team\'s shared logging utility. Counts are None until the notebook has them."""', '    known = globals().get', '    ' + call], log.start ? ['', '_log_run_status("started")'] : []).join('\n'));
+      }
+    });
+    let res = out;
+    if (log.fail) {
+      /* a failure can only be caught inside one cell, so the working sections become one cell inside try/except */
+      const s7 = out.find(s => parseInt(s.title, 10) === 7), cut = s7 ? s7.code.lastIndexOf(log.ok ? '_log_run_status("succeeded")\ndbutils.notebook.exit(' : 'dbutils.notebook.exit(') : -1;
+      const checks = cut > 0 ? s7.code.slice(0, cut).replace(/\n+$/, '') : '';     // counts and reconciliation can fail too: they go inside try, the exit stays out
+      if (checks) { out.splice(out.indexOf(s7), 0, { title: '6b. ' + (/reconcile/i.test(s7.title) ? 'Reconcile and count' : 'Counts'), code: checks }); s7.code = s7.code.slice(cut); s7.title = '7. Exit'; }
+      const work = out.filter(s => { const k = parseInt(s.title, 10); return k >= 3 && k <= 6; }), first = out.indexOf(work[0]);
+      let pre = '';
+      if (L === 'gold' && cfg.gold.mode === 'dates') {        // the early exit stays outside try: exiting a notebook must not be caught
+        const c = work[0].code, i = c.indexOf('\nsilver = (spark.table'); if (i > 0) { pre = c.slice(0, i).replace(/\n+$/, ''); work[0].code = c.slice(i + 1); if (log.ok) pre = pre.replace('    dbutils.notebook.exit(', '    _log_run_status("succeeded")\n    dbutils.notebook.exit('); }
+      }
+      const body = work.map(s => '# ---- ' + s.title + ' ----\n' + s.code).join('\n\n').split('\n').map(l => (l.trim() ? '    ' + l : '')).join('\n');
+      const wrapped = { title: work[0].title.split('.')[0] + ' to 6. ' + (L === 'bronze' ? 'Read, add metadata and write' : L === 'silver' ? 'Read, transform, check and merge' : 'Read, aggregate and write') + ' (one cell, so a failure can be logged)',
+        code: 'try:\n' + body + '\nexcept Exception as error:\n    try:\n        _log_run_status("failed", str(error)[:4000])\n    except Exception as log_error:\n        print(f"Logging the failure also failed: {log_error}")\n    raise   # ADF must still see the activity fail' };
+      res = out.slice(0, first).concat(pre ? [{ title: '3. Find what changed', code: pre }] : [], [wrapped], out.slice(first + work.length));
+    } else if (log.ok && L === 'gold' && cfg.gold.mode === 'dates') { const s3 = out.find(s => parseInt(s.title, 10) === 3); s3.code = s3.code.replace('    dbutils.notebook.exit(', '    _log_run_status("succeeded")\n    dbutils.notebook.exit('); }
+    return headTxt + res.map(s => (s.title === 'Shared logging utility' ? CELL + '\n' + s.code + '\n' : md(s.title) + s.code + '\n')).join('');
+  };
+
   /* ---------- everything for the current layer ---------- */
-  P.build = function (cfg, ai) {
+  P.build = function (cfg, ai, log) {
     const n = P.names(cfg), L = cfg.layer, o = { names: n, layer: L };
     if (L === 'bronze') o.code = P.bronze(cfg);
     else if (L === 'silver') { const r = P.silver(cfg, ai); o.code = r.code; o.silver = r; }
     else { const r = P.gold(cfg, ai); o.code = r.code; o.gold = r; }
+    o.logged = !!(log && log.on && !P.logProblems(log).some(p => p.sev === 'err'));
+    if (o.logged) o.code = P.applyLog(o.code, cfg, log, n);
     /* ADF */
     const bp = { batch_id: { value: '@pipeline().RunId', type: 'Expression' } };
     if (L === 'bronze') bp.source_path = { value: "abfss://<container>@<storage_account>.dfs.core.windows.net/<folder landed by this run>", type: 'Expression' };

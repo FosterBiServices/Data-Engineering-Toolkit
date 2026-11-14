@@ -3,7 +3,7 @@
   'use strict';
   const S = window.DE_SUITE, P = window.PYG, $ = S.$, esc = S.esc;
   const store = S.store('dep.');
-  let cfg, st, out = null, ai = null;
+  let cfg, st, log, out = null, ai = null;
 
   const get = (o, path) => path.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
   const set = (o, path, v) => { const ks = path.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
@@ -27,14 +27,17 @@
   }
   function load() {
     const s = store.get('st', null); st = { example: !!(s && s.example), done: (s && Array.isArray(s.done) ? s.done : []).filter(x => typeof x === 'string') };
+    const lg = store.get('log', null), d = P.defaultLog(); log = d;      // the logging setup outlives the entity: it is the team's, not the table's
+    if (lg && typeof lg === 'object' && !Array.isArray(lg)) { ['on', 'start', 'ok', 'fail'].forEach(k => { if (typeof lg[k] === 'boolean') log[k] = lg[k]; }); ['line', 'call'].forEach(k => { if (typeof lg[k] === 'string') log[k] = lg[k].slice(0, 600); }); if (P.LOG_LOADS.some(x => x[0] === lg.load)) log.load = lg.load; }
     const saved = store.get('cfg', null);
     if (saved) cfg = restore(saved); else if (store.get('blank', false)) { cfg = P.blank(); st.example = false; } else { cfg = window.PYG_EX(P); st.example = true; }
   }
-  const save = () => { store.set('cfg', cfg); store.set('st', st); };
+  const save = () => { store.set('cfg', cfg); store.set('st', st); store.set('log', log); };
   const L = () => cfg.layer, sub = () => cfg[cfg.layer];
 
   function fill(skip) {
     document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || el.tagName === 'SELECT' && el.id) return; const v = get(cfg, el.dataset.k); if (el.type === 'radio') el.checked = el.value === v; else el.value = v == null ? '' : v; });
+    document.querySelectorAll('[data-g]').forEach(el => { if (el === skip || el.tagName === 'SELECT') return; if (el.type === 'checkbox') el.checked = !!log[el.dataset.g]; else el.value = log[el.dataset.g] || ''; });
     if ($('schemaIn') !== skip) $('schemaIn').value = L() === 'bronze' ? '' : sub().schemaText;
     if ($('aiReq') !== skip) $('aiReq').value = L() === 'bronze' ? '' : sub().aiReq;
     $('aiReply').value = L() === 'bronze' ? '' : sub().aiReply;
@@ -86,6 +89,11 @@
       $('derivedList').innerHTML = g.derived.map((d, i) => '<div class="rrow" data-list="derived" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(d.name) + '" placeholder="metric_name" spellcheck="false" aria-label="Name">'
         + '<input type="text" data-f="expr" value="' + esc(d.expr) + '" placeholder="gross_sales_amount - cancelled_amount" spellcheck="false" aria-label="Formula" style="grid-column:span 3"><button type="button" class="x" data-del aria-label="Remove calculation">&times;</button></div>').join('');
     }
+    $('logBox').hidden = !log.on; $('logLoad').innerHTML = opts(P.LOG_LOADS, log.load); $('logLineBox').hidden = log.load === 'none';
+    $('logLineLbl').textContent = log.load === 'import' ? 'Import line' : 'Notebook to %run'; $('logLine').placeholder = log.load === 'import' ? 'from shared.logging import log_run' : '/Shared/utilities/nb_logging';
+    $('logCall').placeholder = P.LOG_EXAMPLE;
+    $('logTokens').innerHTML = P.LOG_TOKENS.map(k => '<button type="button" class="chip" data-token="' + k[0] + '" title="' + esc(k[1]) + '">{' + k[0] + '}</button>').join('');
+    $('logHint').textContent = (log.fail ? 'To log a failure, the notebook\u2019s working steps go into one cell inside try/except; the error is logged and then raised again, so ADF still sees the activity fail. ' : '') + 'If your ADF pipeline also logs each run, a run is recorded twice: once from here and once from the pipeline. Choose one place, or use different statuses.';
     $('checklist').innerHTML = P.CHECKLIST.all.concat(P.CHECKLIST[layer]).map((t, i) => '<li><label><input type="checkbox" data-done="' + layer + i + '"' + (st.done.indexOf(layer + i) >= 0 ? ' checked' : '') + '> <span>' + esc(t) + '</span></label></li>').join('');
     renderOut();
   }
@@ -100,7 +108,7 @@
       $('schemaStats').innerHTML = have ? '<span class="stat"><b>' + have + '</b> columns</span>' + (layer === 'silver' && parsed.cols.length > have ? '<span class="stat">' + (parsed.cols.length - have) + ' metadata columns (starting with _) are carried by the notebook itself</span>' : '') : '';
       $('schemaMsg').innerHTML = s.schemaText.trim() ? parsed.errors.map(e => S.msg('warn', esc(e))).join('') : '';
     } else { $('schemaStats').innerHTML = ''; $('schemaMsg').innerHTML = ''; }
-    const probs = P.problems(cfg);
+    const probs = P.problems(cfg).concat(P.logProblems(log));
     $('setupMsg').innerHTML = probs.map(p => S.msg(p.sev, esc(p.msg))).join('');
     /* Copilot */
     ai = null;
@@ -123,11 +131,11 @@
     const errs = probs.filter(p => p.sev === 'err');
     if (errs.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (errs.length === 1 ? 'item' : errs.length + ' items') + ' marked in red in Step 3 and the notebook appears here.'); }
     else {
-      out = P.build(cfg, ai); $('outWrap').hidden = false; $('outMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you run it:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
+      out = P.build(cfg, ai, log); $('outWrap').hidden = false; $('outMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you run it:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
       const lines = out.code.split('\n').length, used = ai ? ai.ok.length : 0;
       $('outStats').innerHTML = '<span class="stat"><b>' + esc(out.names.nb) + '</b></span><span class="stat"><b>' + lines + '</b> lines</span>'
         + (layer === 'silver' ? '<span class="stat"><b>' + out.silver.outCols.length + '</b> columns</span><span class="stat"><b>' + out.silver.rules.length + '</b> quality rules</span>' : '')
-        + (layer === 'gold' ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '');
+        + (layer === 'gold' ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '') + (out.logged ? '<span class="stat">Logs with your utility</span>' : '');
       $('codeTitle').textContent = out.names.nb + '.py'; $('codeView').textContent = out.code;
       $('adfView').textContent = out.adf; $('actView').textContent = JSON.stringify(out.activity, null, 4); $('checksView').textContent = out.checks;
     }
@@ -154,6 +162,7 @@
     document.addEventListener('input', e => {
       const el = e.target;
       if (el.id === 'schemaIn') { onSchema(el.value); renderForm(); return; }
+      if (el.dataset && el.dataset.g && el.type === 'text') { log[el.dataset.g] = el.value; renderOut(); return; }
       if (el.id === 'aiReq') { sub().aiReq = el.value; renderOut(); return; }
       if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
       const row = el.closest('[data-i]');
@@ -162,6 +171,7 @@
     });
     document.addEventListener('change', e => {
       const el = e.target;
+      if (el.dataset && el.dataset.g && el.type !== 'text') { log[el.dataset.g] = el.type === 'checkbox' ? el.checked : el.value; renderForm(); return; }
       if (el.dataset && el.dataset.done != null) { st.done = st.done.filter(x => x !== el.dataset.done).concat(el.checked ? [el.dataset.done] : []); save(); return; }
       const row = el.closest('[data-i]');
       if (row && el.dataset.f) {
@@ -178,6 +188,8 @@
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
+      const tok = e.target.closest('[data-token]');
+      if (tok) { const box = $('logCall'), at = box.selectionStart == null ? box.value.length : box.selectionStart, ins = '{' + tok.dataset.token + '}'; box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd == null ? at : box.selectionEnd); log.call = box.value; box.focus(); box.setSelectionRange(at + ins.length, at + ins.length); renderOut(); return; }
       const del = e.target.closest('[data-del]'), gr = e.target.closest('[data-grain]');
       if (del) { const row = del.closest('[data-i]'); (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (gr) { const g = cfg.gold, i = g.grain.indexOf(gr.dataset.grain); if (i >= 0) g.grain.splice(i, 1); else g.grain.push(gr.dataset.grain); pruneGold(); renderForm(); }
@@ -192,7 +204,7 @@
     });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });
-    S.clearSetup({ onClear: () => { const layer = cfg.layer; store.clear(); store.set('blank', true); st = { example: false, done: [] }; cfg = Object.assign(P.blank(), { layer }); fill(); renderForm(); } });
+    S.clearSetup({ onClear: () => { const layer = cfg.layer; store.clear(); store.set('blank', true); log = P.defaultLog(); st = { example: false, done: [] }; cfg = Object.assign(P.blank(), { layer }); fill(); renderForm(); } });
     S.wireCopy({
       context: () => $('contextView').textContent, aiPrompt: () => ({ name: 'notebook-logic-prompt.txt', text: $('aiPromptView').textContent }),
       code: () => out && ({ name: out.names.nb + '.py', text: out.code }), adf: () => out && out.adf, activity: () => out && JSON.stringify(out.activity, null, 4), checks: () => out && out.checks

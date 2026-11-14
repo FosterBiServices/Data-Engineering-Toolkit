@@ -518,6 +518,23 @@ td.flowname .ind{color:var(--ws)}
         <p class="note small" style="margin-top:-8px">A formula over the metric names above, in Spark SQL, for example <span class="mono">gross_sales_amount - cancelled_amount</span>.</p>
         <div class="rowlist" id="derivedList"></div>
       </div>
+      <div class="sub" id="logSub">
+        <label class="chk"><input type="checkbox" data-g="on"> <b>Log from the notebook</b>&nbsp;with my shared logging utility</label>
+        <div id="logBox" style="display:flex;flex-direction:column;gap:12px">
+          <div class="qgrid">
+            <label class="lab">How the notebook gets the utility<select data-g="load" id="logLoad"></select></label>
+            <label class="lab wide" id="logLineBox"><span id="logLineLbl">Notebook to %run</span><input type="text" data-g="line" spellcheck="false" autocomplete="off" id="logLine"></label>
+          </div>
+          <label class="lab">The call <span class="hint">exactly as you would write it, with {values} from the list where the notebook should fill them in</span><input type="text" data-g="call" spellcheck="false" autocomplete="off" id="logCall" style="width:100%;font-family:var(--mono);font-size:13px"></label>
+          <div class="chips" id="logTokens"></div>
+          <div class="opts">
+            <label><input type="checkbox" data-g="start"> When it starts</label>
+            <label><input type="checkbox" data-g="ok"> When it succeeds</label>
+            <label><input type="checkbox" data-g="fail"> When it fails</label>
+          </div>
+          <p class="note small" id="logHint"></p>
+        </div>
+      </div>
       <div id="setupMsg" class="msgs" aria-live="polite"></div>
     </div>
   </section>
@@ -1098,12 +1115,69 @@ td.flowname .ind{color:var(--ws)}
     return { code: s, recon };
   };
 
+  /* ---------- logging from inside the notebook, through the team's shared utility ---------- */
+  P.LOG_TOKENS = [['notebook', 'the notebook’s name'], ['layer', 'bronze, silver or gold'], ['entity', 'the entity'], ['batch_id', 'the batch id from ADF'], ['status', 'started, succeeded or failed'], ['error', 'the error message (None unless it failed)'],
+    ['rows_read', 'rows read (None until known)'], ['rows_written', 'rows written'], ['rows_quarantined', 'rows quarantined'], ['source', 'the source table or path'], ['target_table', 'the target table']];
+  P.LOG_LOADS = [['run', '%run a notebook that defines it'], ['import', 'An import line'], ['none', 'It is already available (cluster library or init script)']];
+  P.defaultLog = () => ({ on: false, load: 'run', line: '', call: '', start: false, ok: true, fail: true });
+  P.LOG_EXAMPLE = 'log_run(notebook={notebook}, batch_id={batch_id}, status={status}, rows_read={rows_read}, rows_written={rows_written}, message={error})';
+  P.logProblems = function (log) {
+    const R = [], add = (sev, msg) => R.push({ sev, msg }); if (!log || !log.on) return R;
+    const call = String(log.call || '').trim(), line = String(log.line || '').trim();
+    if (!call) { add('err', 'Logging: write the call to your logging utility, for example ' + P.LOG_EXAMPLE); return R; }
+    if (/\n/.test(call)) add('err', 'Logging: write the call on one line.');
+    (call.match(/\{[^{}]*\}/g) || []).map(s => s.slice(1, -1)).filter(k => !P.LOG_TOKENS.some(x => x[0] === k)).forEach(k => add('err', 'Logging: {' + k + '} isn’t a value the notebook has. Use one of: ' + P.LOG_TOKENS.map(x => '{' + x[0] + '}').join(' ') + '.'));
+    const bare = call.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""'); let d = 0; for (const ch of bare) { if ('([{'.indexOf(ch) >= 0) d++; if (')]}'.indexOf(ch) >= 0) d--; if (d < 0) break; }
+    if (d !== 0) add('err', 'Logging: the brackets in the call don’t balance.');
+    if (!/^[A-Za-z_][\w.]*\s*\(/.test(call)) add('err', 'Logging: the call should start with the function’s name, like log_run(...).');
+    if (log.load === 'run' && !/^\/|^\.{1,2}\//.test(line)) add('err', 'Logging: give the path of the notebook to %run, starting with / (or ./ for one next to this notebook).');
+    if (log.load === 'import' && !/^(from\s+[\w.]+\s+import\s+.+|import\s+[\w., ]+)$/.test(line)) add('err', 'Logging: the import line should look like  from shared.logging import log_run');
+    if (!log.start && !log.ok && !log.fail) add('warn', 'Logging is on but no moment is ticked, so the utility is never called.');
+    return R;
+  };
+  const SPLIT = /\n# COMMAND ----------\n\n# MAGIC %md ## (.+)\n\n# COMMAND ----------\n\n/;
+  P.applyLog = function (code, cfg, log, n) {
+    if (!log || !log.on || P.logProblems(log).some(p => p.sev === 'err')) return code;
+    const parts = code.split(SPLIT), headTxt = parts[0], secs = []; for (let i = 1; i < parts.length; i += 2) secs.push({ title: parts[i], code: parts[i + 1].replace(/\n$/, '') });
+    const L = cfg.layer, val = { notebook: py(n.nb), layer: py(L), entity: py(n.entity), batch_id: 'batch_id', status: 'status', error: 'error', rows_read: 'known("rows_read")', rows_written: 'known("rows_written")', rows_quarantined: 'known("rows_quarantined")', source: L === 'bronze' ? 'source_path' : 'source_table', target_table: 'target_table' };
+    const call = String(log.call).trim().replace(/\{([^{}]*)\}/g, (m, k) => val[k] || m), line = String(log.line || '').trim();
+    const out = [], cell = (title, body) => out.push({ title, code: body });
+    secs.forEach(s => {
+      const num = parseInt(s.title, 10);
+      if (num === 7 && log.ok) { const i = s.code.lastIndexOf('dbutils.notebook.exit('); s.code = s.code.slice(0, i) + '_log_run_status("succeeded")\n' + s.code.slice(i); }
+      out.push(s);
+      if (num === 2) {
+        if (log.load === 'run') cell('Shared logging utility', '# MAGIC %run ' + line);
+        cell('Logging', (log.load === 'import' ? [line, ''] : []).concat(['def _log_run_status(status, error=None):', '    """Calls the team\'s shared logging utility. Counts are None until the notebook has them."""', '    known = globals().get', '    ' + call], log.start ? ['', '_log_run_status("started")'] : []).join('\n'));
+      }
+    });
+    let res = out;
+    if (log.fail) {
+      /* a failure can only be caught inside one cell, so the working sections become one cell inside try/except */
+      const s7 = out.find(s => parseInt(s.title, 10) === 7), cut = s7 ? s7.code.lastIndexOf(log.ok ? '_log_run_status("succeeded")\ndbutils.notebook.exit(' : 'dbutils.notebook.exit(') : -1;
+      const checks = cut > 0 ? s7.code.slice(0, cut).replace(/\n+$/, '') : '';     // counts and reconciliation can fail too: they go inside try, the exit stays out
+      if (checks) { out.splice(out.indexOf(s7), 0, { title: '6b. ' + (/reconcile/i.test(s7.title) ? 'Reconcile and count' : 'Counts'), code: checks }); s7.code = s7.code.slice(cut); s7.title = '7. Exit'; }
+      const work = out.filter(s => { const k = parseInt(s.title, 10); return k >= 3 && k <= 6; }), first = out.indexOf(work[0]);
+      let pre = '';
+      if (L === 'gold' && cfg.gold.mode === 'dates') {        // the early exit stays outside try: exiting a notebook must not be caught
+        const c = work[0].code, i = c.indexOf('\nsilver = (spark.table'); if (i > 0) { pre = c.slice(0, i).replace(/\n+$/, ''); work[0].code = c.slice(i + 1); if (log.ok) pre = pre.replace('    dbutils.notebook.exit(', '    _log_run_status("succeeded")\n    dbutils.notebook.exit('); }
+      }
+      const body = work.map(s => '# ---- ' + s.title + ' ----\n' + s.code).join('\n\n').split('\n').map(l => (l.trim() ? '    ' + l : '')).join('\n');
+      const wrapped = { title: work[0].title.split('.')[0] + ' to 6. ' + (L === 'bronze' ? 'Read, add metadata and write' : L === 'silver' ? 'Read, transform, check and merge' : 'Read, aggregate and write') + ' (one cell, so a failure can be logged)',
+        code: 'try:\n' + body + '\nexcept Exception as error:\n    try:\n        _log_run_status("failed", str(error)[:4000])\n    except Exception as log_error:\n        print(f"Logging the failure also failed: {log_error}")\n    raise   # ADF must still see the activity fail' };
+      res = out.slice(0, first).concat(pre ? [{ title: '3. Find what changed', code: pre }] : [], [wrapped], out.slice(first + work.length));
+    } else if (log.ok && L === 'gold' && cfg.gold.mode === 'dates') { const s3 = out.find(s => parseInt(s.title, 10) === 3); s3.code = s3.code.replace('    dbutils.notebook.exit(', '    _log_run_status("succeeded")\n    dbutils.notebook.exit('); }
+    return headTxt + res.map(s => (s.title === 'Shared logging utility' ? CELL + '\n' + s.code + '\n' : md(s.title) + s.code + '\n')).join('');
+  };
+
   /* ---------- everything for the current layer ---------- */
-  P.build = function (cfg, ai) {
+  P.build = function (cfg, ai, log) {
     const n = P.names(cfg), L = cfg.layer, o = { names: n, layer: L };
     if (L === 'bronze') o.code = P.bronze(cfg);
     else if (L === 'silver') { const r = P.silver(cfg, ai); o.code = r.code; o.silver = r; }
     else { const r = P.gold(cfg, ai); o.code = r.code; o.gold = r; }
+    o.logged = !!(log && log.on && !P.logProblems(log).some(p => p.sev === 'err'));
+    if (o.logged) o.code = P.applyLog(o.code, cfg, log, n);
     /* ADF */
     const bp = { batch_id: { value: '@pipeline().RunId', type: 'Expression' } };
     if (L === 'bronze') bp.source_path = { value: "abfss://<container>@<storage_account>.dfs.core.windows.net/<folder landed by this run>", type: 'Expression' };
@@ -1168,7 +1242,7 @@ td.flowname .ind{color:var(--ws)}
   'use strict';
   const S = window.DE_SUITE, P = window.PYG, $ = S.$, esc = S.esc;
   const store = S.store('dep.');
-  let cfg, st, out = null, ai = null;
+  let cfg, st, log, out = null, ai = null;
 
   const get = (o, path) => path.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
   const set = (o, path, v) => { const ks = path.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
@@ -1192,14 +1266,17 @@ td.flowname .ind{color:var(--ws)}
   }
   function load() {
     const s = store.get('st', null); st = { example: !!(s && s.example), done: (s && Array.isArray(s.done) ? s.done : []).filter(x => typeof x === 'string') };
+    const lg = store.get('log', null), d = P.defaultLog(); log = d;      // the logging setup outlives the entity: it is the team's, not the table's
+    if (lg && typeof lg === 'object' && !Array.isArray(lg)) { ['on', 'start', 'ok', 'fail'].forEach(k => { if (typeof lg[k] === 'boolean') log[k] = lg[k]; }); ['line', 'call'].forEach(k => { if (typeof lg[k] === 'string') log[k] = lg[k].slice(0, 600); }); if (P.LOG_LOADS.some(x => x[0] === lg.load)) log.load = lg.load; }
     const saved = store.get('cfg', null);
     if (saved) cfg = restore(saved); else if (store.get('blank', false)) { cfg = P.blank(); st.example = false; } else { cfg = window.PYG_EX(P); st.example = true; }
   }
-  const save = () => { store.set('cfg', cfg); store.set('st', st); };
+  const save = () => { store.set('cfg', cfg); store.set('st', st); store.set('log', log); };
   const L = () => cfg.layer, sub = () => cfg[cfg.layer];
 
   function fill(skip) {
     document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || el.tagName === 'SELECT' && el.id) return; const v = get(cfg, el.dataset.k); if (el.type === 'radio') el.checked = el.value === v; else el.value = v == null ? '' : v; });
+    document.querySelectorAll('[data-g]').forEach(el => { if (el === skip || el.tagName === 'SELECT') return; if (el.type === 'checkbox') el.checked = !!log[el.dataset.g]; else el.value = log[el.dataset.g] || ''; });
     if ($('schemaIn') !== skip) $('schemaIn').value = L() === 'bronze' ? '' : sub().schemaText;
     if ($('aiReq') !== skip) $('aiReq').value = L() === 'bronze' ? '' : sub().aiReq;
     $('aiReply').value = L() === 'bronze' ? '' : sub().aiReply;
@@ -1251,6 +1328,11 @@ td.flowname .ind{color:var(--ws)}
       $('derivedList').innerHTML = g.derived.map((d, i) => '<div class="rrow" data-list="derived" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(d.name) + '" placeholder="metric_name" spellcheck="false" aria-label="Name">'
         + '<input type="text" data-f="expr" value="' + esc(d.expr) + '" placeholder="gross_sales_amount - cancelled_amount" spellcheck="false" aria-label="Formula" style="grid-column:span 3"><button type="button" class="x" data-del aria-label="Remove calculation">&times;</button></div>').join('');
     }
+    $('logBox').hidden = !log.on; $('logLoad').innerHTML = opts(P.LOG_LOADS, log.load); $('logLineBox').hidden = log.load === 'none';
+    $('logLineLbl').textContent = log.load === 'import' ? 'Import line' : 'Notebook to %run'; $('logLine').placeholder = log.load === 'import' ? 'from shared.logging import log_run' : '/Shared/utilities/nb_logging';
+    $('logCall').placeholder = P.LOG_EXAMPLE;
+    $('logTokens').innerHTML = P.LOG_TOKENS.map(k => '<button type="button" class="chip" data-token="' + k[0] + '" title="' + esc(k[1]) + '">{' + k[0] + '}</button>').join('');
+    $('logHint').textContent = (log.fail ? 'To log a failure, the notebook\u2019s working steps go into one cell inside try/except; the error is logged and then raised again, so ADF still sees the activity fail. ' : '') + 'If your ADF pipeline also logs each run, a run is recorded twice: once from here and once from the pipeline. Choose one place, or use different statuses.';
     $('checklist').innerHTML = P.CHECKLIST.all.concat(P.CHECKLIST[layer]).map((t, i) => '<li><label><input type="checkbox" data-done="' + layer + i + '"' + (st.done.indexOf(layer + i) >= 0 ? ' checked' : '') + '> <span>' + esc(t) + '</span></label></li>').join('');
     renderOut();
   }
@@ -1265,7 +1347,7 @@ td.flowname .ind{color:var(--ws)}
       $('schemaStats').innerHTML = have ? '<span class="stat"><b>' + have + '</b> columns</span>' + (layer === 'silver' && parsed.cols.length > have ? '<span class="stat">' + (parsed.cols.length - have) + ' metadata columns (starting with _) are carried by the notebook itself</span>' : '') : '';
       $('schemaMsg').innerHTML = s.schemaText.trim() ? parsed.errors.map(e => S.msg('warn', esc(e))).join('') : '';
     } else { $('schemaStats').innerHTML = ''; $('schemaMsg').innerHTML = ''; }
-    const probs = P.problems(cfg);
+    const probs = P.problems(cfg).concat(P.logProblems(log));
     $('setupMsg').innerHTML = probs.map(p => S.msg(p.sev, esc(p.msg))).join('');
     /* Copilot */
     ai = null;
@@ -1288,11 +1370,11 @@ td.flowname .ind{color:var(--ws)}
     const errs = probs.filter(p => p.sev === 'err');
     if (errs.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (errs.length === 1 ? 'item' : errs.length + ' items') + ' marked in red in Step 3 and the notebook appears here.'); }
     else {
-      out = P.build(cfg, ai); $('outWrap').hidden = false; $('outMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you run it:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
+      out = P.build(cfg, ai, log); $('outWrap').hidden = false; $('outMsg').innerHTML = out.placeholders.length ? S.msg('warn', '<b>Replace before you run it:</b> ' + out.placeholders.map(p => '<span class="mono">' + esc(p) + '</span>').join(', ')) : '';
       const lines = out.code.split('\n').length, used = ai ? ai.ok.length : 0;
       $('outStats').innerHTML = '<span class="stat"><b>' + esc(out.names.nb) + '</b></span><span class="stat"><b>' + lines + '</b> lines</span>'
         + (layer === 'silver' ? '<span class="stat"><b>' + out.silver.outCols.length + '</b> columns</span><span class="stat"><b>' + out.silver.rules.length + '</b> quality rules</span>' : '')
-        + (layer === 'gold' ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '');
+        + (layer === 'gold' ? '<span class="stat"><b>' + (cfg.gold.metrics.length + cfg.gold.derived.length + (ai ? ai.ok.length : 0)) + '</b> metrics</span>' : '') + (used ? '<span class="stat" style="background:var(--info-soft);color:var(--info)"><b>' + used + '</b> from Copilot</span>' : '') + (out.logged ? '<span class="stat">Logs with your utility</span>' : '');
       $('codeTitle').textContent = out.names.nb + '.py'; $('codeView').textContent = out.code;
       $('adfView').textContent = out.adf; $('actView').textContent = JSON.stringify(out.activity, null, 4); $('checksView').textContent = out.checks;
     }
@@ -1319,6 +1401,7 @@ td.flowname .ind{color:var(--ws)}
     document.addEventListener('input', e => {
       const el = e.target;
       if (el.id === 'schemaIn') { onSchema(el.value); renderForm(); return; }
+      if (el.dataset && el.dataset.g && el.type === 'text') { log[el.dataset.g] = el.value; renderOut(); return; }
       if (el.id === 'aiReq') { sub().aiReq = el.value; renderOut(); return; }
       if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
       const row = el.closest('[data-i]');
@@ -1327,6 +1410,7 @@ td.flowname .ind{color:var(--ws)}
     });
     document.addEventListener('change', e => {
       const el = e.target;
+      if (el.dataset && el.dataset.g && el.type !== 'text') { log[el.dataset.g] = el.type === 'checkbox' ? el.checked : el.value; renderForm(); return; }
       if (el.dataset && el.dataset.done != null) { st.done = st.done.filter(x => x !== el.dataset.done).concat(el.checked ? [el.dataset.done] : []); save(); return; }
       const row = el.closest('[data-i]');
       if (row && el.dataset.f) {
@@ -1343,6 +1427,8 @@ td.flowname .ind{color:var(--ws)}
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
+      const tok = e.target.closest('[data-token]');
+      if (tok) { const box = $('logCall'), at = box.selectionStart == null ? box.value.length : box.selectionStart, ins = '{' + tok.dataset.token + '}'; box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd == null ? at : box.selectionEnd); log.call = box.value; box.focus(); box.setSelectionRange(at + ins.length, at + ins.length); renderOut(); return; }
       const del = e.target.closest('[data-del]'), gr = e.target.closest('[data-grain]');
       if (del) { const row = del.closest('[data-i]'); (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (gr) { const g = cfg.gold, i = g.grain.indexOf(gr.dataset.grain); if (i >= 0) g.grain.splice(i, 1); else g.grain.push(gr.dataset.grain); pruneGold(); renderForm(); }
@@ -1357,7 +1443,7 @@ td.flowname .ind{color:var(--ws)}
     });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });
-    S.clearSetup({ onClear: () => { const layer = cfg.layer; store.clear(); store.set('blank', true); st = { example: false, done: [] }; cfg = Object.assign(P.blank(), { layer }); fill(); renderForm(); } });
+    S.clearSetup({ onClear: () => { const layer = cfg.layer; store.clear(); store.set('blank', true); log = P.defaultLog(); st = { example: false, done: [] }; cfg = Object.assign(P.blank(), { layer }); fill(); renderForm(); } });
     S.wireCopy({
       context: () => $('contextView').textContent, aiPrompt: () => ({ name: 'notebook-logic-prompt.txt', text: $('aiPromptView').textContent }),
       code: () => out && ({ name: out.names.nb + '.py', text: out.code }), adf: () => out && out.adf, activity: () => out && JSON.stringify(out.activity, null, 4), checks: () => out && out.checks

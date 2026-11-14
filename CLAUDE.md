@@ -83,6 +83,14 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   quarantine table, then MERGE on the key where newer wins; gold reads silver only, rebuilds the dates a batch touched
   (replaceWhere) or the whole table, and reconciles row counts (`_silver_rows`) and an unfiltered Sum to silver.
 - Every notebook ends with `dbutils.notebook.exit(json.dumps({status, batch_id, rows_read, rows_written, rows_quarantined, ...}))`.
+- Logging from inside the notebook (owner request, Nov 2026: some of his notebooks call a shared logging utility
+  themselves, apart from the pipeline-level logging notebook). Optional, off by default, stored as `dep.log` so it
+  outlives the entity. The user gives how the utility is loaded (`%run` path, an import line, or already available),
+  the call as he writes it with `{tokens}` (`P.LOG_TOKENS`), and when to call it (start, success, failure).
+  `P.applyLog` post-processes the notebook text: a `_log_run_status(status, error)` helper after section 2, the success
+  call before the final exit, and for failure the working sections (3 to 6, plus counts and reconciliation) in one cell
+  inside try/except that logs and re-raises. `dbutils.notebook.exit` always stays outside try (gold's early exit too).
+  Not run on a cluster.
 - pycoretest.js generates notebooks for many setups and checks each parses as Python.
 
 ## Python Script Generator (`ps_core.js`)

@@ -21,6 +21,18 @@ const o = check('gold with Copilot metrics', c); const ai = P.aiParse(c.gold.aiR
 console.log('rejected (expect bad, bad2):', ai.items.filter(i => i.problems.length).map(i => i.name + ': ' + i.problems[0]));
 c = base(); c.silver.aiReply = '@@@ COLUMN @@@\nNAME: order_id\nTYPE: bigint\nEXPR: F.col("order_id") + 1\n@@@ RULE @@@\nNAME: ship\nFAILS_WHEN: F.col("ship_date") < F.col("order_date")\n@@@ COLUMN @@@\nNAME: x\nTYPE: string\nEXPR: __import__("os").system("x")\n@@@ RULE @@@\nNAME: big\nFAILS_WHEN: F.col("amount") > 1000000';
 const a2 = P.aiParse(c.silver.aiReply, c, S.parseBlocks, S.fields); console.log('silver ai: ok', a2.ok.map(i => i.name), 'rejected', a2.items.filter(i => i.problems.length).map(i => i.name + ': ' + i.problems.join(' | ')));
+// logging through a shared utility, written into the notebook
+const LOG = { on: true, load: 'run', line: '/Shared/utilities/nb_logging', call: P.LOG_EXAMPLE, start: true, ok: true, fail: true };
+const logged = (label, layer, log, edit) => { const c = base(); c.layer = layer; if (edit) edit(c); const o = P.build(c, null, log), f = path.join(dir, 'l' + (n++) + '.py'); fs.writeFileSync(f, o.code);
+  const r = cp.spawnSync('python3', ['-I', '-c', 'import ast,sys; ast.parse(open(sys.argv[1]).read())', f], { encoding: 'utf8' });
+  if (r.status !== 0) { bad++; console.log(label, 'NOT VALID PYTHON\n', r.stderr.split('\n').slice(-5).join('\n')); } else console.log(label, 'ok |', (o.code.match(/_log_run_status\("\w+"/g) || []).join(' '), '| cells', o.code.split('# COMMAND ----------').length); return o; };
+['bronze', 'silver', 'gold'].forEach(L => logged('logging, all moments, ' + L, L, LOG));
+const g = logged('logging gold: early exit stays outside try', 'gold', LOG); console.log('   exit before try (expect true):', g.code.indexOf('if not dates:') < g.code.indexOf('\ntry:') && !/try:[\s\S]*if not dates:/.test(g.code), '| exit not inside try (expect true):', !/^    .*dbutils\.notebook\.exit/m.test(g.code.slice(g.code.indexOf('\ntry:'), g.code.indexOf('\nexcept Exception as error'))));
+logged('logging success only, import', 'silver', Object.assign({}, LOG, { load: 'import', line: 'from shared.logging import log_run', start: false, fail: false }));
+logged('logging gold full rebuild, failure only, utility preloaded', 'gold', Object.assign({}, LOG, { load: 'none', line: '', start: false, ok: false }), c => { c.gold.mode = 'full'; });
+console.log('logging off leaves the notebook unchanged (expect true):', P.build(base(), null, Object.assign({}, LOG, { on: false })).code === P.build(base(), null, null).code);
+console.log('logging problems:', P.logProblems({ on: true, load: 'run', line: 'nb_logging', call: 'log_run(x={nope}, y=(1', start: 1 }).map(p => p.msg.slice(0, 44)));
+if (process.argv[2] === 'log') console.log(logged('show', 'silver', LOG).code);
 console.log('parse sql grid:', P.parseSchema('TABLE_SCHEMA\tTABLE_NAME\tCOLUMN_NAME\tDATA_TYPE\tMAX_LEN\tPREC\tSCALE\tIS_NULLABLE\tKEY_FLAG\ndbo\tOrders\tOrderID\tint\tNULL\t10\t0\tNO\tPK\ndbo\tOrders\tAmount\tdecimal\tNULL\t18\t2\tNO\t\ndbo\tOrders\tModifiedDate\tdatetime2\tNULL\t7\tNULL\tNO\t').cols.map(c => c.name + ':' + c.type + (c.pk ? ':pk' : '')));
 console.log('parse list:', P.parseSchema('order_id bigint\namount decimal(10,2)\nnote').cols.map(c => c.name + ':' + c.type));
 console.log(bad ? 'FAILED ' + bad : 'all notebooks valid');

@@ -126,6 +126,23 @@
         <p class="note small" style="margin-top:-8px">A formula over the metric names above, in Spark SQL, for example <span class="mono">gross_sales_amount - cancelled_amount</span>.</p>
         <div class="rowlist" id="derivedList"></div>
       </div>
+      <div class="sub" id="logSub">
+        <label class="chk"><input type="checkbox" data-g="on"> <b>Log from the notebook</b>&nbsp;with my shared logging utility</label>
+        <div id="logBox" style="display:flex;flex-direction:column;gap:12px">
+          <div class="qgrid">
+            <label class="lab">How the notebook gets the utility<select data-g="load" id="logLoad"></select></label>
+            <label class="lab wide" id="logLineBox"><span id="logLineLbl">Notebook to %run</span><input type="text" data-g="line" spellcheck="false" autocomplete="off" id="logLine"></label>
+          </div>
+          <label class="lab">The call <span class="hint">exactly as you would write it, with {values} from the list where the notebook should fill them in</span><input type="text" data-g="call" spellcheck="false" autocomplete="off" id="logCall" style="width:100%;font-family:var(--mono);font-size:13px"></label>
+          <div class="chips" id="logTokens"></div>
+          <div class="opts">
+            <label><input type="checkbox" data-g="start"> When it starts</label>
+            <label><input type="checkbox" data-g="ok"> When it succeeds</label>
+            <label><input type="checkbox" data-g="fail"> When it fails</label>
+          </div>
+          <p class="note small" id="logHint"></p>
+        </div>
+      </div>
       <div id="setupMsg" class="msgs" aria-live="polite"></div>
     </div>
   </section>

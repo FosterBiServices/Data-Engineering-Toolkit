@@ -31,6 +31,15 @@ const { open } = require('./lib');
   await T('after schema: key guessed, order col', () => [[...document.querySelectorAll('#mapBody input[data-f=key]')].map(x => x.checked), document.getElementById('orderCol').value, !document.getElementById('outWrap').hidden]);
   await page.click('#layerBar [data-layer=gold]'); await page.click('#useSilver');
   await T('gold from silver columns', () => [...document.querySelectorAll('#grainChips [data-grain]')].map(b => b.dataset.grain));
+  // logging through a shared utility
+  await page.click('#layerBar [data-layer=silver]'); await page.check('[data-g=on]');
+  await T('logging on without a call blocks (expect true)', () => document.getElementById('outWrap').hidden);
+  await page.fill('[data-g=line]', '/Shared/utilities/nb_logging'); await page.fill('[data-g=call]', 'log_run(nb='); await page.click('#logTokens [data-token=notebook]'); await page.type('[data-g=call]', ', status=');
+  await page.click('#logTokens [data-token=status]'); await page.type('[data-g=call]', ', err='); await page.click('#logTokens [data-token=error]'); await page.type('[data-g=call]', ')');
+  await T('call built with tokens', () => document.querySelector('[data-g=call]').value);
+  await T('notebook logs: %run cell, try block, stat', () => { const c = document.getElementById('codeView').textContent; return [c.includes('# MAGIC %run /Shared/utilities/nb_logging'), c.includes('log_run(nb="nb_silver_customers", status=status, err=error)'), /\ntry:\n/.test(c), document.getElementById('outStats').textContent.includes('Logs with your utility')]; });
+  await page.click('[data-k=entity]'); await page.keyboard.type('x'); await page.reload();
+  await T('logging setup kept after reload and new entity', () => [document.querySelector('[data-g=on]').checked, document.querySelector('[data-g=line]').value]);
   await page.setViewportSize({ width: 390, height: 800 });
   await T('390px overflow (expect 0)', () => document.documentElement.scrollWidth - window.innerWidth);
   await page.click('#layerBar [data-layer=silver]');
