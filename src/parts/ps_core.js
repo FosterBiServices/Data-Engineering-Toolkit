@@ -47,12 +47,15 @@
     date: /^(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}[ -][A-Za-z]{3,9}[ -]\d{2,4}|[A-Za-z]{3,9} \d{1,2},? \d{4})$/,
     datetime: /^(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})[ T]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?( ?[AP]M)?(Z|[+-]\d{2}:?\d{2})?$/i
   };
-  K.inferType = function (values) {
+  /* a column whose name says it identifies something (order_id, Customer No, product code) is kept as text: it is never added up */
+  const ID_NAME = /(^|[^a-z])(id|ids|no|nbr|num|number|code|key|zip|postal|phone|sku|account|acct)($|[^a-z])|(id|code|key|number)$/i;
+  K.inferType = function (values, name) {
     const v = values.map(s => String(s == null ? '' : s).trim()).filter(s => s !== '' && !/^(null|nan|n\/a|na)$/i.test(s));
     if (!v.length) return 'text';
     const all = re => v.every(s => re.test(s));
     if (all(RX.bool)) return 'bool';
-    if (all(RX.whole)) return v.some(s => /^-?0\d/.test(s)) ? 'text' : 'whole';      // leading zeros: a code, not a number
+    /* numbers are Decimal unless you choose Whole: a sample of whole numbers says nothing about the rest of the file (owner: "users need a float / decimal") */
+    if (all(RX.whole)) return v.some(s => /^-?0\d/.test(s)) || ID_NAME.test(String(name || '').replace(/([a-z])([A-Z])/g, '$1 $2')) ? 'text' : 'decimal';      // leading zeros or an id-like name: a code, not a number
     if (all(RX.decimal) && v.some(s => /\d/.test(s))) return 'decimal';
     if (all(RX.datetime)) return v.every(s => /[ T]0?0:00(:00)?$/.test(s)) ? 'date' : 'datetime';
     if (all(RX.date)) return 'date';
@@ -71,7 +74,7 @@
     names.forEach((n, i) => {
       if (!n) { out.errors.push('Column ' + (i + 1) + ' has no header, so it was left out.'); return; }
       if (seen.has(n)) { out.errors.push('The header “' + n + '” appears twice; only the first is used. Rename one in the file.'); return; }
-      seen.add(n); const type = K.inferType(rows.map(r => r[i])); out.cols.push({ src: n, type });
+      seen.add(n); const type = K.inferType(rows.map(r => r[i]), n); out.cols.push({ src: n, type });
       if (/^date/.test(type) && rows.some(r => { const m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-]\d{2,4}/.exec(String(r[i] || '').trim()); return m && Number(m[1]) > 12; })) out.dayFirst = true;
     });
     if (out.cols.length === 1 && lines.length > 1 && /\s{2,}/.test(head)) out.errors.push('Only one column was found. Paste the rows as they are in the file, or copy the cells from Excel.');

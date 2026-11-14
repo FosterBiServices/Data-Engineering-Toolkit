@@ -201,6 +201,9 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   uses the path as typed if it exists or already ends in a known extension (`K.EXTS`), else the first existing file with
   one of the kind's extensions, else adds the first (always for the output). The page says so (info). Input, output and
   lookup. pscoretest runs csv-in and excel-in cases with bare paths.
+- Type inference (owner: "def to_whole should not be auto included... users need a float / decimal"): numbers are inferred
+  as Decimal, never Whole; a whole-number column whose name looks like an identifier (id, no, number, code, key, zip,
+  postal, phone, sku, account) or has leading zeros is Text. `to_whole` is only written when the user picks Whole.
 - The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
 - Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
 - The pasted sample rows are never saved (only column names and types are); `st.example` refills the example sample.
