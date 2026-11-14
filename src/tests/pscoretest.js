@@ -62,5 +62,7 @@ console.log('semicolon:', JSON.stringify(K.parseSample('a;b\n1;2').delim), '| du
 // read back the sheets of the AND case: Original = Data + Filtered out (before dedupe and checks move rows)
 if (hasPandas) { const f = path.join(dir, 'and.xlsx'); const r = cp.spawnSync('python3', ['-c', 'import pandas as pd,sys\nx=pd.read_excel(sys.argv[1],sheet_name=None,dtype=str)\nprint("sheets", list(x))\nfo=x["Filtered out"]\nprint("filtered out", len(fo), "| reasons", sorted(set(fo["failed_filters"])))\nprint("original", len(x["Original"]))', f], { encoding: 'utf8' }); console.log('keep what the filters remove:', (r.stdout || r.stderr).trim().replace(/\n/g, ' | ')); }
 if (hasPandas) { const r = cp.spawnSync('python3', ['-c', 'import pandas as pd,sys,glob\nfor f in sorted(glob.glob(sys.argv[1]+"/or*.csv")): print(f.split("/")[-1], len(pd.read_csv(f)))', dir], { encoding: 'utf8' }); console.log('OR case files:', (r.stdout || r.stderr).trim().replace(/\n/g, ' | ')); }
+// to_number must drop spaces (\s), not the letter s (a lost backslash once did that)
+{ const py = K.build(EX(K), null).py; const okRx = py.includes('\\s]", "", regex=True)'); if (!okRx) bad++; console.log('to_number strips whitespace, not "s":', okRx); }
 console.log(bad ? 'FAILED ' + bad : 'all scripts ' + (hasPandas ? 'ran' : 'parse'));
 if (process.argv[2] === 'show') console.log(K.build(EX(K), K.aiParse(EX(K).aiReply, EX(K), S.parseBlocks, S.fields)).py);

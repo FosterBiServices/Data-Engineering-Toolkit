@@ -204,6 +204,8 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
 - Type inference (owner: "def to_whole should not be auto included... users need a float / decimal"): numbers are inferred
   as Decimal, never Whole; a whole-number column whose name looks like an identifier (id, no, number, code, key, zip,
   postal, phone, sku, account) or has leading zeros is Text. `to_whole` is only written when the user picks Whole.
+- Escapes in generated Python: Python regexes are written inside JS strings, so `\s` must be `\\s` in the source (a lone
+  `\s` became the letter s, and `to_number` stripped every s instead of spaces; found Nov 2026). pscoretest checks it.
 - The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
 - Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
 - The pasted sample rows are never saved (only column names and types are); `st.example` refills the example sample.

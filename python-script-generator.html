@@ -1081,7 +1081,7 @@ td.flowname .ind{color:var(--ws)}
     const conv = on.filter(c => c.type !== 'text'), kinds = new Set(conv.map(c => c.type)), V = [];
     if (conv.length) {
       if (kinds.has('whole') || kinds.has('decimal')) V.push('def to_number(s):', '    """Text to number. Drops thousands separators and currency signs; (12.50) becomes -12.50."""',
-        '    t = s.astype("string").str.strip().str.replace(r"[,$\u20ac\u00a3\s]", "", regex=True)', '    t = t.str.replace(r"^\\((.*)\\)$", r"-\\1", regex=True)', '    return pd.to_numeric(t, errors="coerce").astype("Float64")', '');
+        '    t = s.astype("string").str.strip().str.replace(r"[,$\u20ac\u00a3\\s]", "", regex=True)', '    t = t.str.replace(r"^\\((.*)\\)$", r"-\\1", regex=True)', '    return pd.to_numeric(t, errors="coerce").astype("Float64")', '');
       if (kinds.has('whole')) V.push('def to_whole(s):', '    """Whole numbers only: 12.5 is not converted, so it shows up as a problem."""', '    n = to_number(s)', '    return n.where(n % 1 == 0).astype("Int64")', '');
       if (kinds.has('date') || kinds.has('datetime')) V.push('def to_datetime(s):', '    """Text to date and time. The first value sets the expected format; values that don\'t fit become missing."""', '    if pd.api.types.is_datetime64_any_dtype(s):', '        return s',
         '    return pd.to_datetime(s.astype("string").str.strip(), errors="coerce"' + (o.dayFirst ? ', dayfirst=True' : '') + ')', '');
