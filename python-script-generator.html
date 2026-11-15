@@ -421,9 +421,9 @@ td.flowname .ind{color:var(--ws)}
 @media (max-width:700px){.rrow.filt{grid-template-columns:auto minmax(0,1fr) auto}.rrow.filt input[data-f=label]{grid-column:2}}
 
 /* notebook generator: lookups for gold */
-.joinrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) 32px; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line, #d9dee7); border-radius: 8px; margin-bottom: 8px; }
-.joinrow .x { align-self: end; margin-bottom: 4px; }
-@media (max-width: 520px) { .joinrow { grid-template-columns: 1fr 32px; } .joinrow .lab { grid-column: 1; } .joinrow .x { grid-row: 1; grid-column: 2; } }
+.joinrow { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; padding: 10px 46px 10px 10px; border: 1px solid var(--line, #d9dee7); border-radius: 8px; margin-bottom: 8px; }
+.joinrow .x { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; }
+@media (max-width: 620px) { .joinrow { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
