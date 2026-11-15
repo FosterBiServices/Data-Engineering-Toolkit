@@ -2843,7 +2843,8 @@ td.flowname .ind{color:var(--ws)}
     Object.keys(p.variables || {}).forEach(v => { const d = (p.variables[v] || {}).defaultValue; if (typeof d === 'string') out.push({ where: 'pipeline', path: ['properties', 'variables', v, 'defaultValue'], label: 'variable ' + v + ' (default value)', ctx: 'default', value: d }); });
     Object.keys(p.parameters || {}).forEach(v => { const d = (p.parameters[v] || {}).defaultValue; if (typeof d === 'string') out.push({ where: 'pipeline', path: ['properties', 'parameters', v, 'defaultValue'], label: 'parameter ' + v + ' (default value)', ctx: 'pdefault', value: d }); });
     (datasets || []).forEach(d => {
-      walkVal(d.properties.typeProperties || {}, ['properties', 'typeProperties'], 'dataset:' + d.name, 'dataset ' + d.name + ': ', null);
+      const n = out.length; walkVal(d.properties.typeProperties || {}, ['properties', 'typeProperties'], 'dataset:' + d.name, '', null);
+      for (let k = n; k < out.length; k++) out[k].label = 'dataset ' + d.name + ': ' + out[k].label;
     });
     return out.map(o => Object.assign(o, { id: o.where + '|' + o.path.join('/') }));
   }
