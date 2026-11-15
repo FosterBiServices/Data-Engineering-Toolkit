@@ -18,7 +18,7 @@ const pl = { name: 'pl_sales_files', properties: {
   variables: { lake_container: { type: 'String', defaultValue: 'lake' }, sink_file_path: { type: 'String', defaultValue: 'yourproject/bronze/' }, silver_file_path: { type: 'String', defaultValue: 'yourproject/silver/' } },
   annotations: [] } };
 const landing = { name: 'ds_landing', properties: { linkedServiceName: { referenceName: 'ls_blob', type: 'LinkedServiceReference' }, parameters: { file_name: { type: 'string' } }, type: 'DelimitedText',
-  typeProperties: { location: { type: 'AzureBlobStorageLocation', fileName: X('@dataset().file_name'), folderPath: 'southern-region', container: 'landing' }, columnDelimiter: ',' } } };
+  typeProperties: { location: { type: 'AzureBlobStorageLocation', fileName: X('@dataset().file_name'), folderPath: 'region-a', container: 'landing' }, columnDelimiter: ',' } } };
 
 /* evaluate the values that decide where data goes, for one file, with adfeval.py */
 const evalAll = (p, ds, params) => JSON.parse(execFileSync('python3', ['-c', `
@@ -51,22 +51,22 @@ for n in ('nb_silver', 'nb_gold'):
 print(json.dumps(out))`, JSON.stringify(p), JSON.stringify(Object.fromEntries(ds.map(d => [d.name, d]))), JSON.stringify(params || {})], { encoding: 'utf8' }));
 
 const before = evalAll(pl, [landing]);
-ok('before: landing folder', before['landing folder (gm_list)'] === 'southern-region');
+ok('before: landing folder', before['landing folder (gm_list)'] === 'region-a');
 const find = A.findValue(pl, [landing], 'yourproject/', true);
 ok('found every use of yourproject/ (7), notebook paths marked unsure', find.length === 7 && find.filter(h => h.unsure).length === 2, find.map(h => h.label + (h.unsure ? ' (unsure)' : '')));
-const changes = [{ kind: 'toParam', find: 'southern-region', name: 'region', as: 'param', cs: true, skip: [], keep: [] }, { kind: 'replace', find: 'yourproject/', repl: 'yourproject/{param:region}/', cs: true, skip: [], keep: [] }];
+const changes = [{ kind: 'toParam', find: 'region-a', name: 'region', as: 'param', cs: true, skip: [], keep: [] }, { kind: 'replace', find: 'yourproject/', repl: 'yourproject/{param:region}/', cs: true, skip: [], keep: [] }];
 const res = A.applyChanges(pl, [landing], changes, '2026-11-15');
 res.results.forEach(r => r.msgs.forEach(m => console.log('     ' + m.sev + ': ' + m.msg)));
 ok('no errors', !res.results.some(r => r.msgs.some(m => m.sev === 'err')));
-ok('the original is untouched', pl.properties.variables.sink_file_path.defaultValue === 'yourproject/bronze/' && landing.properties.typeProperties.location.folderPath === 'southern-region');
-ok('parameter added with the old value', JSON.stringify(res.pipeline.properties.parameters) === JSON.stringify({ region: { type: 'String', defaultValue: 'southern-region' } }));
-ok('landing dataset changed and returned', res.datasets.length === 1 && res.datasets[0].properties.parameters.region.defaultValue === 'southern-region');
+ok('the original is untouched', pl.properties.variables.sink_file_path.defaultValue === 'yourproject/bronze/' && landing.properties.typeProperties.location.folderPath === 'region-a');
+ok('parameter added with the old value', JSON.stringify(res.pipeline.properties.parameters) === JSON.stringify({ region: { type: 'String', defaultValue: 'region-a' } }));
+ok('landing dataset changed and returned', res.datasets.length === 1 && res.datasets[0].properties.parameters.region.defaultValue === 'region-a');
 const after = evalAll(res.pipeline, res.allDatasets), west = evalAll(res.pipeline, res.allDatasets, { region: 'west' });
 const expect = { 'landing folder (gm_list)': 'west', 'landing folder (cp_file)': 'west', 'cp_file out container': 'lake', 'cp_file out file_path': 'yourproject/west/bronze/orders', 'cp_file out file_name': 'orders.parquet',
   'nb_silver source_folder': 'yourproject/west/silver/orders', 'nb_silver archive': 'yourproject/west/archive/orders.csv', 'nb_silver log_path': 'yourproject/west/logs/RUN', 'nb_silver table': 'sales', 'nb_silver path': '/Shared/yourproject/nb_silver',
   'nb_gold target': 'yourproject/west/gold/sales', 'nb_gold note': "it's @home", 'nb_gold path': '/Shared/yourproject/nb_gold' };
 Object.keys(expect).forEach(k => ok('with region=west: ' + k + ' = ' + expect[k], west[k] === expect[k], west[k]));
-ok('with the default, the landing folder is unchanged', after['landing folder (gm_list)'] === 'southern-region' && after['cp_file out file_path'] === 'yourproject/southern-region/bronze/orders');
+ok('with the default, the landing folder is unchanged', after['landing folder (gm_list)'] === 'region-a' && after['cp_file out file_path'] === 'yourproject/region-a/bronze/orders');
 ok('variable defaults moved to Set Variable steps at the start', res.pipeline.properties.activities.slice(0, 2).map(a => a.name).join() === 'set_sink_file_path,set_silver_file_path' && res.pipeline.properties.variables.sink_file_path.defaultValue === '');
 ok('the run starts with them, then gm_list', res.pipeline.properties.activities.find(a => a.name === 'gm_list').dependsOn[0].activity === 'set_silver_file_path' && res.pipeline.properties.activities[1].dependsOn[0].activity === 'set_sink_file_path');
 ok('no broken references', !A.refProblems(res.pipeline).length, A.refProblems(res.pipeline));

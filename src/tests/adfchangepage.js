@@ -5,7 +5,7 @@ const pl = { name: 'pl_sales_files', properties: { activities: [
   { name: 'gm_list', type: 'GetMetadata', dependsOn: [], policy: { timeout: '0.01:00:00', retry: 0 }, typeProperties: { dataset: DS('ds_landing', {}), fieldList: ['childItems'] } },
   { name: 'nb_gold', type: 'DatabricksNotebook', dependsOn: [{ activity: 'gm_list', dependencyConditions: ['Succeeded'] }], policy: { timeout: '0.02:00:00', retry: 0 }, linkedServiceName: { referenceName: 'ls_databricks', type: 'LinkedServiceReference' }, typeProperties: { notebookPath: '/Shared/yourproject/nb_gold', baseParameters: { folder: X("@concat(variables('gold_path'), 'sales')") } } }],
   variables: { gold_path: { type: 'String', defaultValue: 'yourproject/gold/' } } } };
-const landing = { name: 'ds_landing', properties: { linkedServiceName: { referenceName: 'ls_blob', type: 'LinkedServiceReference' }, type: 'DelimitedText', typeProperties: { location: { type: 'AzureBlobStorageLocation', folderPath: 'southern-region', container: 'landing' } } } };
+const landing = { name: 'ds_landing', properties: { linkedServiceName: { referenceName: 'ls_blob', type: 'LinkedServiceReference' }, type: 'DelimitedText', typeProperties: { location: { type: 'AzureBlobStorageLocation', folderPath: 'region-a', container: 'landing' } } } };
 (async () => {
   const { browser, page, errors } = await open('adf-pipeline-generator.html');
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -25,7 +25,7 @@ const landing = { name: 'ds_landing', properties: { linkedServiceName: { referen
   await T('focus kept in a dataset box', () => document.activeElement && document.activeElement.dataset.dsi);
   await T('outline', () => document.getElementById('chgStats').innerText.replace(/\n/g, ' '));
   await page.selectOption('#chgKind', 'toParam'); await page.click('#chgAddBtn');
-  await page.fill('[data-ci="0"][data-cf=find]', 'southern-region'); await page.fill('[data-ci="0"][data-cf=name]', 'region');
+  await page.fill('[data-ci="0"][data-cf=find]', 'region-a'); await page.fill('[data-ci="0"][data-cf=name]', 'region');
   await T('found list for the value', () => document.querySelector('[data-cfound="0"]').innerText.slice(0, 160));
   await page.selectOption('#chgKind', 'replace'); await page.click('#chgAddBtn');
   await page.fill('[data-ci="1"][data-cf=find]', 'yourproject/'); await page.fill('[data-ci="1"][data-cf=repl]', 'yourproject/{param:region}/');
