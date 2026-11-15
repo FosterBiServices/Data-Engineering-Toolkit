@@ -4,7 +4,7 @@ Single-file HTML tools for building Azure Data Factory pipelines, the Databricks
 
 | Page | What it does | AI |
 |---|---|---|
-| [ADF Pipeline Generator](adf-pipeline-generator.html) | A described load in; pipeline JSON, datasets, supporting SQL, trigger, build steps and test plan out. Patterns: full load, watermark incremental, incremental + merge, SCD Type 2, copying or landing files. Uses your own datasets and your own logging (procedure or notebook) if you have them. Also checks any pipeline JSON you paste and says how to fix each finding. | Not needed; Copilot optional |
+| [ADF Pipeline Generator](adf-pipeline-generator.html) | A described load in; pipeline JSON, datasets, supporting SQL, trigger, build steps and test plan out. Patterns: full load, watermark incremental, incremental + merge, SCD Type 2, copying or landing files. Uses your own datasets and your own logging (procedure or notebook) if you have them. Also checks any pipeline JSON you paste and says how to fix each finding, and changes a pipeline that already works (parameters, folders, renames, notebook steps, schedule; anything else with Copilot), with a review of every change. | Not needed; Copilot optional |
 | [Python Notebook Generator](python-notebook-generator.html) | For Databricks: bronze, silver and gold PySpark notebooks from your columns, key, quality rules and metrics, with ADF activity settings and SQL checks. | Not needed; Copilot optional |
 | [Python Script Generator](python-script-generator.html) | A pandas script for one file (CSV, Excel, Parquet): rename and type columns, filter, remove duplicates, look up from a second file, check values, summarize, write the result. As a Jupyter notebook or a .py script. | Not needed; Copilot optional |
 

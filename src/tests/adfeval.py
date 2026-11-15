@@ -1,7 +1,7 @@
 """A small ADF expression evaluator: enough to compare two pipelines' values for one example file."""
 import re, json
 class Ctx:
-    def __init__(s, item=None, vars=None, acts=None, glob=None, pipe=None): s.item=item or {}; s.vars=vars or {}; s.acts=acts or {}; s.glob=glob or {}; s.pipe=pipe or {}
+    def __init__(s, item=None, vars=None, acts=None, glob=None, pipe=None, params=None, ds=None): s.item=item or {}; s.vars=vars or {}; s.acts=acts or {}; s.glob=glob or {}; s.pipe=pipe or {}; s.params=params or {}; s.ds=ds or {}
 TOK=re.compile(r"\s*(?:(?P<str>'(?:[^']|'')*')|(?P<num>-?\d+(?:\.\d+)?)|(?P<id>[A-Za-z_]\w*)|(?P<op>\?\.|[().,\[\]]))")
 def lex(s):
     out=[]; i=0
@@ -67,7 +67,8 @@ def call(f,a,c):
     if f=='variables': return c.vars.get(a[0])
     if f=='item': return c.item
     if f=='activity': return c.acts.get(a[0],{})
-    if f=='pipeline': return {'globalParameters':c.glob,'Pipeline':c.pipe.get('name'),'RunId':'RUN'}
+    if f=='pipeline': return {'globalParameters':c.glob,'parameters':c.params,'Pipeline':c.pipe.get('name'),'RunId':'RUN'}
+    if f=='dataset': return c.ds
     if f=='div': return a[0]//a[1]
     if f=='tolower': return S(a[0]).lower()
     if f=='endswith': return S(a[0]).endswith(S(a[1]))
@@ -78,6 +79,27 @@ def value(v,c):
     if isinstance(v,dict) and 'value' in v: v=v['value']
     if not isinstance(v,str): return v
     if v.startswith('@@'): return v[1:]
+    if v.startswith('@{') or ('@{' in v and not v.startswith('@')):
+        out=''; i=0
+        while i<len(v):
+            if v.startswith('@@',i): out+='@'; i+=2; continue
+            if v.startswith('@{',i):
+                j=i+2; d=1; q=False
+                while j<len(v):
+                    ch=v[j]
+                    if q:
+                        if ch=="'":
+                            if v[j+1:j+2]=="'": j+=2; continue
+                            q=False
+                    elif ch=="'": q=True
+                    elif ch=='{': d+=1
+                    elif ch=='}':
+                        d-=1
+                        if d==0: break
+                    j+=1
+                out+=S(P(lex(v[i+2:j]),c).expr()); i=j+1; continue
+            out+=v[i]; i+=1
+        return out
     if v.startswith('@'):
         p=P(lex(v[1:].replace('\n',' ')),c); r=p.expr(); return S(r) if not isinstance(r,(int,bool)) else S(r)
     return v

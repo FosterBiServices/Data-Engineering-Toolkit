@@ -30,7 +30,7 @@ described in plain words, and the page checks its reply before using it.
 ## Build
 
 ```
-src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion), py_* and ps_* (body.html, core.js, ex.js, ui.js)
+src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion; adf_change*.js: change a pipeline), py_* and ps_* (body.html, core.js, ex.js, ui.js)
 src/brand/   logo files
 src/build.py builds every page into the repo root:  python src/build.py   (Python 3, no packages)
 src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest, pycoretest and pscoretest need only Node and
@@ -155,6 +155,31 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   notebooks, linked services the JSON uses). Gaps left: a database/ERP source for bronze, a generic bronze notebook.
 - `adfmedtest.js` sets up a medallion pipeline through the page with his sample datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
+
+- **Change a pipeline** (third tab, `adf_change.js` core + `adf_change_ui.js` wiring, saved as `dea.chg`; owner, Nov 2026:
+  "enter a pipeline that is working, then say they need to add something", not limited to one example). Paste the pipeline
+  and, optionally, the datasets to change with it (`A.readDatasets`: several JSONs one after another). Built-in changes,
+  applied in order on copies (`A.applyChanges`; a change that fails leaves the pipeline as before it): find and replace,
+  fixed value to parameter / variable / global parameter, parameters and variables (add, rename with every use, default,
+  remove only when unused), rename an activity (dependsOn and activity('x')), notebook path and parameters, add a notebook
+  step after an activity (optionally in between), swap a dataset, timeout and retries, turn off/on (`state: Inactive`),
+  remove (dependents inherit its dependencies; refused while its output is read), schedule trigger. New values take
+  `{param:x}` `{var:x}` `{global:x}` (`A.parseRepl`). `A.findValue` searches only values, never names: in a full expression
+  only quoted text, in `@{}` text the text parts; each place has a tick box; notebook paths start unticked (`unsure`).
+  Writing back: plain text -> text or `@{}` interpolation (`@` doubled); inside an expression a literal becomes
+  `concat(...)`; a variable default that needs a reference becomes a Set Variable step at the start of the run
+  (`set_<var>`, chained before every root); a pasted dataset with the value typed in gets a dataset parameter (old value as
+  default) and every step using it passes the reference. Review (`A.reviewChange`): changes per activity
+  (`A.pipelineDiff`, renames recognised), a folded line diff (`A.lineDiff`), references that point at nothing
+  (`A.refProblems`), only NEW checker findings, and "Change these too" (`A.changeNotes`: changed datasets, unpasted
+  datasets and notebooks that may have the old text typed in, new parameters, globals, trigger). Copilot for anything else
+  (`A.changePrompt` from the pipeline after the built-in changes; reply `@@@ PIPELINE/DATASET/ALSO_CHANGE/NOTES @@@`,
+  `A.changeParse`); removals Copilot made are flagged against the Step 2 result; a reply older than the Step 2 changes is
+  flagged. Checks: `adfchangetest.js` evaluates every value before and after with `adfeval.py` (now with `@{}`,
+  pipeline().parameters and dataset()), `adfchangepage.js`. The region example ran privately on the owner's rebuilt pipeline:
+  0 broken references, no new findings, folders resolve with any region.
+- A factory export import (ARM template folder) was built and dropped (owner, Nov 2026: users won't trust giving the page
+  the whole export, and a names-only list can't say what a dataset looks like). Pasting a dataset's JSON stays the way.
 
 ## Python Notebook Generator (`py_core.js`)
 

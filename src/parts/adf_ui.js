@@ -413,7 +413,7 @@
     const wrap = $('modeBar').closest('.wrap'); // panes sit in .wrap, not next to the bar
     const mode = m => { $('modeBar').querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === m ? 'true' : 'false')); wrap.querySelectorAll(':scope > [data-pane]').forEach(p => { p.hidden = p.dataset.pane !== m; }); st.mode = m; store.set('st', st); };
     $('modeBar').querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => mode(b.dataset.tab)));
-    mode(st.mode === 'check' ? 'check' : 'build');
+    mode(st.mode === 'check' || st.mode === 'change' ? st.mode : 'build');
     S.tabs($('outTabs'));
     document.querySelectorAll('[data-done]').forEach(el => { el.checked = st.done.indexOf(el.dataset.done) >= 0; });
 

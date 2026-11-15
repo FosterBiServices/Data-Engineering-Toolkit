@@ -22,6 +22,7 @@
     <div class="tabbar" role="tablist" id="modeBar">
       <button type="button" role="tab" data-tab="build" aria-selected="true"><span class="tn">Build a pipeline</span><span class="td">From a description of the load to pipeline JSON, SQL and build steps</span></button>
       <button type="button" role="tab" data-tab="check" aria-selected="false"><span class="tn">Check a pipeline</span><span class="td">Paste any pipeline&rsquo;s JSON, yours or Copilot&rsquo;s, and get it checked</span></button>
+      <button type="button" role="tab" data-tab="change" aria-selected="false"><span class="tn">Change a pipeline</span><span class="td">Paste one that works, say what to change, and review every change before you use it</span></button>
     </div>
   </header>
 
@@ -511,6 +512,78 @@
   </section>
   </div>
 
+
+  <div class="pane" data-pane="change" id="paneChange" hidden>
+  <section class="step" aria-labelledby="g1">
+    <div class="step-num">Step<b>1</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="g1">Paste the pipeline that works</h2>
+        <p>In ADF Studio, open the pipeline, select the code view button <span class="mono">{}</span> and copy everything. Add the datasets it uses if a change might touch them (a folder typed into a dataset, for example). Take out connection strings and keys first. Nothing leaves this page.</p>
+      </div>
+      <textarea class="big" id="chgPl" spellcheck="false" aria-label="Pipeline JSON" placeholder='{ "name": "pl_...", "properties": { "activities": [ ... ] } }'></textarea>
+      <div class="reply-actions"><label class="btn filebtn">Open a JSON file<input type="file" id="chgPlFile" accept=".json,.txt,application/json"></label></div>
+      <label class="lab">Datasets to change with it <span class="hint">optional; paste each dataset&rsquo;s code view JSON, one after another</span><textarea class="mid" id="chgDs" spellcheck="false" aria-label="Dataset JSON" placeholder='{ "name": "ds_...", "properties": { ... } }'></textarea></label>
+      <div id="chgMsg" class="msgs" aria-live="polite"></div>
+      <div class="stats" id="chgStats"></div>
+      <details id="chgOutlineBox" hidden><summary>What the pipeline holds</summary><div id="chgOutline" class="chgoutline"></div></details>
+    </div>
+  </section>
+  <section class="step" aria-labelledby="g2">
+    <div class="step-num">Step<b>2</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="g2">Say what to change</h2>
+        <p>The page makes these changes itself, exactly, in the order listed. Type <span class="mono">{param:name}</span>, <span class="mono">{var:name}</span> or <span class="mono">{global:name}</span> in a new value where it should come from the run: the page writes the ADF expression.</p>
+      </div>
+      <div id="chgList" class="chglist"></div>
+      <div class="chgadd"><select id="chgKind" aria-label="Kind of change"></select><button type="button" class="btn primary" id="chgAddBtn">Add this change</button></div>
+    </div>
+  </section>
+  <section class="step" aria-labelledby="g3">
+    <div class="step-num">Step<b>3</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="g3">Anything else, in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
+        <p>For a change the list above can&rsquo;t make. The prompt holds the pipeline after the Step 2 changes; Copilot sends the whole pipeline back, and the page only uses it after the review below.</p>
+      </div>
+      <textarea class="mid" id="chgAsk" spellcheck="true" aria-label="Change in plain words" placeholder="Only copy files that were modified since yesterday."></textarea>
+      <div id="chgAiBox" hidden style="display:flex;flex-direction:column;gap:12px">
+        <div class="codebox"><div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="chgCount"></span><button class="btn" type="button" data-save="chgPrompt">Download file</button><button class="btn primary" type="button" data-copy="chgPrompt">Copy prompt</button></span></div><pre class="short" id="chgPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
+        <label class="lab">Copilot&rsquo;s reply <span class="hint">paste all of it</span><textarea class="mid" id="chgReply" spellcheck="false" aria-label="Copilot reply"></textarea></label>
+        <div id="chgAiMsg" class="msgs"></div>
+      </div>
+    </div>
+  </section>
+  <section class="step" aria-labelledby="g4">
+    <div class="step-num">Step<b>4</b></div>
+    <div class="step-body">
+      <div class="step-head">
+        <h2 id="g4">Review, then use it</h2>
+        <p>Every change is listed with where it is. Check it, then paste the new JSON into ADF Studio and run it once in debug.</p>
+      </div>
+      <div id="chgOut" style="display:flex;flex-direction:column;gap:14px" hidden>
+        <div class="stats" id="chgOutStats"></div>
+        <div id="chgReview" class="msgs"></div>
+        <div id="chgAlsoBox" hidden><h3>Change these too</h3><ul id="chgAlso" class="chgalso"></ul></div>
+        <div class="tabbar sub-tabs" role="tablist" id="chgTabs">
+          <button type="button" role="tab" data-tab="list" aria-selected="true"><span class="tn">What changed</span></button>
+          <button type="button" role="tab" data-tab="diff" aria-selected="false"><span class="tn">Before and after</span></button>
+          <button type="button" role="tab" data-tab="json" aria-selected="false"><span class="tn">New JSON</span></button>
+          <button type="button" role="tab" data-tab="how" aria-selected="false"><span class="tn">How to apply it</span></button>
+        </div>
+        <div data-pane="list"><div class="tablewrap"><table><thead><tr><th>Where</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody id="chgDiffBody"></tbody></table></div></div>
+        <div data-pane="diff" hidden><p class="note small">Red lines are taken out, green lines are new. Unchanged parts are folded.</p><div class="chgdiff" id="chgLines"></div></div>
+        <div data-pane="json" hidden style="display:flex;flex-direction:column;gap:12px">
+          <div class="codebox"><div class="codebox-bar"><span class="t" id="chgJsonTitle">Pipeline JSON</span><span class="r"><button class="btn" type="button" data-save="chgPipeline">Download</button><button class="btn primary" type="button" data-copy="chgPipeline">Copy JSON</button></span></div><pre class="tall" id="chgJson"></pre></div>
+          <div id="chgDsOut" style="display:flex;flex-direction:column;gap:12px"></div>
+        </div>
+        <div data-pane="how" hidden><div class="codebox"><div class="codebox-bar"><span class="t">Steps in ADF Studio</span><span class="r"><button class="btn primary" type="button" data-copy="chgSteps">Copy steps</button></span></div><pre class="short" id="chgSteps" style="white-space:pre-wrap"></pre></div></div>
+      </div>
+      <p class="note" id="chgEmpty">Paste a pipeline in Step 1 and add a change.</p>
+    </div>
+  </section>
+  </div>
   <div class="fxback" id="fxModal" hidden>
     <div class="fxpanel" role="dialog" aria-modal="true" aria-labelledby="fxTitle">
       <div class="fxhead"><h2 id="fxTitle">Write an ADF expression</h2><button type="button" class="x" id="fxClose" aria-label="Close">&times;</button></div>
