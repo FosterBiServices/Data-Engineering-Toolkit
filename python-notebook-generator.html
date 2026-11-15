@@ -447,6 +447,10 @@ td.flowname .ind{color:var(--ws)}
 .chgdiff .dl.add { background: #e6f4ea; } .chgdiff .dl.del { background: #fde8e8; }
 .chgdiff .fold { padding: 4px 10px; color: #8a94a6; background: #f6f7f9; }
 @media (max-width: 560px) { .chgdiff .dl { grid-template-columns: 30px 30px 14px minmax(0, 1fr); } }
+.chgds { display: flex; flex-direction: column; gap: 8px; }
+.chgdsrow { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.chgdsrow > summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
+.chgdsrow textarea { margin-top: 8px; width: 100%; }
 </style>
 </head>
 <body>

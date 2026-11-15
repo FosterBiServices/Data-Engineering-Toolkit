@@ -2,14 +2,15 @@
 (function () {
   'use strict';
   const S = window.DE_SUITE, A = window.ADF, $ = S.$, esc = S.esc, store = S.store('dea.');
-  const blank = () => ({ pl: '', ds: '', changes: [], ask: '', reply: '', replyFor: '' });
+  const blank = () => ({ pl: '', dsList: [], changes: [], ask: '', reply: '', replyFor: '' });   /* dsList: [{ for: dataset name or '', text }] */
   let g = blank(), view = null;   /* view: everything computed from g */
   const KIND = Object.fromEntries(A.CHANGE_KINDS);
   const str = v => (typeof v === 'string' ? v : '');
 
   function load() {
     const s = store.get('chg', null); if (!s || typeof s !== 'object') return;
-    ['pl', 'ds', 'ask', 'reply', 'replyFor'].forEach(k => { g[k] = str(s[k]).slice(0, 2e6); });
+    ['pl', 'ask', 'reply', 'replyFor'].forEach(k => { g[k] = str(s[k]).slice(0, 2e6); });
+    g.dsList = Array.isArray(s.dsList) ? s.dsList.filter(d => d && typeof d === 'object').slice(0, 60).map(d => ({ for: str(d.for).slice(0, 200), text: str(d.text).slice(0, 1e6) })) : str(s.ds).trim() ? [{ for: '', text: str(s.ds) }] : [];
     g.changes = (Array.isArray(s.changes) ? s.changes : []).filter(c => c && KIND[c.kind]).slice(0, 60).map(c => { const d = A.newChange(c.kind);
       Object.keys(d).forEach(k => { if (k === 'kind') return; if (Array.isArray(d[k])) d[k] = Array.isArray(c[k]) ? (k === 'params' ? c[k].filter(p => p && typeof p === 'object').map(p => ({ name: str(p.name), value: str(p.value), remove: !!p.remove })) : c[k].filter(x => typeof x === 'string')) : []; else if (typeof c[k] === typeof d[k]) d[k] = c[k]; });
       return d; });
@@ -21,7 +22,7 @@
   function compute() {
     const v = { msgs: [] }, r = A.readPipeline(g.pl);
     if (r.empty) return v; if (r.error) { v.msgs.push(S.msg('err', esc(r.error))); return v; }
-    v.orig = r.pipeline; const d = A.readDatasets(g.ds); v.datasets = d.datasets; d.errors.forEach(e => v.msgs.push(S.msg('err', esc(e))));
+    v.orig = r.pipeline; const d = A.readDatasets(g.dsList.map(x => x.text).join('\n')); v.datasets = d.datasets; d.errors.forEach(e => v.msgs.push(S.msg('err', esc(e))));
     v.outline = A.outlinePipeline(v.orig);
     /* each change sees the pipeline as the changes above it left it */
     v.before = g.changes.map((c, i) => (c.kind === 'replace' || c.kind === 'toParam' ? A.applyChanges(v.orig, v.datasets, g.changes.slice(0, i), today()) : null));
@@ -89,6 +90,30 @@
     g.changes.forEach((c, i) => found(i));
   }
 
+  /* ---------- one box per dataset the pipeline uses, plus any others ---------- */
+  function dsRows() {
+    const used = view && view.outline ? view.outline.datasets : [];
+    used.forEach(n => { if (g.dsList.some(d => d.for === n)) return;
+      const loose = g.dsList.find(d => !d.for && A.readDatasets(d.text).datasets.map(x => x.name).join() === n);   /* pasted before the boxes had names */
+      if (loose) loose.for = n; else g.dsList.push({ for: n, text: '' }); });
+    const order = used.map(n => g.dsList.findIndex(d => d.for === n)).concat(g.dsList.map((d, i) => i).filter(i => used.indexOf(g.dsList[i].for) < 0));
+    $('chgDsWrap').hidden = !(view && view.outline);
+    $('chgDsBox').innerHTML = order.map(i => { const d = g.dsList[i], named = used.indexOf(d.for) >= 0;
+      return '<details class="chgdsrow" open><summary><b>' + esc(named ? d.for : 'Another dataset') + '</b><span data-dspill="' + i + '"></span>' + (named ? '' : '<button type="button" class="linkbtn" data-dsdel="' + i + '" style="margin-left:auto">Remove</button>') + '</summary>'
+        + '<textarea class="mid" data-dsi="' + i + '" spellcheck="false" aria-label="JSON of ' + esc(named ? d.for : 'another dataset') + '" placeholder=\'{ "name": "' + esc(named ? d.for : 'ds_...') + '", "properties": { ... } }\'>' + esc(d.text) + '</textarea><div class="msgs" data-dsmsg="' + i + '"></div></details>'; }).join('');
+    dsPills();
+  }
+  /* what each box holds: pasted, empty, or the wrong dataset */
+  function dsPills() {
+    g.dsList.forEach((d, i) => {
+      const pill = document.querySelector('[data-dspill="' + i + '"]'), msg = document.querySelector('[data-dsmsg="' + i + '"]'); if (!pill) return;
+      if (!d.text.trim()) { pill.innerHTML = S.pill('info', 'Not pasted'); if (msg) msg.innerHTML = ''; return; }
+      const r = A.readDatasets(d.text), got = r.datasets.map(x => x.name);
+      pill.innerHTML = r.errors.length ? S.pill('err', 'Can\u2019t be read') : S.pill('ok', 'Pasted' + (d.for ? '' : ': ' + got.join(', ')));
+      if (msg) msg.innerHTML = r.errors.map(e => S.msg('err', esc(e))).join('') + (d.for && got.length && got.indexOf(d.for) < 0 ? S.msg('warn', 'This is ' + esc(got.join(', ')) + ', not ' + esc(d.for) + '.') : '');
+    });
+  }
+
   /* ---------- everything else ---------- */
   function renderOut() {
     view = compute();
@@ -152,17 +177,18 @@
     load();
     const dl = document.createElement('datalist'); dl.id = 'chgDsNames'; document.body.appendChild(dl);
     $('chgKind').innerHTML = A.CHANGE_KINDS.map(k => '<option value="' + k[0] + '">' + esc(k[1]) + '</option>').join('');
-    $('chgPl').value = g.pl; $('chgDs').value = g.ds; $('chgAsk').value = g.ask; $('chgReply').value = g.reply;
+    $('chgPl').value = g.pl; $('chgAsk').value = g.ask; $('chgReply').value = g.reply;
     S.tabs($('chgTabs'));
-    renderOut(); renderCards(); renderOut();
+    renderOut(); renderCards(); renderOut(); dsRows();
     $('chgAddBtn').addEventListener('click', () => { g.changes.push(A.newChange($('chgKind').value)); renderOut(); renderCards(); renderOut(); const last = $('chgList').lastElementChild; if (last) { last.scrollIntoView({ block: 'nearest' }); const f = last.querySelector('input,select'); if (f) f.focus(); } });
-    $('chgPl').addEventListener('input', () => { g.pl = $('chgPl').value; renderOut(); renderCards(); });
-    $('chgDs').addEventListener('input', () => { g.ds = $('chgDs').value; renderOut(); renderCards(); });
+    $('chgPl').addEventListener('input', () => { g.pl = $('chgPl').value; const before = view && view.outline ? view.outline.datasets.join() : ''; renderOut(); renderCards(); if ((view && view.outline ? view.outline.datasets.join() : '') !== before || $('chgDsWrap').hidden === !!(view && view.outline)) dsRows(); });
+    $('chgDsAdd').addEventListener('click', () => { g.dsList.push({ for: '', text: '' }); dsRows(); const t = $('chgDsBox').querySelectorAll('textarea'); if (t.length) t[t.length - 1].focus(); });
     $('chgAsk').addEventListener('input', () => { g.ask = $('chgAsk').value; renderOut(); });
     $('chgReply').addEventListener('input', () => { g.reply = $('chgReply').value; const v = compute(); g.replyFor = v.res ? hash(JSON.stringify(v.res.pipeline) + g.ask) : ''; renderOut(); });
-    $('chgPlFile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; S.readFile(f).then(t => { g.pl = t; $('chgPl').value = t; renderOut(); renderCards(); e.target.value = ''; }); });
+    $('chgPlFile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; S.readFile(f).then(t => { g.pl = t; $('chgPl').value = t; renderOut(); renderCards(); dsRows(); e.target.value = ''; }); });
     const pane = $('paneChange');
     pane.addEventListener('input', e => {
+      if (e.target.dataset.dsi != null) { const d = g.dsList[Number(e.target.dataset.dsi)]; if (d) d.text = e.target.value; renderOut(); renderCards(); dsPills(); return; }
       const el = e.target, i = Number(el.dataset.ci); if (el.dataset.ci == null) return;
       if (el.dataset.pj != null) { const p = g.changes[i].params[Number(el.dataset.pj)]; if (p && el.type === 'text') p[el.dataset.pf2] = el.value; renderOut(); return; }
       if (el.dataset.cf && el.type === 'text') { setField(i, el.dataset.cf, el); renderOut(); if (el.dataset.cf === 'find' || el.dataset.cf === 'name') found(i); }
@@ -175,6 +201,7 @@
     });
     pane.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.dsdel != null) { g.dsList.splice(Number(b.dataset.dsdel), 1); dsRows(); renderOut(); renderCards(); return; }
       if (b.dataset.cdel != null) { g.changes.splice(Number(b.dataset.cdel), 1); renderOut(); renderCards(); renderOut(); }
       else if (b.dataset.cup != null) { const i = Number(b.dataset.cup); const t = g.changes[i - 1]; g.changes[i - 1] = g.changes[i]; g.changes[i] = t; renderOut(); renderCards(); renderOut(); }
       else if (b.dataset.padd != null) { g.changes[Number(b.dataset.ci)].params.push({ name: '', value: '', remove: false }); renderCards(); }
@@ -188,7 +215,7 @@
       chgTrigger: () => view && view.res && view.res.trigger && JSON.stringify(view.res.trigger, null, 4)
     });
     /* Clear entries empties this tab too */
-    ['clearYes', 'clearAllPages'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => { g = blank(); store.del('chg'); ['chgPl', 'chgDs', 'chgAsk', 'chgReply'].forEach(k => { $(k).value = ''; }); renderOut(); renderCards(); }); });
+    ['clearYes', 'clearAllPages'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => { g = blank(); store.del('chg'); ['chgPl', 'chgAsk', 'chgReply'].forEach(k => { $(k).value = ''; }); renderOut(); renderCards(); dsRows(); }); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

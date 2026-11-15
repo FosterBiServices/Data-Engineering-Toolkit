@@ -158,7 +158,8 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
 
 - **Change a pipeline** (third tab, `adf_change.js` core + `adf_change_ui.js` wiring, saved as `dea.chg`; owner, Nov 2026:
   "enter a pipeline that is working, then say they need to add something", not limited to one example). Paste the pipeline
-  and, optionally, the datasets to change with it (`A.readDatasets`: several JSONs one after another). Built-in changes,
+  and, optionally, the datasets to change with it: one box per dataset the pipeline uses plus "Add another dataset"
+  (`g.dsList` [{for, text}]; each box says Not pasted / Pasted / the wrong dataset; `A.readDatasets` reads them). Built-in changes,
   applied in order on copies (`A.applyChanges`; a change that fails leaves the pipeline as before it): find and replace,
   fixed value to parameter / variable / global parameter, parameters and variables (add, rename with every use, default,
   remove only when unused), rename an activity (dependsOn and activity('x')), notebook path and parameters, add a notebook

@@ -14,7 +14,15 @@ const landing = { name: 'ds_landing', properties: { linkedServiceName: { referen
   await T('tab shown', () => [!document.getElementById('paneChange').hidden, document.getElementById('paneBuild').hidden, document.getElementById('chgEmpty').hidden]);
   await page.fill('#chgPl', '{ not json');
   await T('bad JSON message', () => document.getElementById('chgMsg').innerText.slice(0, 80));
-  await page.fill('#chgPl', JSON.stringify(pl, null, 2)); await page.fill('#chgDs', JSON.stringify(landing, null, 2));
+  await page.fill('#chgPl', JSON.stringify(pl, null, 2));
+  await T('one box per dataset the pipeline uses', () => [...document.querySelectorAll('.chgdsrow summary')].map(s => s.innerText.replace(/\n/g, ' ')));
+  await page.fill('[data-dsi="0"]', JSON.stringify({ name: 'ds_other', properties: { type: 'Parquet', typeProperties: {} } }));
+  await T('wrong dataset in a box is named', () => document.querySelector('[data-dsmsg="0"]').innerText);
+  await page.fill('[data-dsi="0"]', JSON.stringify(landing, null, 2));
+  await page.click('#chgDsAdd');
+  await page.fill('[data-dsi="1"]', JSON.stringify({ name: 'ds_parquet_v2', properties: { type: 'Parquet', typeProperties: {} } }));
+  await T('another dataset added', () => [[...document.querySelectorAll('[data-dspill]')].map(p => p.innerText), document.getElementById('chgStats').innerText.replace(/\n/g, ' ')]);
+  await T('focus kept in a dataset box', () => document.activeElement && document.activeElement.dataset.dsi);
   await T('outline', () => document.getElementById('chgStats').innerText.replace(/\n/g, ' '));
   await page.selectOption('#chgKind', 'toParam'); await page.click('#chgAddBtn');
   await page.fill('[data-ci="0"][data-cf=find]', 'southern-region'); await page.fill('[data-ci="0"][data-cf=name]', 'region');
@@ -50,6 +58,9 @@ const landing = { name: 'ds_landing', properties: { linkedServiceName: { referen
   await T('Copilot reply used and its removal flagged', () => [document.getElementById('chgAiMsg').innerText.slice(0, 60), document.getElementById('chgReview').innerText.slice(0, 200)]);
   await page.reload();
   await T('kept after reload', () => [document.getElementById('paneChange').hidden, document.querySelectorAll('.chgcard').length, document.getElementById('chgReply').value.length > 10]);
+  await T('datasets kept after reload', () => [...document.querySelectorAll('[data-dspill]')].map(p => p.innerText));
+  await page.click('[data-dsdel="1"]');
+  await T('another dataset removed', () => document.querySelectorAll('.chgdsrow').length);
   await page.click('[data-cdel="3"]');
   await T('remove a change', () => document.querySelectorAll('.chgcard').length);
   await page.setViewportSize({ width: 390, height: 800 });

@@ -523,9 +523,14 @@
       </div>
       <textarea class="big" id="chgPl" spellcheck="false" aria-label="Pipeline JSON" placeholder='{ "name": "pl_...", "properties": { "activities": [ ... ] } }'></textarea>
       <div class="reply-actions"><label class="btn filebtn">Open a JSON file<input type="file" id="chgPlFile" accept=".json,.txt,application/json"></label></div>
-      <label class="lab">Datasets to change with it <span class="hint">optional; paste each dataset&rsquo;s code view JSON, one after another</span><textarea class="mid" id="chgDs" spellcheck="false" aria-label="Dataset JSON" placeholder='{ "name": "ds_...", "properties": { ... } }'></textarea></label>
       <div id="chgMsg" class="msgs" aria-live="polite"></div>
       <div class="stats" id="chgStats"></div>
+      <div id="chgDsWrap" hidden>
+        <h3 style="margin:6px 0 0">Datasets to change with it <span class="muted" style="font-weight:400">(optional)</span></h3>
+        <p class="note small">Paste a dataset&rsquo;s JSON (Author &gt; Datasets &gt; the dataset &gt; code view <span class="mono">{}</span>) when a change may touch it, for example a folder typed into the dataset. Paste as many as you need.</p>
+        <div id="chgDsBox" class="chgds"></div>
+        <button type="button" class="btn" id="chgDsAdd">Add another dataset</button>
+      </div>
       <details id="chgOutlineBox" hidden><summary>What the pipeline holds</summary><div id="chgOutline" class="chgoutline"></div></details>
     </div>
   </section>
