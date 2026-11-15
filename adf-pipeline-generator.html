@@ -427,7 +427,7 @@ td.flowname .ind{color:var(--ws)}
 
 /* ADF page: change a pipeline */
 .chglist { display: flex; flex-direction: column; gap: 12px; }
-.chgcard { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+.chgcard { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); }
 .chgcard-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .chgcard-head b { flex: 1 1 auto; min-width: 0; }
 .chgcard .qgrid { margin: 0; }
@@ -435,7 +435,7 @@ td.flowname .ind{color:var(--ws)}
 .chgadd select { flex: 1 1 260px; min-width: 0; max-width: 100%; }
 .chgfound { display: flex; flex-direction: column; gap: 4px; font-size: 13px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
 .chgfound label { display: flex; gap: 8px; align-items: flex-start; overflow-wrap: anywhere; }
-.chgfound .mono { font-size: 12px; color: var(--muted, #555); }
+.chgfound .mono { font-size: 12px; color: var(--muted); }
 .chgrows { display: flex; flex-direction: column; gap: 6px; }
 .chgrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto auto; gap: 6px; align-items: center; }
 @media (max-width: 560px) { .chgrow { grid-template-columns: 1fr auto; } .chgrow input[data-pv] { grid-column: 1 / -1; } }
@@ -443,9 +443,9 @@ td.flowname .ind{color:var(--ws)}
 .chgalso { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .chgdiff { border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 70vh; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 .chgdiff .dl { display: grid; grid-template-columns: 44px 44px 16px minmax(0, 1fr); white-space: pre-wrap; overflow-wrap: anywhere; }
-.chgdiff .dl span:nth-child(-n+2) { color: #8a94a6; text-align: right; padding-right: 6px; user-select: none; }
-.chgdiff .dl.add { background: #e6f4ea; } .chgdiff .dl.del { background: #fde8e8; }
-.chgdiff .fold { padding: 4px 10px; color: #8a94a6; background: #f6f7f9; }
+.chgdiff .dl span:nth-child(-n+2) { color: var(--muted); text-align: right; padding-right: 6px; user-select: none; }
+.chgdiff .dl.add { background: var(--ok-soft); } .chgdiff .dl.del { background: var(--err-soft); }
+.chgdiff .fold { padding: 4px 10px; color: var(--muted); background: var(--surface-2); }
 @media (max-width: 560px) { .chgdiff .dl { grid-template-columns: 30px 30px 14px minmax(0, 1fr); } }
 .chgds { display: flex; flex-direction: column; gap: 8px; }
 .chgdsrow { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
@@ -999,6 +999,7 @@ td.flowname .ind{color:var(--ws)}
       </div>
       <div id="chgList" class="chglist"></div>
       <div class="chgadd"><select id="chgKind" aria-label="Kind of change"></select><button type="button" class="btn primary" id="chgAddBtn">Add this change</button></div>
+      <p class="note small" id="chgKindHint" style="margin-top:-4px"></p>
     </div>
   </section>
   <section class="step" aria-labelledby="g3">
@@ -2874,19 +2875,20 @@ td.flowname .ind{color:var(--ws)}
 
   /* ---------- the changes ---------- */
   A.CHANGE_KINDS = [
-    ['replace', 'Find and replace text (paths, folders, names inside values)'],
-    ['toParam', 'Turn a fixed value into a parameter or variable'],
-    ['param', 'Add, rename or remove a pipeline parameter'],
-    ['var', 'Add, rename or remove a pipeline variable'],
+    ['replace', 'Find and replace text'],
+    ['toParam', 'Fixed value to a parameter'],
+    ['param', 'Pipeline parameters'],
+    ['var', 'Pipeline variables'],
     ['rename', 'Rename an activity'],
-    ['notebook', 'Change a notebook step (path or parameters)'],
-    ['addNotebook', 'Add a notebook step after an activity'],
-    ['dataset', 'Use another dataset in a step'],
-    ['policy', 'Change timeout or retries'],
+    ['notebook', 'Change a notebook step'],
+    ['addNotebook', 'Add a notebook step'],
+    ['dataset', 'Use another dataset'],
+    ['policy', 'Timeout and retries'],
     ['state', 'Turn an activity off or on'],
     ['remove', 'Remove an activity'],
-    ['schedule', 'Add a schedule (trigger)']
+    ['schedule', 'Add a schedule']
   ];
+  A.CHANGE_HINTS = { replace: 'Paths, folders and other text inside values. Names of activities and datasets are left alone.', toParam: 'A value typed in, such as a folder, becomes a parameter, variable or global parameter everywhere it is used.', param: 'Add, rename, change the default of, or remove one.', var: 'Add, rename, change the default of, or remove one.', rename: 'Everything that refers to it is updated too.', notebook: 'Its path, or the parameters it is sent.', addNotebook: 'A new notebook step after an activity, or in between two.', dataset: 'Swap the dataset a step reads or writes.', policy: 'For one activity or all of them.', state: 'A step that is off is skipped; the steps after it see it as succeeded.', remove: 'Steps that ran after it then run after what it ran after.', schedule: 'A trigger that runs the pipeline daily, weekly or hourly.' };
   A.newChange = kind => ({
     replace: { kind, find: '', repl: '', cs: true, skip: [], keep: [] },
     toParam: { kind, find: '', name: '', as: 'param', cs: true, skip: [], keep: [] },
@@ -3795,7 +3797,7 @@ td.flowname .ind{color:var(--ws)}
     const params = o ? A.outlinePipeline(view.res.pipeline).parameters.map(p => p.name) : [], vars = o ? A.outlinePipeline(view.res.pipeline).variables.map(p => p.name) : [];
     let b = '';
     if (c.kind === 'replace') b = '<div class="qgrid">' + inp(i, 'find', c.find, 'yourproject/', 'Find') + inp(i, 'repl', c.repl, 'yourproject/{param:region}/', 'Replace with') + '</div>' + chk(i, 'cs', c.cs, 'Match upper and lower case') + '<div data-cfound="' + i + '"></div>';
-    if (c.kind === 'toParam') b = '<div class="qgrid">' + inp(i, 'find', c.find, 'southern-region', 'The fixed value') + sel(i, 'as', [['param', 'A pipeline parameter (set per run, default = the value)'], ['var', 'A pipeline variable'], ['global', 'A global parameter (one value for the factory)']], c.as, 'Turn it into') + inp(i, 'name', c.name, 'region', 'Its name') + '</div>' + chk(i, 'cs', c.cs, 'Match upper and lower case') + '<div data-cfound="' + i + '"></div>';
+    if (c.kind === 'toParam') b = '<div class="qgrid">' + inp(i, 'find', c.find, 'southern-region', 'The fixed value') + sel(i, 'as', [['param', 'Pipeline parameter'], ['var', 'Pipeline variable'], ['global', 'Global parameter']], c.as, 'Turn it into') + inp(i, 'name', c.name, 'region', 'Its name') + '</div><p class="note small">' + ({ param: 'A pipeline parameter is set for each run (a trigger or Debug can pass another value); its default is the value above.', var: 'A pipeline variable starts with the value above and steps can change it during the run.', global: 'A global parameter has one value for the whole factory; create it under Manage > Global parameters.' }[c.as] || '') + '</p>' + chk(i, 'cs', c.cs, 'Match upper and lower case') + '<div data-cfound="' + i + '"></div>';
     if (c.kind === 'param' || c.kind === 'var') {
       const list = c.kind === 'param' ? params : vars, word = c.kind === 'param' ? 'parameter' : 'variable';
       b = '<div class="qgrid">' + sel(i, 'action', [['add', 'Add one'], ['rename', 'Rename one'], ['default', 'Change its default'], ['remove', 'Remove one']], c.action, 'What to do')
@@ -3811,12 +3813,12 @@ td.flowname .ind{color:var(--ws)}
           + (c.kind === 'notebook' ? '<label class="chk small"><input type="checkbox" data-ci="' + i + '" data-pj="' + j + '" data-pf2="remove"' + (p.remove ? ' checked' : '') + '> remove</label>' : '<span></span>') + '<button type="button" class="x" data-ci="' + i + '" data-pdel="' + j + '" aria-label="Remove row">&times;</button></div>').join('')
         + '<button type="button" class="linkbtn" data-ci="' + i + '" data-padd>+ ' + (c.kind === 'notebook' ? 'Set or remove a parameter' : 'A parameter it reads') + '</button></div>';
     }
-    if (c.kind === 'dataset') b = '<div class="qgrid">' + sel(i, 'activity', [['*', 'Every step that uses it']].concat(acts.map(a => [a, a])), c.activity || '*', 'Where') + sel(i, 'from', o ? o.datasets : [], c.from, 'Dataset used now', 'Choose') + inp(i, 'to', c.to, 'ds_...', 'Dataset to use', ' list="chgDsNames"') + '</div>';
-    if (c.kind === 'policy') b = '<div class="qgrid">' + sel(i, 'activity', [['*', 'Every activity that has these settings']].concat(acts.map(a => [a, a])), c.activity || '*', 'Which') + inp(i, 'timeout', c.timeout, '2 (hours) or 0.02:00:00', 'Timeout') + inp(i, 'retry', c.retry, '2', 'Retries') + inp(i, 'interval', c.interval, '60', 'Seconds between retries') + '</div>';
-    if (c.kind === 'state') b = '<div class="qgrid">' + sel(i, 'activity', acts, c.activity, 'Activity', 'Choose') + sel(i, 'active', [['off', 'Turn it off (ADF skips it)'], ['on', 'Turn it on again']], c.active ? 'on' : 'off', 'What to do') + (c.active ? '' : sel(i, 'markAs', [['Succeeded', 'Succeeded'], ['Failed', 'Failed'], ['Skipped', 'Skipped']], c.markAs, 'Steps after it see it as')) + '</div>';
+    if (c.kind === 'dataset') b = '<div class="qgrid">' + sel(i, 'activity', [['*', 'Every step']].concat(acts.map(a => [a, a])), c.activity || '*', 'Where') + sel(i, 'from', o ? o.datasets : [], c.from, 'Dataset used now', 'Choose') + inp(i, 'to', c.to, 'ds_...', 'Dataset to use', ' list="chgDsNames"') + '</div>';
+    if (c.kind === 'policy') b = '<div class="qgrid">' + sel(i, 'activity', [['*', 'Every activity']].concat(acts.map(a => [a, a])), c.activity || '*', 'Which') + inp(i, 'timeout', c.timeout, '2 (hours) or 0.02:00:00', 'Timeout') + inp(i, 'retry', c.retry, '2', 'Retries') + inp(i, 'interval', c.interval, '60', 'Seconds between retries') + '</div>';
+    if (c.kind === 'state') b = '<div class="qgrid">' + sel(i, 'activity', acts, c.activity, 'Activity', 'Choose') + sel(i, 'active', [['off', 'Turn it off'], ['on', 'Turn it on']], c.active ? 'on' : 'off', 'What to do') + (c.active ? '' : sel(i, 'markAs', [['Succeeded', 'Succeeded'], ['Failed', 'Failed'], ['Skipped', 'Skipped']], c.markAs, 'Steps after it see it as')) + '</div>';
     if (c.kind === 'remove') b = '<div class="qgrid">' + sel(i, 'activity', acts, c.activity, 'Activity', 'Choose') + '</div><p class="note small">Steps that ran after it then run after what it ran after.</p>';
     if (c.kind === 'schedule') b = '<div class="qgrid">' + sel(i, 'freq', [['daily', 'Every day'], ['weekly', 'Every Monday'], ['hourly', 'Every hour']], c.freq, 'How often') + inp(i, 'time', c.time, '02:00', c.freq === 'hourly' ? 'At minute (hh:mm, minutes used)' : 'At (hh:mm)') + sel(i, 'tz', A.TZ, c.tz, 'Time zone') + inp(i, 'name', c.name, '(empty: named after the pipeline)', 'Trigger name') + '</div>';
-    return '<div class="chgcard" data-card="' + i + '"><div class="chgcard-head"><span class="pill info">' + (i + 1) + '</span><b>' + esc(KIND[c.kind]) + '</b>'
+    return '<div class="chgcard" data-card="' + i + '"><div class="chgcard-head"><span class="pill info">' + (i + 1) + '</span><b>' + esc(KIND[c.kind]) + '</b><span class="note small" style="flex-basis:100%;order:3;margin:0">' + esc(A.CHANGE_HINTS[c.kind] || '') + '</span>'
       + (i ? '<button type="button" class="linkbtn" data-cup="' + i + '">Move up</button>' : '') + '<button type="button" class="linkbtn" data-cdel="' + i + '">Remove</button></div>' + b + '<div class="msgs" data-cmsg="' + i + '"></div></div>';
   }
   /* the places a find-and-replace touches, each with a tick box */
@@ -3921,6 +3923,7 @@ td.flowname .ind{color:var(--ws)}
     load();
     const dl = document.createElement('datalist'); dl.id = 'chgDsNames'; document.body.appendChild(dl);
     $('chgKind').innerHTML = A.CHANGE_KINDS.map(k => '<option value="' + k[0] + '">' + esc(k[1]) + '</option>').join('');
+    const hint = () => { $('chgKindHint').textContent = A.CHANGE_HINTS[$('chgKind').value] || ''; }; hint(); $('chgKind').addEventListener('change', hint);
     $('chgPl').value = g.pl; $('chgAsk').value = g.ask; $('chgReply').value = g.reply;
     S.tabs($('chgTabs'));
     renderOut(); renderCards(); renderOut(); dsRows();

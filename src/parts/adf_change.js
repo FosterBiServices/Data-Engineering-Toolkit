@@ -146,19 +146,20 @@
 
   /* ---------- the changes ---------- */
   A.CHANGE_KINDS = [
-    ['replace', 'Find and replace text (paths, folders, names inside values)'],
-    ['toParam', 'Turn a fixed value into a parameter or variable'],
-    ['param', 'Add, rename or remove a pipeline parameter'],
-    ['var', 'Add, rename or remove a pipeline variable'],
+    ['replace', 'Find and replace text'],
+    ['toParam', 'Fixed value to a parameter'],
+    ['param', 'Pipeline parameters'],
+    ['var', 'Pipeline variables'],
     ['rename', 'Rename an activity'],
-    ['notebook', 'Change a notebook step (path or parameters)'],
-    ['addNotebook', 'Add a notebook step after an activity'],
-    ['dataset', 'Use another dataset in a step'],
-    ['policy', 'Change timeout or retries'],
+    ['notebook', 'Change a notebook step'],
+    ['addNotebook', 'Add a notebook step'],
+    ['dataset', 'Use another dataset'],
+    ['policy', 'Timeout and retries'],
     ['state', 'Turn an activity off or on'],
     ['remove', 'Remove an activity'],
-    ['schedule', 'Add a schedule (trigger)']
+    ['schedule', 'Add a schedule']
   ];
+  A.CHANGE_HINTS = { replace: 'Paths, folders and other text inside values. Names of activities and datasets are left alone.', toParam: 'A value typed in, such as a folder, becomes a parameter, variable or global parameter everywhere it is used.', param: 'Add, rename, change the default of, or remove one.', var: 'Add, rename, change the default of, or remove one.', rename: 'Everything that refers to it is updated too.', notebook: 'Its path, or the parameters it is sent.', addNotebook: 'A new notebook step after an activity, or in between two.', dataset: 'Swap the dataset a step reads or writes.', policy: 'For one activity or all of them.', state: 'A step that is off is skipped; the steps after it see it as succeeded.', remove: 'Steps that ran after it then run after what it ran after.', schedule: 'A trigger that runs the pipeline daily, weekly or hourly.' };
   A.newChange = kind => ({
     replace: { kind, find: '', repl: '', cs: true, skip: [], keep: [] },
     toParam: { kind, find: '', name: '', as: 'param', cs: true, skip: [], keep: [] },

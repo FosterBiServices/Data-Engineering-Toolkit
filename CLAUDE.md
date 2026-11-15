@@ -177,7 +177,8 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   (`A.changePrompt` from the pipeline after the built-in changes; reply `@@@ PIPELINE/DATASET/ALSO_CHANGE/NOTES @@@`,
   `A.changeParse`); removals Copilot made are flagged against the Step 2 result; a reply older than the Step 2 changes is
   flagged. Checks: `adfchangetest.js` evaluates every value before and after with `adfeval.py` (now with `@{}`,
-  pipeline().parameters and dataset()), `adfchangepage.js`. The region example ran privately on the owner's rebuilt pipeline:
+  pipeline().parameters and dataset()), `adfchangepage.js`. Dark mode: use the colour variables, never #fff; `darktest.js` flags
+  text with contrast under 3 on every tab in dark mode (owner, Nov 2026: a white card was unreadable on a dark-mode PC). The region example ran privately on the owner's rebuilt pipeline:
   0 broken references, no new findings, folders resolve with any region.
 - A factory export import (ARM template folder) was built and dropped (owner, Nov 2026: users won't trust giving the page
   the whole export, and a names-only list can't say what a dataset looks like). Pasting a dataset's JSON stays the way.
