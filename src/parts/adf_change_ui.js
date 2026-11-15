@@ -25,7 +25,7 @@
     v.orig = r.pipeline; const d = A.readDatasets(g.dsList.map(x => x.text).join('\n')); v.datasets = d.datasets; d.errors.forEach(e => v.msgs.push(S.msg('err', esc(e))));
     v.outline = A.outlinePipeline(v.orig);
     /* each change sees the pipeline as the changes above it left it */
-    v.before = g.changes.map((c, i) => (c.kind === 'replace' || c.kind === 'toParam' ? A.applyChanges(v.orig, v.datasets, g.changes.slice(0, i), today()) : null));
+    v.before = g.changes.map((c, i) => A.applyChanges(v.orig, v.datasets, g.changes.slice(0, i), today()));   /* each card picks from the pipeline as the cards above it left it */
     v.res = A.applyChanges(v.orig, v.datasets, g.changes, today());
     v.names = Array.from(new Set(v.outline.activities.map(a => a.name).concat(A.outlinePipeline(v.res.pipeline).activities.map(a => a.name))));
     v.prompt = g.ask.trim() ? S.fullPrompt(A.changePrompt(v.res.pipeline, g.ask, v.res.allDatasets)) : '';
@@ -48,7 +48,7 @@
   const chk = (i, f, on, lab) => '<label class="chk"><input type="checkbox" data-ci="' + i + '" data-cf="' + f + '"' + (on ? ' checked' : '') + '> ' + lab + '</label>';
   function card(c, i) {
     const o = view && view.outline, acts = view ? view.names : [], nbActs = o ? Array.from(new Set(o.activities.concat(A.outlinePipeline(view.res.pipeline).activities).filter(a => a.type === 'DatabricksNotebook').map(a => a.name))) : [];
-    const params = o ? A.outlinePipeline(view.res.pipeline).parameters.map(p => p.name) : [], vars = o ? A.outlinePipeline(view.res.pipeline).variables.map(p => p.name) : [];
+    const here = o ? A.outlinePipeline((view.before[i] || view.res).pipeline) : null, params = here ? here.parameters.map(p => p.name) : [], vars = here ? here.variables.map(p => p.name) : [];
     let b = '';
     if (c.kind === 'replace') b = '<div class="qgrid">' + inp(i, 'find', c.find, 'yourproject/', 'Find') + inp(i, 'repl', c.repl, 'yourproject/{param:region}/', 'Replace with') + '</div>' + chk(i, 'cs', c.cs, 'Match upper and lower case') + '<div data-cfound="' + i + '"></div>';
     if (c.kind === 'toParam') b = '<div class="qgrid">' + inp(i, 'find', c.find, 'southern-region', 'The fixed value') + sel(i, 'as', [['param', 'Pipeline parameter'], ['var', 'Pipeline variable'], ['global', 'Global parameter']], c.as, 'Turn it into') + inp(i, 'name', c.name, 'region', 'Its name') + '</div><p class="note small">' + ({ param: 'A pipeline parameter is set for each run (a trigger or Debug can pass another value); its default is the value above.', var: 'A pipeline variable starts with the value above and steps can change it during the run.', global: 'A global parameter has one value for the whole factory; create it under Manage > Global parameters.' }[c.as] || '') + '</p>' + chk(i, 'cs', c.cs, 'Match upper and lower case') + '<div data-cfound="' + i + '"></div>';
@@ -56,7 +56,8 @@
       const list = c.kind === 'param' ? params : vars, word = c.kind === 'param' ? 'parameter' : 'variable';
       b = '<div class="qgrid">' + sel(i, 'action', [['add', 'Add one'], ['rename', 'Rename one'], ['default', 'Change its default'], ['remove', 'Remove one']], c.action, 'What to do')
         + (c.action === 'add' ? inp(i, 'name', c.name, c.kind === 'param' ? 'run_date' : 'target_path', 'Name') + sel(i, 'type', c.kind === 'param' ? [['String', 'Text'], ['Int', 'Whole number'], ['Bool', 'True / false']] : [['String', 'Text'], ['Boolean', 'True / false'], ['Array', 'List']], c.type, 'Type') + inp(i, 'value', c.value, '(optional)', 'Default value')
-          : sel(i, 'name', list, c.name, 'The ' + word, 'Choose') + (c.action === 'rename' ? inp(i, 'newName', c.newName, '', 'New name') : c.action === 'default' ? inp(i, 'value', c.value, '', 'New default') : '')) + '</div>';
+          : sel(i, 'name', list, c.name, 'The ' + word, list.length ? 'Choose' : 'None yet') + (c.action === 'rename' ? inp(i, 'newName', c.newName, '', 'New name') : c.action === 'default' ? inp(i, 'value', c.value, '', 'New default') : '')) + '</div>'
+        + (c.action !== 'add' && !list.length ? '<p class="note small">' + (o ? 'This pipeline has no ' + word + 's' + (i ? ' (counting the changes above)' : '') + '. Choose "Add one", or use "Fixed value to a parameter" to make one from a value it already uses.' : 'Paste the pipeline in Step 1 first.') + '</p>' : '');
     }
     if (c.kind === 'rename') b = '<div class="qgrid">' + sel(i, 'activity', acts, c.activity, 'Activity', 'Choose') + inp(i, 'newName', c.newName, '', 'New name') + '</div>';
     if (c.kind === 'notebook' || c.kind === 'addNotebook') {

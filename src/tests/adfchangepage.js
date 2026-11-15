@@ -56,6 +56,13 @@ const landing = { name: 'ds_landing', properties: { linkedServiceName: { referen
   const got = await page.evaluate(() => { const o = JSON.parse(document.getElementById('chgJson').textContent); o.properties.activities[1].typeProperties.fieldList.push('lastModified'); o.properties.activities.splice(2, 1); return o; });
   await page.fill('#chgReply', '@@@ PIPELINE @@@\n' + JSON.stringify(got) + '\n@@@ ALSO_CHANGE @@@\n- none\n@@@ NOTES @@@\n- added lastModified');
   await T('Copilot reply used and its removal flagged', () => [document.getElementById('chgAiMsg').innerText.slice(0, 60), document.getElementById('chgReview').innerText.slice(0, 200)]);
+  await page.selectOption('#chgKind', 'param'); await page.click('#chgAddBtn');
+  await page.selectOption('[data-ci="4"][data-cf=action]', 'rename');
+  await T('rename a parameter: the list has the one an earlier change added', () => [...document.querySelectorAll('[data-ci="4"][data-cf=name] option')].map(o => o.value));
+  await page.selectOption('#chgKind', 'var'); await page.click('#chgAddBtn');
+  await page.selectOption('[data-ci="5"][data-cf=action]', 'remove');
+  await T('remove a variable: the list has the pipeline\'s variables', () => [...document.querySelectorAll('[data-ci="5"][data-cf=name] option')].map(o => o.value));
+  await page.click('[data-cdel="5"]'); await page.click('[data-cdel="4"]');
   await page.reload();
   await T('kept after reload', () => [document.getElementById('paneChange').hidden, document.querySelectorAll('.chgcard').length, document.getElementById('chgReply').value.length > 10]);
   await T('datasets kept after reload', () => [...document.querySelectorAll('[data-dspill]')].map(p => p.innerText));
