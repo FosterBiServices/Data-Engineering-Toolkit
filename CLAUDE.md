@@ -187,6 +187,9 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   keeps its newest row per key, a clashing name gets `<lookup>_` in front, missing columns fail with both column lists.
   Without a folder the lookup is read next to the object's silver folder. Ran on local Spark (parquet for Delta): int-to-text
   keys, no rows added, clash prefix, 0-row rerun, missing key error. Check: `pyjointest.js`.
+- Any object, "Each file holds" (`cfg.any.load`): new or changed rows (add / merge, the default) or a full copy (`replace`:
+  silver overwrites the object, gold is rebuilt from silver when silver has newer rows). Local Spark: the same file on day 2
+  leaves the row counts unchanged.
 
 ## Python Script Generator (`ps_core.js`)
 

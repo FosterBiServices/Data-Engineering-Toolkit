@@ -169,7 +169,7 @@
 
   /* ---------- checks on the setup ---------- */
   /* ---------- notebooks for any object: the pipeline passes the object, nothing about its columns is known here ---------- */
-  P.anyDefaults = () => ({ keys: '', trim: true, emptyNull: true, dropDupRows: true, storage: '', store: 'table', joins: [] });
+  P.anyDefaults = () => ({ keys: '', trim: true, emptyNull: true, dropDupRows: true, storage: '', store: 'table', load: 'add', joins: [] });
   P.anyJoin = () => ({ obj: '', lookup: '', key: 'id', lookupKey: '', cols: '', folder: '' });
   /* a lookup is usable when it names the object, the lookup object and both keys */
   P.anyJoins = cfg => ((cfg.any && cfg.any.joins) || []).filter(j => j && String(j.obj || '').trim() && String(j.lookup || '').trim() && String(j.key || '').trim() && String(j.lookupKey || '').trim());
@@ -223,7 +223,9 @@
     C.push('', 'keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]', 'missing_keys = [k for k in keys if k not in df.columns]', 'if missing_keys:', '    raise ValueError(f"key_columns not in {obj_name}: {missing_keys}. Columns: {df.columns}")');
     C.push('', 'df = (df.withColumn("_source_file", F.lit(source_path))', '        .withColumn("_batch_id", F.lit(batch_id))', '        .withColumn("_ingest_ts", F.current_timestamp()))');
     s += md('4. Clean') + C.join('\n') + '\n';
-    s += md('5. Write to Delta') + (path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")']).concat(['if not ' + io.exists('target') + ':', '    df.write.format("delta")' + io.save('target'),
+    if (a.load === 'replace') s += md('5. Write to Delta: the file is a full copy, so it replaces the object') + (path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")']).concat(['# Every file holds all rows of the object: silver becomes exactly this file (a rerun gives the same result)',
+      'if keys:', '    df = df.dropDuplicates(keys)', 'df.write.format("delta").mode("overwrite").option("overwriteSchema", "true")' + io.save('target')], path ? ['', REGISTER] : []).join('\n') + '\n';
+    else s += md('5. Write to Delta') + (path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")']).concat(['if not ' + io.exists('target') + ':', '    df.write.format("delta")' + io.save('target'),
       'elif keys:', '    # One row per key: the incoming row replaces the stored one', '    incoming = df.dropDuplicates(keys)', '    spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new columns are added',
       '    (' + io.dt('target') + '.alias("t")', '        .merge(incoming.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))', '        .whenMatchedUpdateAll()', '        .whenNotMatchedInsertAll()', '        .execute())',
       'else:', '    # No key: this file\'s rows for this batch are replaced, so a rerun never duplicates', '    (df.write.format("delta").mode("overwrite")', '        .option("replaceWhere", f"_batch_id = \'{batch_id}\' AND _source_file = \'{source_path}\'")', '        .option("mergeSchema", "true")', '        ' + io.save('target') + ')'], path ? ['', REGISTER] : []).join('\n') + '\n';
@@ -265,6 +267,13 @@
       '# The watermark is the newest silver row gold already has', 'last = ' + io.read('target') + '.agg(F.max("_ingest_ts")).first()[0] if ' + io.exists('target') + ' else None',
       'new = silver if last is None else silver.filter(F.col("_ingest_ts") > F.lit(last))', 'rows_read = new.count()', '',
       'if rows_read == 0:', '    dbutils.notebook.exit(json.dumps({"status": "succeeded", "batch_id": batch_id, "table": target,', '                                      "rows_read": 0, "rows_written": 0, "rows_quarantined": 0}))']).join('\n') + '\n';
+    if (a.load === 'replace') {
+      s += md('4. Write: silver holds the whole object, so gold is rebuilt from it' + (js.length ? ', with the lookups joined in' : '')) + ['keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]'].concat(path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")'],
+        ['rows = silver' + (js.length ? '.transform(add_lookups)' : ''), 'if keys:', '    rows = rows.withColumn("_rn", F.row_number().over(Window.partitionBy(*keys).orderBy(F.col("_ingest_ts").desc()))).filter("_rn = 1").drop("_rn")',
+          'rows = rows.withColumn("_gold_loaded_ts", F.current_timestamp())', 'rows.write.format("delta").mode("overwrite").option("overwriteSchema", "true")' + io.save('target')], path ? ['', REGISTER] : []).join('\n') + '\n';
+      s += md('5. Metrics and exit') + ['rows_written = rows.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_quarantined": 0'])].join('\n') + '\n';
+      return s;
+    }
     s += md('4. Write: ' + (js.length ? 'lookups joined in, ' : 'no transformations, ') + 'and a load time') + ['keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]'].concat(path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")'], ['spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new silver columns reach gold', '',
       'if keys:', '    # Newest row per key wins', '    w = Window.partitionBy(*keys).orderBy(F.col("_ingest_ts").desc())', '    rows = new.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn")' + add + '.withColumn("_gold_loaded_ts", F.current_timestamp())',
       '    if not ' + io.exists('target') + ':', '        rows.write.format("delta")' + io.save('target'), '    else:', '        (' + io.dt('target') + '.alias("t")', '            .merge(rows.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))',

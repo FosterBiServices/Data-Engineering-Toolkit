@@ -13,7 +13,7 @@
     const c = P.blank(); if (!saved || typeof saved !== 'object') return c;
     const copy = (to, from, keys) => keys.forEach(k => { if (from && typeof from[k] === typeof to[k] && !Array.isArray(to[k])) to[k] = from[k]; });
     copy(c, saved, ['entity', 'subject', 'folder']); if (/^(bronze|silver|gold)$/.test(saved.layer)) c.layer = saved.layer;
-    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); if (saved.any.store === 'path') c.any.store = 'path';
+    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); if (saved.any.store === 'path') c.any.store = 'path'; if (saved.any.load === 'replace') c.any.load = 'replace';
       c.any.joins = (Array.isArray(saved.any.joins) ? saved.any.joins : []).filter(j => j && typeof j === 'object').slice(0, 40).map(j => { const d = P.anyJoin(); Object.keys(d).forEach(k => { if (typeof j[k] === 'string') d[k] = j[k].slice(0, 300); }); return d; }); }
     copy(c.cat, saved.cat, ['bronze', 'silver', 'gold']); copy(c.bronze, saved.bronze, ['format', 'path']);
     const sv = saved.silver || {}, g = saved.gold || {}, arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);

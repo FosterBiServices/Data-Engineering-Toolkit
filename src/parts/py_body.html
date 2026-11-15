@@ -100,6 +100,7 @@
           <label class="lab">Storage account <span class="hint">the default; ADF usually sends it</span><input type="text" data-k="any.storage" spellcheck="false" autocomplete="off" placeholder="mystorageaccount"></label>
         </div>
         <label class="lab">Write to <span class="hint">where silver and gold keep their Delta data</span><select data-k="any.store"><option value="table">Delta tables in a schema (catalog.schema.object)</option><option value="path">Delta folders in the lake (ADF sends the folder)</option></select></label>
+        <label class="lab">Each file holds <span class="hint">how silver uses a new file</span><select data-k="any.load"><option value="add">New or changed rows: add them, or merge on the key</option><option value="replace">All rows of the object (a full copy): replace it</option></select></label>
         <div class="checks" id="anySilverOpts">
           <label><input type="checkbox" data-k="any.trim"> Trim spaces from text</label>
           <label><input type="checkbox" data-k="any.emptyNull"> Empty text becomes null</label>
