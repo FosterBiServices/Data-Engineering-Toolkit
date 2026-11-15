@@ -555,10 +555,11 @@
       const now = N.filter(s => s.path === path), was = B.filter(s => s.path === path), src = (pasted || {})[path], nb = src ? A.readNotebook(src) : null;
       const sentNow = {}, sentWas = {}; now.forEach(s => Object.keys(s.params).forEach(k => { sentNow[k] = show(s.params[k]); })); was.forEach(s => Object.keys(s.params).forEach(k => { sentWas[k] = show(s.params[k]); }));
       const added = Object.keys(sentNow).filter(k => !(k in sentWas)), removed = Object.keys(sentWas).filter(k => !(k in sentNow)), changed = Object.keys(sentNow).filter(k => k in sentWas && sentNow[k] !== sentWas[k]).map(k => ({ name: k, from: sentWas[k], to: sentNow[k] }));
-      const missing = nb ? Object.keys(sentNow).filter(k => nb.names.indexOf(k) < 0) : added;
+      const touched = added.concat(changed.map(x => x.name)), missing = nb ? touched.filter(k => nb.names.indexOf(k) < 0) : added;   /* only what the changes send: older gaps are not this change's business */
+      const before = nb ? Object.keys(sentNow).filter(k => touched.indexOf(k) < 0 && nb.names.indexOf(k) < 0) : [];
       const addLines = missing.length ? missing.map(k => 'dbutils.widgets.text("' + k + '", "")').concat([''], missing.map(k => k.replace(/\W/g, '_') + ' = dbutils.widgets.get("' + k + '").strip()')) : [];
-      const hits = []; if (nb) finds.forEach(f => { const low = f.find.toLowerCase(), bare = low.replace(/\/+$/, ''); nb.lines.forEach((l, i) => { const L = l.toLowerCase(); if (L.indexOf(low) >= 0 || (bare.length > 2 && L.indexOf(bare) >= 0 && /["'\/]/.test(l))) hits.push({ find: f.find, to: f.to, line: i + 1, text: l.trim().slice(0, 200) }); }); });
-      return { path, steps: now.map(s => s.activity), gone: !now.length, pasted: !!nb, widgets: nb ? nb.names : [], added, removed, changed, missing, addLines, hits, unread: nb ? nb.widgets.filter(w => !(w.name in sentNow)).map(w => w.name) : [] };
+      const hits = []; if (nb) finds.forEach(f => { const low = f.find.toLowerCase(), bare = low.replace(/\/+$/, ''); nb.lines.forEach((l, i) => { const L = l.toLowerCase(); if (L.indexOf(low) >= 0 || (bare.length > 2 && new RegExp('(^|[/"\'])' + bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([/"\']|$)').test(L))) hits.push({ find: f.find, to: f.to, line: i + 1, text: l.trim().slice(0, 200) }); }); });
+      return { path, steps: now.map(s => s.activity), gone: !now.length, pasted: !!nb, widgets: nb ? nb.names : [], added, removed, changed, missing, addLines, hits, notReadBefore: before, unread: nb ? nb.widgets.filter(w => !(w.name in sentNow)).map(w => w.name) : [] };
     });
   };
   /* Copilot: the notebooks go into the change prompt, and come back as NOTEBOOK blocks */
