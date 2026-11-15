@@ -1,0 +1,31 @@
+// Notebook generator, any object: Delta folders in the lake, and lookups joined into gold.
+const { open } = require('./lib');
+(async () => {
+  const { browser, page, errors } = await open('python-notebook-generator.html');
+  const T = async (label, fn) => console.log(label, JSON.stringify(await page.evaluate(fn)));
+  const code = () => document.getElementById('codeView').textContent;
+  await page.click('#startOwn').catch(() => {});
+  await page.selectOption('[data-k=scope]', 'any'); await page.fill('[data-k=subject]', 'sales');
+  await page.click('#layerBar [data-layer=gold]');
+  await T('lookups shown for gold', () => !document.getElementById('anyGoldOpts').hidden);
+  await page.selectOption('[data-k="any.store"]', 'path');
+  await page.click('#addJoin');
+  const f = (i, k, v) => page.fill('[data-joinrow="' + i + '"] [data-jf=' + k + ']', v);
+  await f(0, 'obj', 'orders'); await f(0, 'lookup', 'orders_names');
+  await T('incomplete lookup left out, with a warning', () => [/JOINS = \[/.test(document.getElementById('codeView').textContent), document.getElementById('setupMsg').textContent.includes('left out')]);
+  await f(0, 'lookupKey', 'order_id'); await f(0, 'cols', 'name');
+  await page.click('#addJoin'); await f(1, 'obj', 'stores'); await f(1, 'lookup', 'store_names'); await f(1, 'lookupKey', 'store_id');
+  await T('both lookups in the notebook', () => { const c = document.getElementById('codeView').textContent; return [(c.match(/"lookup": /g) || []).length, /transform\(add_lookups\)/.test(c), /DeltaTable\.forPath/.test(c), /target_folder/.test(c), /REFRESH TABLE/.test(c)]; });
+  await T('focus kept while typing', () => document.activeElement && document.activeElement.dataset.jf);
+  await T('ADF lists folder parameters', () => /source_folder .*silver/.test(document.getElementById('adfView').textContent));
+  await page.click('[data-joinrow="1"] [data-joindel]');
+  await T('removed', () => (document.getElementById('codeView').textContent.match(/"lookup": /g) || []).length);
+  await page.reload();
+  await T('kept after reload', () => [document.querySelector('[data-k="any.store"]').value, document.querySelectorAll('[data-joinrow]').length, document.querySelector('[data-jf=lookupKey]').value]);
+  await page.click('#layerBar [data-layer=silver]');
+  await T('silver: no lookups box, folder target', () => [document.getElementById('anyGoldOpts').hidden, /DeltaTable\.isDeltaTable/.test(document.getElementById('codeView').textContent)]);
+  await page.click('#layerBar [data-layer=gold]');
+  await page.setViewportSize({ width: 390, height: 800 });
+  await T('390px overflow (expect 0)', () => document.documentElement.scrollWidth - window.innerWidth);
+  console.log('errors', JSON.stringify(errors)); await browser.close();
+})();

@@ -13,7 +13,8 @@
     const c = P.blank(); if (!saved || typeof saved !== 'object') return c;
     const copy = (to, from, keys) => keys.forEach(k => { if (from && typeof from[k] === typeof to[k] && !Array.isArray(to[k])) to[k] = from[k]; });
     copy(c, saved, ['entity', 'subject', 'folder']); if (/^(bronze|silver|gold)$/.test(saved.layer)) c.layer = saved.layer;
-    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); }
+    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); if (saved.any.store === 'path') c.any.store = 'path';
+      c.any.joins = (Array.isArray(saved.any.joins) ? saved.any.joins : []).filter(j => j && typeof j === 'object').slice(0, 40).map(j => { const d = P.anyJoin(); Object.keys(d).forEach(k => { if (typeof j[k] === 'string') d[k] = j[k].slice(0, 300); }); return d; }); }
     copy(c.cat, saved.cat, ['bronze', 'silver', 'gold']); copy(c.bronze, saved.bronze, ['format', 'path']);
     const sv = saved.silver || {}, g = saved.gold || {}, arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);
     copy(c.silver, sv, ['schemaText', 'orderCol', 'tz', 'softDelete', 'cluster', 'aiReq', 'aiReply']);
@@ -59,7 +60,12 @@
     $('setBronze').hidden = layer !== 'bronze'; $('setSilver').hidden = layer !== 'silver'; $('setGold').hidden = layer !== 'gold';
     $('aiStep').hidden = layer === 'bronze'; $('outNum').textContent = layer === 'bronze' ? '4' : '5';
     const any = cfg.scope === 'any';
-    $('entityBox').hidden = any; $('setAny').hidden = !any; $('anySilverOpts').hidden = layer !== 'silver';
+    $('entityBox').hidden = any; $('setAny').hidden = !any; $('anySilverOpts').hidden = layer !== 'silver'; $('anyGoldOpts').hidden = layer !== 'gold';
+    const jr = $('joinRows'), path = cfg.any.store === 'path';
+    if (any && !(jr.contains(document.activeElement) && document.activeElement.tagName === 'INPUT')) jr.innerHTML = cfg.any.joins.map((j, i) => '<div class="joinrow" data-joinrow="' + i + '">'
+      + [['obj', 'Object', 'orders'], ['lookup', 'Lookup object', 'orders_names'], ['key', 'Object column', 'id'], ['lookupKey', 'Lookup column', 'order_id'], ['cols', 'Columns to bring', 'name (empty = all)']].concat(path ? [['folder', 'Lookup folder', 'silver/orders_names (optional)']] : [])
+        .map(f => '<label class="lab">' + f[1] + '<input type="text" data-jf="' + f[0] + '" value="' + esc(j[f[0]]) + '" placeholder="' + esc(f[2]) + '" spellcheck="false" autocomplete="off"></label>').join('')
+      + '<button type="button" class="x" data-joindel aria-label="Remove lookup">&times;</button></div>').join('');
     document.querySelector('section[aria-labelledby="s2"]').hidden = any;
     $('adfNote').hidden = any;
     if (any) { $('s3p').textContent = 'Nothing about the columns is needed: the notebook cleans whatever the file holds. Choose the options, and give the business key if the objects share one.'; $('setBronze').hidden = true; $('setSilver').hidden = true; $('setGold').hidden = true; $('aiStep').hidden = true; $('outNum').textContent = '3'; }
@@ -115,7 +121,7 @@
   /* everything computed from the form; safe to call on every keystroke */
   function renderOut() {
     const layer = L(), n = P.names(cfg);
-    if (cfg.scope === 'any') $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span><span class="stat">Writes <b>' + esc(layer === 'gold' ? n.gold : n.silver) + '</b></span>';
+    if (cfg.scope === 'any') $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span><span class="stat">Writes <b>' + esc(cfg.any.store === 'path' ? 'the ' + layer + ' folder ADF sends' : layer === 'gold' ? n.gold : n.silver) + '</b></span>' + (layer === 'gold' && P.anyJoins(cfg).length ? '<span class="stat"><b>' + P.anyJoins(cfg).length + '</b> lookups</span>' : '');
     else $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span>' + (layer === 'bronze' ? '<span class="stat">Writes <b>' + esc(n.bronze) + '</b></span>' : layer === 'silver' ? '<span class="stat">Reads <b>' + esc(n.bronze) + '</b></span><span class="stat">Writes <b>' + esc(n.silver) + '</b></span><span class="stat">Quarantine <b>' + esc(n.quarantine) + '</b></span>' : '<span class="stat">Reads <b>' + esc(n.silver) + '</b></span><span class="stat">Writes <b>' + esc(n.gold) + '</b></span>');
     $('contextView').textContent = P.contextCell(cfg);
     if (layer !== 'bronze') {
@@ -180,6 +186,7 @@
       if (el.dataset && el.dataset.g && el.type === 'text') { log[el.dataset.g] = el.value; renderOut(); return; }
       if (el.dataset && el.dataset.g && el.type === 'number') { log[el.dataset.g] = Math.max(0, parseInt(el.value, 10) || 0); renderOut(); return; }
       const lrow = el.closest('[data-logrow]'); if (lrow && el.dataset.lf && el.tagName === 'INPUT') { const r = log.params[Number(lrow.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; renderOut(); return; }
+      const jrow = el.closest('[data-joinrow]'); if (jrow && el.dataset.jf) { const j = cfg.any.joins[Number(jrow.dataset.joinrow)]; if (j) j[el.dataset.jf] = el.value; renderOut(); return; }
       if (el.id === 'aiReq') { sub().aiReq = el.value; renderOut(); return; }
       if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
       const row = el.closest('[data-i]');
@@ -207,6 +214,7 @@
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
+      const jdel = e.target.closest('[data-joindel]'); if (jdel) { cfg.any.joins.splice(Number(jdel.closest('[data-joinrow]').dataset.joinrow), 1); renderForm(); return; }
       const ldel = e.target.closest('[data-logdel]'); if (ldel) { log.params.splice(Number(ldel.closest('[data-logrow]').dataset.logrow), 1); renderForm(); return; }
       const tok = e.target.closest('[data-token]');
       if (tok) { const box = $('logCall'), at = box.selectionStart == null ? box.value.length : box.selectionStart, ins = '{' + tok.dataset.token + '}'; box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd == null ? at : box.selectionEnd); log.call = box.value; box.focus(); box.setSelectionRange(at + ins.length, at + ins.length); renderOut(); return; }
@@ -214,6 +222,7 @@
       if (del) { const row = del.closest('[data-i]'); (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (gr) { const g = cfg.gold, i = g.grain.indexOf(gr.dataset.grain); if (i >= 0) g.grain.splice(i, 1); else g.grain.push(gr.dataset.grain); pruneGold(); renderForm(); }
     });
+    $('addJoin').addEventListener('click', () => { cfg.any.joins.push(P.anyJoin()); renderForm(); const r = $('joinRows').lastElementChild; if (r) r.querySelector('input').focus(); });
     $('addLogParam').addEventListener('click', () => { log.params.push({ name: '', use: 'fixed', value: '' }); renderForm(); });
     $('addRule').addEventListener('click', () => { cfg.silver.rules.push({ kind: 'min', col: '', val: '', name: '' }); renderForm(); });
     $('addMetric').addEventListener('click', () => { cfg.gold.metrics.push({ name: '', agg: 'sum', col: '', filter: '' }); renderForm(); });

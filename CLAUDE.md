@@ -180,6 +180,13 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   or replace whole batches. No Copilot step, no bronze. The ADF tab lists the exact layer parameters. Ran on local Spark
   with parquet in place of Delta (Maven blocked): names, trims, dedupe, first load and the 0-row second gold run; MERGE and
   replaceWhere not run. Check: `pyanytest.js`.
+- Any object, "Write to" (`cfg.any.store`): Delta tables in a schema (default) or Delta folders in the lake (`path`: ADF sends
+  `target_container`/`target_folder`, gold also `source_container`/`source_folder`; optional `table_name` is created over the
+  folder and refreshed). Lookups for gold (`cfg.any.joins`: object, lookup object, object column, lookup column, columns,
+  folder; owner, Nov 2026: a name joined into two objects from their name lookups): left join compared as text, the lookup
+  keeps its newest row per key, a clashing name gets `<lookup>_` in front, missing columns fail with both column lists.
+  Without a folder the lookup is read next to the object's silver folder. Ran on local Spark (parquet for Delta): int-to-text
+  keys, no rows added, clash prefix, 0-row rerun, missing key error. Check: `pyjointest.js`.
 
 ## Python Script Generator (`ps_core.js`)
 

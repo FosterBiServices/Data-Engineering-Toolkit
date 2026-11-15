@@ -419,6 +419,11 @@ td.flowname .ind{color:var(--ws)}
 .tokres { font-size: 12px; overflow-wrap: anywhere; }
 .rrow.filt{grid-template-columns:auto minmax(0,1.8fr) minmax(0,1fr) auto}
 @media (max-width:700px){.rrow.filt{grid-template-columns:auto minmax(0,1fr) auto}.rrow.filt input[data-f=label]{grid-column:2}}
+
+/* notebook generator: lookups for gold */
+.joinrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) 32px; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line, #d9dee7); border-radius: 8px; margin-bottom: 8px; }
+.joinrow .x { align-self: end; margin-bottom: 4px; }
+@media (max-width: 520px) { .joinrow { grid-template-columns: 1fr 32px; } .joinrow .lab { grid-column: 1; } .joinrow .x { grid-row: 1; grid-column: 2; } }
 </style>
 </head>
 <body>

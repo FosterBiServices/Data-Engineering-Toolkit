@@ -419,6 +419,11 @@ td.flowname .ind{color:var(--ws)}
 .tokres { font-size: 12px; overflow-wrap: anywhere; }
 .rrow.filt{grid-template-columns:auto minmax(0,1.8fr) minmax(0,1fr) auto}
 @media (max-width:700px){.rrow.filt{grid-template-columns:auto minmax(0,1fr) auto}.rrow.filt input[data-f=label]{grid-column:2}}
+
+/* notebook generator: lookups for gold */
+.joinrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) 32px; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line, #d9dee7); border-radius: 8px; margin-bottom: 8px; }
+.joinrow .x { align-self: end; margin-bottom: 4px; }
+@media (max-width: 520px) { .joinrow { grid-template-columns: 1fr 32px; } .joinrow .lab { grid-column: 1; } .joinrow .x { grid-row: 1; grid-column: 2; } }
 </style>
 </head>
 <body>
@@ -523,10 +528,16 @@ td.flowname .ind{color:var(--ws)}
           <label class="lab">Business key <span class="hint">optional; comma separated; ADF can send another per object</span><input type="text" data-k="any.keys" spellcheck="false" autocomplete="off" placeholder="order_id"></label>
           <label class="lab">Storage account <span class="hint">the default; ADF usually sends it</span><input type="text" data-k="any.storage" spellcheck="false" autocomplete="off" placeholder="mystorageaccount"></label>
         </div>
+        <label class="lab">Write to <span class="hint">where silver and gold keep their Delta data</span><select data-k="any.store"><option value="table">Delta tables in a schema (catalog.schema.object)</option><option value="path">Delta folders in the lake (ADF sends the folder)</option></select></label>
         <div class="checks" id="anySilverOpts">
           <label><input type="checkbox" data-k="any.trim"> Trim spaces from text</label>
           <label><input type="checkbox" data-k="any.emptyNull"> Empty text becomes null</label>
           <label><input type="checkbox" data-k="any.dropDupRows"> Keep exact duplicate rows once</label>
+        </div>
+        <div id="anyGoldOpts" class="pane" style="gap:10px">
+          <p class="tip"><b>Lookups (optional).</b> Bring columns from another silver object into an object&rsquo;s gold rows, for example a name from orders_names into orders. A left join: no row is lost, and the lookup keeps one row per key (the newest), so none is added.</p>
+          <div id="joinRows"></div>
+          <button type="button" class="btn" id="addJoin">+ Add a lookup</button>
         </div>
         <p class="note small">With a business key, silver and gold merge on it (one row per key). Without one, each file&rsquo;s rows are kept, and a rerun of the same batch replaces them instead of adding them twice.</p>
       </div>
@@ -1011,7 +1022,10 @@ td.flowname .ind{color:var(--ws)}
 
   /* ---------- checks on the setup ---------- */
   /* ---------- notebooks for any object: the pipeline passes the object, nothing about its columns is known here ---------- */
-  P.anyDefaults = () => ({ keys: '', trim: true, emptyNull: true, dropDupRows: true, storage: '' });
+  P.anyDefaults = () => ({ keys: '', trim: true, emptyNull: true, dropDupRows: true, storage: '', store: 'table', joins: [] });
+  P.anyJoin = () => ({ obj: '', lookup: '', key: 'id', lookupKey: '', cols: '', folder: '' });
+  /* a lookup is usable when it names the object, the lookup object and both keys */
+  P.anyJoins = cfg => ((cfg.any && cfg.any.joins) || []).filter(j => j && String(j.obj || '').trim() && String(j.lookup || '').trim() && String(j.key || '').trim() && String(j.lookupKey || '').trim());
   const CLEAN_NAMES = ['def clean_name(name):',
     '    """Lower case, underscores, no spaces or special characters: safe for Delta and for SQL."""',
     '    n = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()',
@@ -1033,14 +1047,28 @@ td.flowname .ind{color:var(--ws)}
     '        seen.setdefault(n, 1)',
     '        out.append(n)',
     '    return out'].join('\n');
+  /* where the Delta data lives: tables in a schema, or folders in the lake (Delta files at a path) */
+  const IO = path => path ? {
+    exists: v => 'DeltaTable.isDeltaTable(spark, ' + v + ')', read: v => 'spark.read.format("delta").load(' + v + ')',
+    save: v => '.save(' + v + ')', dt: v => 'DeltaTable.forPath(spark, ' + v + ')'
+  } : {
+    exists: v => 'spark.catalog.tableExists(' + v + ')', read: v => 'spark.table(' + v + ')',
+    save: v => '.saveAsTable(' + v + ')', dt: v => 'DeltaTable.forName(spark, ' + v + ')'
+  };
+  const ABFSS = (c, f) => 'f"abfss://{' + c + '}@{storage_account}.dfs.core.windows.net/{' + f + '.strip(\'/\')}"';
+  /* path mode: optionally register the folder as a table, so SQL and Power BI see the new data */
+  const REGISTER = ['if table_name:', '    # Optional: a catalog table over the Delta folder, refreshed so SQL and Power BI see this load',
+    '    spark.sql(f"CREATE TABLE IF NOT EXISTS {table_name} USING DELTA LOCATION \'{target}\'")', '    spark.sql(f"REFRESH TABLE {table_name}")'].join('\n');
   P.anySilver = function (cfg) {
-    const n = P.names(cfg), a = cfg.any;
-    let s = head(n.nbSilver, ['Cleans one bronze file for ANY object and writes it to a Delta table named after the object. Called by ADF once per object.',
+    const n = P.names(cfg), a = cfg.any, path = a.store === 'path', io = IO(path);
+    let s = head(n.nbSilver, ['Cleans one bronze file for ANY object and writes it to ' + (path ? 'a Delta folder in the lake' : 'a Delta table') + ' named after the object. Called by ADF once per object.',
       'Column names become lower case with underscores, no spaces or special characters. Rerunning the same batch replaces its rows; it never duplicates.']);
-    s += md('1. Parameters') + widgets([['obj_name', '', true], ['storage_account', a.storage, true], ['source_container', '', true], ['source_folder', '', true], ['source_file', '', true], ['target_schema', cfg.cat.silver + '.' + n.subject, true], ['key_columns', a.keys, false], ['batch_id', '', true]]) + '\n';
+    const W = [['obj_name', '', true], ['storage_account', a.storage, true], ['source_container', '', true], ['source_folder', '', true], ['source_file', '', true]]
+      .concat(path ? [['target_container', '', true], ['target_folder', '', true], ['table_name', '', false]] : [['target_schema', cfg.cat.silver + '.' + n.subject, true]], [['key_columns', a.keys, false], ['batch_id', '', true]]);
+    s += md('1. Parameters') + widgets(W) + '\n';
     s += md('2. Imports and helpers') + ['import json, re, unicodedata', 'from pyspark.sql import functions as F', 'from delta.tables import DeltaTable', '', CLEAN_NAMES].join('\n') + '\n';
     s += md('3. Read the bronze file') + ['source_path = f"abfss://{source_container}@{storage_account}.dfs.core.windows.net/{source_folder.strip(\'/\')}/{source_file}"',
-      'target_table = f"{target_schema}.{clean_name(obj_name)}"', 'raw = spark.read.parquet(source_path)', 'rows_read = raw.count()'].join('\n') + '\n';
+      path ? 'target = ' + ABFSS('target_container', 'target_folder') + '    # the Delta folder for this object' : 'target = f"{target_schema}.{clean_name(obj_name)}"', 'raw = spark.read.parquet(source_path)', 'rows_read = raw.count()'].join('\n') + '\n';
     const C = ['new_names = clean_names(raw.columns)', 'renamed = {old: new for old, new in zip(raw.columns, new_names) if old != new}', 'df = raw.toDF(*new_names)'];
     if (a.trim || a.emptyNull) C.push('', '# Text columns: ' + [a.trim ? 'trim spaces' : '', a.emptyNull ? 'empty text becomes null' : ''].filter(Boolean).join(', '),
       'for c, t in df.dtypes:', '    if t == "string":', '        v = ' + (a.trim ? 'F.trim(F.col(c))' : 'F.col(c)'), '        df = df.withColumn(c, ' + (a.emptyNull ? 'F.when(v != "", v)' : 'v') + ')');
@@ -1048,31 +1076,56 @@ td.flowname .ind{color:var(--ws)}
     C.push('', 'keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]', 'missing_keys = [k for k in keys if k not in df.columns]', 'if missing_keys:', '    raise ValueError(f"key_columns not in {obj_name}: {missing_keys}. Columns: {df.columns}")');
     C.push('', 'df = (df.withColumn("_source_file", F.lit(source_path))', '        .withColumn("_batch_id", F.lit(batch_id))', '        .withColumn("_ingest_ts", F.current_timestamp()))');
     s += md('4. Clean') + C.join('\n') + '\n';
-    s += md('5. Write to Delta') + ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")', 'if not spark.catalog.tableExists(target_table):', '    df.write.format("delta").saveAsTable(target_table)',
+    s += md('5. Write to Delta') + (path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")']).concat(['if not ' + io.exists('target') + ':', '    df.write.format("delta")' + io.save('target'),
       'elif keys:', '    # One row per key: the incoming row replaces the stored one', '    incoming = df.dropDuplicates(keys)', '    spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new columns are added',
-      '    (DeltaTable.forName(spark, target_table).alias("t")', '        .merge(incoming.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))', '        .whenMatchedUpdateAll()', '        .whenNotMatchedInsertAll()', '        .execute())',
-      'else:', '    # No key: this file\'s rows for this batch are replaced, so a rerun never duplicates', '    (df.write.format("delta").mode("overwrite")', '        .option("replaceWhere", f"_batch_id = \'{batch_id}\' AND _source_file = \'{source_path}\'")', '        .option("mergeSchema", "true")', '        .saveAsTable(target_table))'].join('\n') + '\n';
-    s += md('6. Metrics and exit') + ['rows_written = df.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target_table', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_deduped": rows_deduped', '"rows_quarantined": 0', '"columns_renamed": len(renamed)'])].join('\n') + '\n';
+      '    (' + io.dt('target') + '.alias("t")', '        .merge(incoming.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))', '        .whenMatchedUpdateAll()', '        .whenNotMatchedInsertAll()', '        .execute())',
+      'else:', '    # No key: this file\'s rows for this batch are replaced, so a rerun never duplicates', '    (df.write.format("delta").mode("overwrite")', '        .option("replaceWhere", f"_batch_id = \'{batch_id}\' AND _source_file = \'{source_path}\'")', '        .option("mergeSchema", "true")', '        ' + io.save('target') + ')'], path ? ['', REGISTER] : []).join('\n') + '\n';
+    s += md('6. Metrics and exit') + ['rows_written = df.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_deduped": rows_deduped', '"rows_quarantined": 0', '"columns_renamed": len(renamed)'])].join('\n') + '\n';
     return s;
   };
+  /* the lookups as Python: one entry per join set on the page */
+  const pyJoins = js => 'JOINS = [\n' + js.map(j => '    {"object": ' + py(j.obj.trim()) + ', "lookup": ' + py(j.lookup.trim()) + ', "key": ' + py(j.key.trim()) + ', "lookup_key": ' + py(j.lookupKey.trim()) + ',\n     "columns": [' + String(j.cols || '').split(',').map(c => c.trim()).filter(Boolean).map(py).join(', ') + '], "folder": ' + py(String(j.folder || '').trim()) + '},').join('\n') + '\n]';
   P.anyGold = function (cfg) {
-    const n = P.names(cfg), a = cfg.any;
-    let s = head(n.nbGold, ['Copies new silver rows for ANY object to gold, incrementally, with no transformations. Called by ADF once per object.',
+    const n = P.names(cfg), a = cfg.any, path = a.store === 'path', io = IO(path), js = P.anyJoins(cfg);
+    let s = head(n.nbGold, ['Copies new silver rows for ANY object to gold, incrementally' + (js.length ? ', adding columns from lookup objects where the page set a join' : ', with no transformations') + '. Called by ADF once per object.',
       'Only rows silver wrote since the last gold load are read (by _ingest_ts). With key_columns the rows are merged on the key; without, each batch is replaced, so a rerun never duplicates.']);
-    s += md('1. Parameters') + widgets([['obj_name', '', true], ['source_schema', cfg.cat.silver + '.' + n.subject, true], ['target_schema', cfg.cat.gold + '.' + n.subject, true], ['key_columns', a.keys, false], ['batch_id', '', true]]) + '\n';
-    s += md('2. Imports and helpers') + ['import json, re, unicodedata', 'from pyspark.sql import functions as F', 'from pyspark.sql.window import Window', 'from delta.tables import DeltaTable', '', CLEAN_NAMES].join('\n') + '\n';
-    s += md('3. Find what is new in silver') + ['source_table = f"{source_schema}.{clean_name(obj_name)}"', 'target_table = f"{target_schema}.{clean_name(obj_name)}"', 'silver = spark.table(source_table)', '',
-      '# The watermark is the newest silver row gold already has', 'last = spark.table(target_table).agg(F.max("_ingest_ts")).first()[0] if spark.catalog.tableExists(target_table) else None',
+    const W = [['obj_name', '', true]].concat(path ? [['storage_account', a.storage, true], ['source_container', '', true], ['source_folder', '', true], ['target_container', '', true], ['target_folder', '', true], ['table_name', '', false]]
+      : [['source_schema', cfg.cat.silver + '.' + n.subject, true], ['target_schema', cfg.cat.gold + '.' + n.subject, true]], [['key_columns', a.keys, false], ['batch_id', '', true]]);
+    s += md('1. Parameters') + widgets(W) + '\n';
+    const H = ['import json, re, unicodedata', 'from pyspark.sql import functions as F', 'from pyspark.sql.window import Window', 'from delta.tables import DeltaTable', '', CLEAN_NAMES];
+    if (js.length) H.push('', '# Lookups: columns joined in from another silver object. A left join, so no row is lost; the lookup keeps one row per key, so none is added.', pyJoins(js), '',
+      'def lookup_source(j):',
+      path ? '    # The lookup\'s silver folder: the one set on the page, else next to this object\'s silver folder\n    folder = j["folder"] or source_folder.strip("/").rsplit("/", 1)[0] + "/" + j["lookup"]\n    return ' + ABFSS('source_container', 'folder')
+        : '    return f"{source_schema}.{clean_name(j[\'lookup\'])}"', '',
+      'def add_lookups(df):',
+      '    for j in [j for j in JOINS if clean_name(j["object"]) == clean_name(obj_name)]:',
+      '        key, lkey, src = clean_name(j["key"]), clean_name(j["lookup_key"]), lookup_source(j)',
+      '        lk = ' + io.read('src'),
+      '        cols = [clean_name(c) for c in j["columns"]] or [c for c in lk.columns if c != lkey and not c.startswith("_")]',
+      '        missing = ([key] if key not in df.columns else []) + [c for c in [lkey] + cols if c not in lk.columns]',
+      '        if missing:',
+      '            raise ValueError(f"Lookup {j[\'lookup\']} for {obj_name}: columns not found: {missing}. {obj_name} has {df.columns}; {j[\'lookup\']} has {lk.columns}")',
+      '        if "_ingest_ts" in lk.columns:   # the newest row per key',
+      '            lk = lk.withColumn("_rn", F.row_number().over(Window.partitionBy(lkey).orderBy(F.col("_ingest_ts").desc()))).filter("_rn = 1")',
+      '        # A name the object already has gets the lookup\'s name in front: name -> member_names_name',
+      '        lk = lk.select(F.col(lkey).cast("string").alias("_lookup_key"), *[F.col(c).alias(c if c not in df.columns else f"{clean_name(j[\'lookup\'])}_{c}") for c in cols]).dropDuplicates(["_lookup_key"])',
+      '        df = df.join(lk, F.col(key).cast("string") == F.col("_lookup_key"), "left").drop("_lookup_key")   # compared as text, so 12 and "12" match',
+      '    return df');
+    s += md('2. Imports and helpers') + H.join('\n') + '\n';
+    const add = js.length ? '.transform(add_lookups)' : '';
+    s += md('3. Find what is new in silver') + (path ? ['source = ' + ABFSS('source_container', 'source_folder') + '    # this object\'s silver folder', 'target = ' + ABFSS('target_container', 'target_folder')]
+      : ['source = f"{source_schema}.{clean_name(obj_name)}"', 'target = f"{target_schema}.{clean_name(obj_name)}"']).concat(['silver = ' + io.read('source'), '',
+      '# The watermark is the newest silver row gold already has', 'last = ' + io.read('target') + '.agg(F.max("_ingest_ts")).first()[0] if ' + io.exists('target') + ' else None',
       'new = silver if last is None else silver.filter(F.col("_ingest_ts") > F.lit(last))', 'rows_read = new.count()', '',
-      'if rows_read == 0:', '    dbutils.notebook.exit(json.dumps({"status": "succeeded", "batch_id": batch_id, "table": target_table,', '                                      "rows_read": 0, "rows_written": 0, "rows_quarantined": 0}))'].join('\n') + '\n';
-    s += md('4. Write: no transformations, only a load time') + ['keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]', 'spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")', 'spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new silver columns reach gold', '',
-      'if keys:', '    # Newest row per key wins', '    w = Window.partitionBy(*keys).orderBy(F.col("_ingest_ts").desc())', '    rows = new.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn").withColumn("_gold_loaded_ts", F.current_timestamp())',
-      '    if not spark.catalog.tableExists(target_table):', '        rows.write.format("delta").saveAsTable(target_table)', '    else:', '        (DeltaTable.forName(spark, target_table).alias("t")', '            .merge(rows.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))',
+      'if rows_read == 0:', '    dbutils.notebook.exit(json.dumps({"status": "succeeded", "batch_id": batch_id, "table": target,', '                                      "rows_read": 0, "rows_written": 0, "rows_quarantined": 0}))']).join('\n') + '\n';
+    s += md('4. Write: ' + (js.length ? 'lookups joined in, ' : 'no transformations, ') + 'and a load time') + ['keys = [clean_name(k) for k in key_columns.split(",") if k.strip()]'].concat(path ? [] : ['spark.sql(f"CREATE SCHEMA IF NOT EXISTS {target_schema}")'], ['spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")   # new silver columns reach gold', '',
+      'if keys:', '    # Newest row per key wins', '    w = Window.partitionBy(*keys).orderBy(F.col("_ingest_ts").desc())', '    rows = new.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn")' + add + '.withColumn("_gold_loaded_ts", F.current_timestamp())',
+      '    if not ' + io.exists('target') + ':', '        rows.write.format("delta")' + io.save('target'), '    else:', '        (' + io.dt('target') + '.alias("t")', '            .merge(rows.alias("s"), " AND ".join(f"t.`{k}` <=> s.`{k}`" for k in keys))',
       '            .whenMatchedUpdateAll(condition="s._ingest_ts > t._ingest_ts")', '            .whenNotMatchedInsertAll()', '            .execute())',
       'else:', '    # Whole batches: every silver row of a batch that has new rows, so a rerun replaces instead of adding', '    batches = [r[0] for r in new.select("_batch_id").distinct().collect()]',
-      '    rows = silver.filter(F.col("_batch_id").isin(batches)).withColumn("_gold_loaded_ts", F.current_timestamp())', '    if not spark.catalog.tableExists(target_table):', '        rows.write.format("delta").saveAsTable(target_table)', '    else:',
-      '        in_list = ", ".join("\'" + b.replace("\'", "\'\'") + "\'" for b in batches)', '        (rows.write.format("delta").mode("overwrite")', '            .option("replaceWhere", f"_batch_id IN ({in_list})")', '            .option("mergeSchema", "true")', '            .saveAsTable(target_table))'].join('\n') + '\n';
-    s += md('5. Metrics and exit') + ['rows_written = rows.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target_table', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_quarantined": 0'])].join('\n') + '\n';
+      '    rows = silver.filter(F.col("_batch_id").isin(batches))' + add + '.withColumn("_gold_loaded_ts", F.current_timestamp())', '    if not ' + io.exists('target') + ':', '        rows.write.format("delta")' + io.save('target'), '    else:',
+      '        in_list = ", ".join("\'" + b.replace("\'", "\'\'") + "\'" for b in batches)', '        (rows.write.format("delta").mode("overwrite")', '            .option("replaceWhere", f"_batch_id IN ({in_list})")', '            .option("mergeSchema", "true")', '            ' + io.save('target') + ')'], path ? ['', REGISTER] : []).join('\n') + '\n';
+    s += md('5. Metrics and exit') + ['rows_written = rows.count()', EXIT(['"status": "succeeded"', '"batch_id": batch_id', '"table": target', '"rows_read": rows_read', '"rows_written": rows_written', '"rows_quarantined": 0'])].join('\n') + '\n';
     return s;
   };
 
@@ -1082,6 +1135,15 @@ td.flowname .ind{color:var(--ws)}
       if (L === 'bronze') add('err', 'For any object, bronze is loaded by the ADF pipeline (Files through bronze, silver and gold). Choose Silver or Gold.');
       if (!cfg.subject.trim()) add('err', 'Name the subject area (for example sales). It is the schema the tables go in.');
       if (cfg.any.keys.trim() && cfg.any.keys.split(',').some(k => !k.trim())) add('warn', 'The key columns have an empty name between commas.');
+      if (L === 'gold') {
+        const all = (cfg.any.joins || []).filter(j => j && Object.keys(P.anyJoin()).some(k => String(j[k] || '').trim() && !(k === 'key' && j[k] === 'id')));
+        all.forEach((j, i) => { const miss = [['obj', 'the object'], ['lookup', 'the lookup object'], ['key', 'the object column'], ['lookupKey', 'the lookup column']].filter(f => !String(j[f[0]] || '').trim()).map(f => f[1]);
+          if (miss.length) add('warn', 'Lookup ' + (i + 1) + ' is left out of the notebook until it has ' + miss.join(', ') + '.'); });
+        const js = P.anyJoins(cfg);
+        js.forEach(j => { if (js.some(o => o !== j && o.lookup.trim().toLowerCase() === j.obj.trim().toLowerCase())) add('info', j.obj.trim() + ' is itself a lookup for another object: that object gets ' + j.obj.trim() + '’s silver columns, not the ones joined into its gold.'); });
+        if (js.length) add('info', 'Lookups are read from silver when an object’s new rows load. A name changed later in a lookup reaches gold rows loaded after the change, not the ones already there.' + (cfg.any.store === 'path' ? ' Without a folder, a lookup is read from the folder next to the object’s silver folder (silver/' + js[0].obj.trim() + ' > silver/' + js[0].lookup.trim() + ').' : ''));
+        if (js.length) add('info', 'In the pipeline, run silver for every file before gold, so a lookup that arrived in the same run is already in silver.');
+      }
       return R;
     }
     if (!cfg.entity.trim()) add('err', 'Name the entity (for example orders). It names the notebook and the tables.');
@@ -1351,16 +1413,22 @@ td.flowname .ind{color:var(--ws)}
     o.code = L === 'gold' ? P.anyGold(cfg) : P.anySilver(cfg);
     o.logged = !!(log && log.on && !P.logProblems(log).some(p => p.sev === 'err'));
     if (o.logged) o.code = P.applyLog(o.code, cfg, log, n);
+    const path = cfg.any.store === 'path', on = ['obj_name', 'Object name', '(nothing to type)'], acct = ['storage_account', 'Global parameter', 'StorageAccountName (your storage account name)'], run = ['batch_id', 'Run ID', '(nothing to type)'];
+    const tgt = lay => [['target_container', 'Text', 'the ' + lay + ' container, for example lake'], ['target_folder', 'Text', 'the ' + lay + ' folder pattern, for example ' + lay + '/{object}'], ['table_name', 'Text (optional)', 'a catalog table to create over the folder and refresh; empty = none']];
     const prm = L === 'gold'
-      ? [['obj_name', 'Object name', '(nothing to type)'], ['key_columns', 'Text (optional)', 'the business key, for example order_id; empty = whole batches'], ['batch_id', 'Run ID', '(nothing to type)']]
-      : [['obj_name', 'Object name', '(nothing to type)'], ['storage_account', 'Global parameter', 'StorageAccountName (your storage account name)'], ['source_container', 'Text', 'the bronze container, for example lake'], ['source_folder', 'Text', 'the bronze folder pattern, for example bronze/sales/{object}'], ['source_file', 'Text', 'the bronze file name pattern, for example {object}.parquet'], ['key_columns', 'Text (optional)', 'the business key; empty = no merge'], ['batch_id', 'Run ID', '(nothing to type)']];
+      ? [on].concat(path ? [acct, ['source_container', 'Text', 'the silver container, for example lake'], ['source_folder', 'Text', 'the silver folder pattern, the same as silver’s target_folder, for example silver/{object}']].concat(tgt('gold')) : [], [['key_columns', 'Text (optional)', 'the business key, for example order_id; empty = whole batches'], run])
+      : [on, acct, ['source_container', 'Text', 'the bronze container, for example lake'], ['source_folder', 'Text', 'the bronze folder pattern, for example bronze/sales/{object}'], ['source_file', 'Text', 'the bronze file name pattern, for example {object}.parquet']].concat(path ? tgt('silver') : [], [['key_columns', 'Text (optional)', 'the business key; empty = no merge'], run]);
     o.params = prm;
     o.activity = { name: 'nb_' + L, type: 'DatabricksNotebook', dependsOn: [], policy: { timeout: '0.02:00:00', retry: 0, retryIntervalInSeconds: 60, secureOutput: false, secureInput: false }, userProperties: [], typeProperties: { notebookPath: n.path, baseParameters: Object.fromEntries(prm.map(p => [p[0], p[0] === 'batch_id' ? { value: '@pipeline().RunId', type: 'Expression' } : '<' + p[0] + '>'])) }, linkedServiceName: { referenceName: '<LS_DATABRICKS>', type: 'LinkedServiceReference' } };
     o.adf = ['In the ADF Pipeline Generator: Files through bronze, silver and gold > Layers after bronze > Add a layer', '  Name:            ' + L, '  Runs:            Once per file (only objects that got a new file this run)', '  Notebook path:   ' + n.path, '  Parameters it reads (name | value | what to type):']
       .concat(prm.map(p => '    ' + p[0].padEnd(16) + ' | ' + p[1].padEnd(16) + ' | ' + p[2]), ['', 'Run silver before gold in the same pipeline, so they share the batch_id.', 'For logging, tick "Log this layer" and use "Rows written by the step being logged": it reads this notebook’s exit value rows_written.',
         '', 'Reading what the notebook returns, in a later activity:'], ['status', 'table', 'rows_read', 'rows_written'].concat(L === 'silver' ? ['rows_deduped', 'columns_renamed'] : []).map(e => "  @activity('nb_" + L + "').output.runOutput." + e)).join('\n');
-    o.checks = (L === 'silver' ? ['-- Column names after cleaning: every name lower case, digits and underscores', 'DESCRIBE TABLE ' + n.silver.replace('<object>', '<object_name>') + ';', '', '-- Rows per batch and file: one group per file ADF sent', 'SELECT _batch_id, _source_file, COUNT(*) AS row_count, MAX(_ingest_ts) AS loaded_at', 'FROM ' + n.silver.replace('<object>', '<object_name>'), 'GROUP BY _batch_id, _source_file ORDER BY loaded_at DESC LIMIT 20;']
-      : ['-- Gold has every silver batch, with the same row counts (no key) ', 'SELECT s._batch_id, s.n AS silver_rows, g.n AS gold_rows', 'FROM (SELECT _batch_id, COUNT(*) n FROM ' + n.silver.replace('<object>', '<object_name>') + ' GROUP BY _batch_id) s', 'LEFT JOIN (SELECT _batch_id, COUNT(*) n FROM ' + n.gold.replace('<object>', '<object_name>') + ' GROUP BY _batch_id) g ON g._batch_id = s._batch_id', 'ORDER BY s._batch_id DESC LIMIT 20;']).join('\n');
+    const ref = lay => path ? 'delta.`abfss://<container>@<storage_account>.dfs.core.windows.net/' + lay + '/<object_name>`' : n[lay].replace('<object>', '<object_name>');
+    const C = L === 'silver' ? ['-- Column names after cleaning: every name lower case, digits and underscores', 'DESCRIBE TABLE ' + ref('silver') + ';', '', '-- Rows per batch and file: one group per file ADF sent', 'SELECT _batch_id, _source_file, COUNT(*) AS row_count, MAX(_ingest_ts) AS loaded_at', 'FROM ' + ref('silver'), 'GROUP BY _batch_id, _source_file ORDER BY loaded_at DESC LIMIT 20;']
+      : ['-- Gold has every silver batch, with the same row counts (no key) ', 'SELECT s._batch_id, s.n AS silver_rows, g.n AS gold_rows', 'FROM (SELECT _batch_id, COUNT(*) n FROM ' + ref('silver') + ' GROUP BY _batch_id) s', 'LEFT JOIN (SELECT _batch_id, COUNT(*) n FROM ' + ref('gold') + ' GROUP BY _batch_id) g ON g._batch_id = s._batch_id', 'ORDER BY s._batch_id DESC LIMIT 20;'];
+    if (L === 'gold') P.anyJoins(cfg).forEach(j => { const c = String(j.cols || '').split(',').map(x => x.trim()).filter(Boolean)[0], g = ref('gold').replace('<object_name>', j.obj.trim());
+      C.push('', '-- ' + j.obj.trim() + ' rows with no match in ' + j.lookup.trim() + ': expect few or none', 'SELECT COUNT(*) AS no_match FROM ' + g, 'WHERE `' + j.key.trim() + '` IS NOT NULL' + (c ? ' AND `' + c + '` IS NULL' : '') + ';'); });
+    o.checks = C.join('\n');
     o.placeholders = [];
     return o;
   };
@@ -1419,7 +1487,8 @@ td.flowname .ind{color:var(--ws)}
     const c = P.blank(); if (!saved || typeof saved !== 'object') return c;
     const copy = (to, from, keys) => keys.forEach(k => { if (from && typeof from[k] === typeof to[k] && !Array.isArray(to[k])) to[k] = from[k]; });
     copy(c, saved, ['entity', 'subject', 'folder']); if (/^(bronze|silver|gold)$/.test(saved.layer)) c.layer = saved.layer;
-    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); }
+    if (saved.scope === 'any') c.scope = 'any'; if (saved.any && typeof saved.any === 'object') { copy(c.any, saved.any, ['keys', 'storage', 'trim', 'emptyNull', 'dropDupRows']); if (saved.any.store === 'path') c.any.store = 'path';
+      c.any.joins = (Array.isArray(saved.any.joins) ? saved.any.joins : []).filter(j => j && typeof j === 'object').slice(0, 40).map(j => { const d = P.anyJoin(); Object.keys(d).forEach(k => { if (typeof j[k] === 'string') d[k] = j[k].slice(0, 300); }); return d; }); }
     copy(c.cat, saved.cat, ['bronze', 'silver', 'gold']); copy(c.bronze, saved.bronze, ['format', 'path']);
     const sv = saved.silver || {}, g = saved.gold || {}, arr = a => (Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : []);
     copy(c.silver, sv, ['schemaText', 'orderCol', 'tz', 'softDelete', 'cluster', 'aiReq', 'aiReply']);
@@ -1465,7 +1534,12 @@ td.flowname .ind{color:var(--ws)}
     $('setBronze').hidden = layer !== 'bronze'; $('setSilver').hidden = layer !== 'silver'; $('setGold').hidden = layer !== 'gold';
     $('aiStep').hidden = layer === 'bronze'; $('outNum').textContent = layer === 'bronze' ? '4' : '5';
     const any = cfg.scope === 'any';
-    $('entityBox').hidden = any; $('setAny').hidden = !any; $('anySilverOpts').hidden = layer !== 'silver';
+    $('entityBox').hidden = any; $('setAny').hidden = !any; $('anySilverOpts').hidden = layer !== 'silver'; $('anyGoldOpts').hidden = layer !== 'gold';
+    const jr = $('joinRows'), path = cfg.any.store === 'path';
+    if (any && !(jr.contains(document.activeElement) && document.activeElement.tagName === 'INPUT')) jr.innerHTML = cfg.any.joins.map((j, i) => '<div class="joinrow" data-joinrow="' + i + '">'
+      + [['obj', 'Object', 'orders'], ['lookup', 'Lookup object', 'orders_names'], ['key', 'Object column', 'id'], ['lookupKey', 'Lookup column', 'order_id'], ['cols', 'Columns to bring', 'name (empty = all)']].concat(path ? [['folder', 'Lookup folder', 'silver/orders_names (optional)']] : [])
+        .map(f => '<label class="lab">' + f[1] + '<input type="text" data-jf="' + f[0] + '" value="' + esc(j[f[0]]) + '" placeholder="' + esc(f[2]) + '" spellcheck="false" autocomplete="off"></label>').join('')
+      + '<button type="button" class="x" data-joindel aria-label="Remove lookup">&times;</button></div>').join('');
     document.querySelector('section[aria-labelledby="s2"]').hidden = any;
     $('adfNote').hidden = any;
     if (any) { $('s3p').textContent = 'Nothing about the columns is needed: the notebook cleans whatever the file holds. Choose the options, and give the business key if the objects share one.'; $('setBronze').hidden = true; $('setSilver').hidden = true; $('setGold').hidden = true; $('aiStep').hidden = true; $('outNum').textContent = '3'; }
@@ -1521,7 +1595,7 @@ td.flowname .ind{color:var(--ws)}
   /* everything computed from the form; safe to call on every keystroke */
   function renderOut() {
     const layer = L(), n = P.names(cfg);
-    if (cfg.scope === 'any') $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span><span class="stat">Writes <b>' + esc(layer === 'gold' ? n.gold : n.silver) + '</b></span>';
+    if (cfg.scope === 'any') $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span><span class="stat">Writes <b>' + esc(cfg.any.store === 'path' ? 'the ' + layer + ' folder ADF sends' : layer === 'gold' ? n.gold : n.silver) + '</b></span>' + (layer === 'gold' && P.anyJoins(cfg).length ? '<span class="stat"><b>' + P.anyJoins(cfg).length + '</b> lookups</span>' : '');
     else $('nameStats').innerHTML = '<span class="stat">Notebook <b>' + esc(n.nb) + '</b></span>' + (layer === 'bronze' ? '<span class="stat">Writes <b>' + esc(n.bronze) + '</b></span>' : layer === 'silver' ? '<span class="stat">Reads <b>' + esc(n.bronze) + '</b></span><span class="stat">Writes <b>' + esc(n.silver) + '</b></span><span class="stat">Quarantine <b>' + esc(n.quarantine) + '</b></span>' : '<span class="stat">Reads <b>' + esc(n.silver) + '</b></span><span class="stat">Writes <b>' + esc(n.gold) + '</b></span>');
     $('contextView').textContent = P.contextCell(cfg);
     if (layer !== 'bronze') {
@@ -1586,6 +1660,7 @@ td.flowname .ind{color:var(--ws)}
       if (el.dataset && el.dataset.g && el.type === 'text') { log[el.dataset.g] = el.value; renderOut(); return; }
       if (el.dataset && el.dataset.g && el.type === 'number') { log[el.dataset.g] = Math.max(0, parseInt(el.value, 10) || 0); renderOut(); return; }
       const lrow = el.closest('[data-logrow]'); if (lrow && el.dataset.lf && el.tagName === 'INPUT') { const r = log.params[Number(lrow.dataset.logrow)]; if (r) r[el.dataset.lf] = el.value; renderOut(); return; }
+      const jrow = el.closest('[data-joinrow]'); if (jrow && el.dataset.jf) { const j = cfg.any.joins[Number(jrow.dataset.joinrow)]; if (j) j[el.dataset.jf] = el.value; renderOut(); return; }
       if (el.id === 'aiReq') { sub().aiReq = el.value; renderOut(); return; }
       if (el.id === 'aiReply') { sub().aiReply = el.value; renderOut(); return; }
       const row = el.closest('[data-i]');
@@ -1613,6 +1688,7 @@ td.flowname .ind{color:var(--ws)}
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'radio')) { if (el.type === 'radio' && !el.checked) return; set(cfg, el.dataset.k, el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
+      const jdel = e.target.closest('[data-joindel]'); if (jdel) { cfg.any.joins.splice(Number(jdel.closest('[data-joinrow]').dataset.joinrow), 1); renderForm(); return; }
       const ldel = e.target.closest('[data-logdel]'); if (ldel) { log.params.splice(Number(ldel.closest('[data-logrow]').dataset.logrow), 1); renderForm(); return; }
       const tok = e.target.closest('[data-token]');
       if (tok) { const box = $('logCall'), at = box.selectionStart == null ? box.value.length : box.selectionStart, ins = '{' + tok.dataset.token + '}'; box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd == null ? at : box.selectionEnd); log.call = box.value; box.focus(); box.setSelectionRange(at + ins.length, at + ins.length); renderOut(); return; }
@@ -1620,6 +1696,7 @@ td.flowname .ind{color:var(--ws)}
       if (del) { const row = del.closest('[data-i]'); (row.dataset.list === 'rules' ? cfg.silver.rules : cfg.gold[row.dataset.list]).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (gr) { const g = cfg.gold, i = g.grain.indexOf(gr.dataset.grain); if (i >= 0) g.grain.splice(i, 1); else g.grain.push(gr.dataset.grain); pruneGold(); renderForm(); }
     });
+    $('addJoin').addEventListener('click', () => { cfg.any.joins.push(P.anyJoin()); renderForm(); const r = $('joinRows').lastElementChild; if (r) r.querySelector('input').focus(); });
     $('addLogParam').addEventListener('click', () => { log.params.push({ name: '', use: 'fixed', value: '' }); renderForm(); });
     $('addRule').addEventListener('click', () => { cfg.silver.rules.push({ kind: 'min', col: '', val: '', name: '' }); renderForm(); });
     $('addMetric').addEventListener('click', () => { cfg.gold.metrics.push({ name: '', agg: 'sum', col: '', filter: '' }); renderForm(); });

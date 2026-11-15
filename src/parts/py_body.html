@@ -99,10 +99,16 @@
           <label class="lab">Business key <span class="hint">optional; comma separated; ADF can send another per object</span><input type="text" data-k="any.keys" spellcheck="false" autocomplete="off" placeholder="order_id"></label>
           <label class="lab">Storage account <span class="hint">the default; ADF usually sends it</span><input type="text" data-k="any.storage" spellcheck="false" autocomplete="off" placeholder="mystorageaccount"></label>
         </div>
+        <label class="lab">Write to <span class="hint">where silver and gold keep their Delta data</span><select data-k="any.store"><option value="table">Delta tables in a schema (catalog.schema.object)</option><option value="path">Delta folders in the lake (ADF sends the folder)</option></select></label>
         <div class="checks" id="anySilverOpts">
           <label><input type="checkbox" data-k="any.trim"> Trim spaces from text</label>
           <label><input type="checkbox" data-k="any.emptyNull"> Empty text becomes null</label>
           <label><input type="checkbox" data-k="any.dropDupRows"> Keep exact duplicate rows once</label>
+        </div>
+        <div id="anyGoldOpts" class="pane" style="gap:10px">
+          <p class="tip"><b>Lookups (optional).</b> Bring columns from another silver object into an object&rsquo;s gold rows, for example a name from orders_names into orders. A left join: no row is lost, and the lookup keeps one row per key (the newest), so none is added.</p>
+          <div id="joinRows"></div>
+          <button type="button" class="btn" id="addJoin">+ Add a lookup</button>
         </div>
         <p class="note small">With a business key, silver and gold merge on it (one row per key). Without one, each file&rsquo;s rows are kept, and a rerun of the same batch replaces them instead of adding them twice.</p>
       </div>
