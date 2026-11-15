@@ -51,6 +51,7 @@ const landing = { name: 'ds_landing', properties: { linkedServiceName: { referen
   await T('notebook parameter set', () => [document.querySelector('[data-cmsg="3"]').innerText, /"region": \{\s*"value": "@pipeline\(\)\.parameters\.region"/.test(document.getElementById('chgJson').textContent)]);
   await T('focus kept while typing', () => document.activeElement && document.activeElement.dataset.pf2);
   // Copilot
+  await T('before a request: the page says what to do', () => [document.getElementById('chgAiBox').hidden, document.getElementById('chgAiWait').innerText]);
   await page.fill('#chgAsk', 'Add lastModified to the Get Metadata field list.');
   await T('prompt', () => [!document.getElementById('chgAiBox').hidden, /TASK/.test(document.getElementById('chgPromptView').textContent), /nb_gold_sales/.test(document.getElementById('chgPromptView').textContent)]);
   const got = await page.evaluate(() => { const o = JSON.parse(document.getElementById('chgJson').textContent); o.properties.activities[1].typeProperties.fieldList.push('lastModified'); o.properties.activities.splice(2, 1); return o; });

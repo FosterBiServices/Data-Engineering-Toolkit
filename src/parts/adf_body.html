@@ -530,6 +530,10 @@
         <p class="note small">Paste a dataset&rsquo;s JSON (Author &gt; Datasets &gt; the dataset &gt; code view <span class="mono">{}</span>) when a change may touch it, for example a folder typed into the dataset. Paste as many as you need.</p>
         <div id="chgDsBox" class="chgds"></div>
         <button type="button" class="btn" id="chgDsAdd">Add another dataset</button>
+        <h3 style="margin:14px 0 0">Notebooks this pipeline runs <span class="muted" style="font-weight:400">(optional)</span></h3>
+        <p class="note small">Paste a notebook (or open its exported .py or .ipynb file) when a change may touch it: a parameter the pipeline sends it, or a folder it builds itself. The review then says exactly which lines to change, the page can make simple ones, and Copilot can make the rest.</p>
+        <div id="chgNbBox" class="chgds"></div>
+        <button type="button" class="btn" id="chgNbAdd">Add another notebook</button>
       </div>
       <details id="chgOutlineBox" hidden><summary>What the pipeline holds</summary><div id="chgOutline" class="chgoutline"></div></details>
     </div>
@@ -553,7 +557,13 @@
         <h2 id="g3">Anything else, in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
         <p>For a change the list above can&rsquo;t make. The prompt holds the pipeline after the Step 2 changes; Copilot sends the whole pipeline back, and the page only uses it after the review below.</p>
       </div>
+      <ol class="how">
+        <li>Say what to change, in plain words.</li>
+        <li>Copy the prompt that appears below and send it to Copilot. It holds the whole pipeline and the rules, so Copilot knows what to do.</li>
+        <li>Paste Copilot&rsquo;s whole reply in the last box. The page checks it before using it.</li>
+      </ol>
       <textarea class="mid" id="chgAsk" spellcheck="true" aria-label="Change in plain words" placeholder="Only copy files that were modified since yesterday."></textarea>
+      <div id="chgAiWait" class="msgs"></div>
       <div id="chgAiBox" hidden style="display:flex;flex-direction:column;gap:12px">
         <div class="codebox"><div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="chgCount"></span><button class="btn" type="button" data-save="chgPrompt">Download file</button><button class="btn primary" type="button" data-copy="chgPrompt">Copy prompt</button></span></div><pre class="short" id="chgPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
         <label class="lab">Copilot&rsquo;s reply <span class="hint">paste all of it</span><textarea class="mid" id="chgReply" spellcheck="false" aria-label="Copilot reply"></textarea></label>
@@ -575,11 +585,13 @@
         <div class="tabbar sub-tabs" role="tablist" id="chgTabs">
           <button type="button" role="tab" data-tab="list" aria-selected="true"><span class="tn">What changed</span></button>
           <button type="button" role="tab" data-tab="diff" aria-selected="false"><span class="tn">Before and after</span></button>
+          <button type="button" role="tab" data-tab="nb" aria-selected="false"><span class="tn">Notebooks</span></button>
           <button type="button" role="tab" data-tab="json" aria-selected="false"><span class="tn">New JSON</span></button>
           <button type="button" role="tab" data-tab="how" aria-selected="false"><span class="tn">How to apply it</span></button>
         </div>
         <div data-pane="list"><div class="tablewrap"><table><thead><tr><th>Where</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody id="chgDiffBody"></tbody></table></div></div>
         <div data-pane="diff" hidden><p class="note small">Red lines are taken out, green lines are new. Unchanged parts are folded.</p><div class="chgdiff" id="chgLines"></div></div>
+        <div data-pane="nb" hidden><div id="chgNbOut" style="display:flex;flex-direction:column;gap:12px"></div></div>
         <div data-pane="json" hidden style="display:flex;flex-direction:column;gap:12px">
           <div class="codebox"><div class="codebox-bar"><span class="t" id="chgJsonTitle">Pipeline JSON</span><span class="r"><button class="btn" type="button" data-save="chgPipeline">Download</button><button class="btn primary" type="button" data-copy="chgPipeline">Copy JSON</button></span></div><pre class="tall" id="chgJson"></pre></div>
           <div id="chgDsOut" style="display:flex;flex-direction:column;gap:12px"></div>

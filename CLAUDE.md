@@ -180,6 +180,16 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   pipeline().parameters and dataset()), `adfchangepage.js`. Dark mode: use the colour variables, never #fff; `darktest.js` flags
   text with contrast under 3 on every tab in dark mode (owner, Nov 2026: a white card was unreadable on a dark-mode PC). The region example ran privately on the owner's rebuilt pipeline:
   0 broken references, no new findings, folders resolve with any region.
+- Change a pipeline, notebooks (owner, Nov 2026: "if the notebook is going to change, the user knows what to change...
+  perhaps they need to be able to paste them"; and the goal is the tool doing it, not hand edits): one box per notebook the
+  pipeline runs (paste, or open the .py / .ipynb; `A.readNotebook` turns .ipynb into Python and lists the widgets it reads),
+  "Send it to Copilot" per notebook. `A.notebookReview` per notebook: what its steps now send (new, changed, no longer),
+  widgets it doesn't read yet (the exact lines, and "Add these lines for me"), and lines that build text a Find and
+  replace changed (a line already changed isn't flagged again). Built-in: `nbWidgets` (widget + get lines next to the
+  existing ones), `nbReplace` (text, typed as Python). Copilot: the prompt holds the chosen notebooks and asks for
+  `@@@ NOTEBOOK @@@` blocks (`PATH:` first line, `A.notebookParse`). Review tab "Notebooks": diff, copy, download, and the
+  ADF Studio steps say which notebooks to replace in Databricks. Also `dsParam` (send a value to a dataset parameter, or stop
+  sending it). Check: `adfchangenbtest.js`.
 - A factory export import (ARM template folder) was built and dropped (owner, Nov 2026: users won't trust giving the page
   the whole export, and a names-only list can't say what a dataset looks like). Pasting a dataset's JSON stays the way.
 

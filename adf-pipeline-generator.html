@@ -451,6 +451,9 @@ td.flowname .ind{color:var(--ws)}
 .chgdsrow { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .chgdsrow > summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
 .chgdsrow textarea { margin-top: 8px; width: 100%; }
+.chgnb { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); overflow-wrap: anywhere; }
+.chgnb ul { margin: 0; padding-left: 20px; }
+.chgnb pre { white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -986,6 +989,10 @@ td.flowname .ind{color:var(--ws)}
         <p class="note small">Paste a dataset&rsquo;s JSON (Author &gt; Datasets &gt; the dataset &gt; code view <span class="mono">{}</span>) when a change may touch it, for example a folder typed into the dataset. Paste as many as you need.</p>
         <div id="chgDsBox" class="chgds"></div>
         <button type="button" class="btn" id="chgDsAdd">Add another dataset</button>
+        <h3 style="margin:14px 0 0">Notebooks this pipeline runs <span class="muted" style="font-weight:400">(optional)</span></h3>
+        <p class="note small">Paste a notebook (or open its exported .py or .ipynb file) when a change may touch it: a parameter the pipeline sends it, or a folder it builds itself. The review then says exactly which lines to change, the page can make simple ones, and Copilot can make the rest.</p>
+        <div id="chgNbBox" class="chgds"></div>
+        <button type="button" class="btn" id="chgNbAdd">Add another notebook</button>
       </div>
       <details id="chgOutlineBox" hidden><summary>What the pipeline holds</summary><div id="chgOutline" class="chgoutline"></div></details>
     </div>
@@ -1009,7 +1016,13 @@ td.flowname .ind{color:var(--ws)}
         <h2 id="g3">Anything else, in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
         <p>For a change the list above can&rsquo;t make. The prompt holds the pipeline after the Step 2 changes; Copilot sends the whole pipeline back, and the page only uses it after the review below.</p>
       </div>
+      <ol class="how">
+        <li>Say what to change, in plain words.</li>
+        <li>Copy the prompt that appears below and send it to Copilot. It holds the whole pipeline and the rules, so Copilot knows what to do.</li>
+        <li>Paste Copilot&rsquo;s whole reply in the last box. The page checks it before using it.</li>
+      </ol>
       <textarea class="mid" id="chgAsk" spellcheck="true" aria-label="Change in plain words" placeholder="Only copy files that were modified since yesterday."></textarea>
+      <div id="chgAiWait" class="msgs"></div>
       <div id="chgAiBox" hidden style="display:flex;flex-direction:column;gap:12px">
         <div class="codebox"><div class="codebox-bar"><span class="t">Prompt for Copilot</span><span class="r"><span class="count" id="chgCount"></span><button class="btn" type="button" data-save="chgPrompt">Download file</button><button class="btn primary" type="button" data-copy="chgPrompt">Copy prompt</button></span></div><pre class="short" id="chgPromptView" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>
         <label class="lab">Copilot&rsquo;s reply <span class="hint">paste all of it</span><textarea class="mid" id="chgReply" spellcheck="false" aria-label="Copilot reply"></textarea></label>
@@ -1031,11 +1044,13 @@ td.flowname .ind{color:var(--ws)}
         <div class="tabbar sub-tabs" role="tablist" id="chgTabs">
           <button type="button" role="tab" data-tab="list" aria-selected="true"><span class="tn">What changed</span></button>
           <button type="button" role="tab" data-tab="diff" aria-selected="false"><span class="tn">Before and after</span></button>
+          <button type="button" role="tab" data-tab="nb" aria-selected="false"><span class="tn">Notebooks</span></button>
           <button type="button" role="tab" data-tab="json" aria-selected="false"><span class="tn">New JSON</span></button>
           <button type="button" role="tab" data-tab="how" aria-selected="false"><span class="tn">How to apply it</span></button>
         </div>
         <div data-pane="list"><div class="tablewrap"><table><thead><tr><th>Where</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody id="chgDiffBody"></tbody></table></div></div>
         <div data-pane="diff" hidden><p class="note small">Red lines are taken out, green lines are new. Unchanged parts are folded.</p><div class="chgdiff" id="chgLines"></div></div>
+        <div data-pane="nb" hidden><div id="chgNbOut" style="display:flex;flex-direction:column;gap:12px"></div></div>
         <div data-pane="json" hidden style="display:flex;flex-direction:column;gap:12px">
           <div class="codebox"><div class="codebox-bar"><span class="t" id="chgJsonTitle">Pipeline JSON</span><span class="r"><button class="btn" type="button" data-save="chgPipeline">Download</button><button class="btn primary" type="button" data-copy="chgPipeline">Copy JSON</button></span></div><pre class="tall" id="chgJson"></pre></div>
           <div id="chgDsOut" style="display:flex;flex-direction:column;gap:12px"></div>
@@ -1175,7 +1190,7 @@ td.flowname .ind{color:var(--ws)}
     document.addEventListener('click', e => {
       const b = e.target.closest('[data-copy],[data-save]'); if (!b) return;
       const key = b.dataset.copy || b.dataset.save, g = getters[key]; if (!g) return;
-      const v = g(); if (v == null || v === '') return;
+      const v = g(); if (v == null || v === '' || v === false || (typeof v === 'object' && !v.text)) { const old = b.textContent; b.textContent = 'Nothing to copy yet'; setTimeout(() => { b.textContent = old; }, 1600); return; }
       if (b.dataset.copy) S.copyText(typeof v === 'string' ? v : v.text, b);
       else S.saveText(v.name, v.text);
     });
@@ -2883,12 +2898,15 @@ td.flowname .ind{color:var(--ws)}
     ['notebook', 'Change a notebook step'],
     ['addNotebook', 'Add a notebook step'],
     ['dataset', 'Use another dataset'],
+    ['dsParam', 'Send a value to a dataset parameter'],
     ['policy', 'Timeout and retries'],
     ['state', 'Turn an activity off or on'],
     ['remove', 'Remove an activity'],
-    ['schedule', 'Add a schedule']
+    ['schedule', 'Add a schedule'],
+    ['nbWidgets', 'Notebook: read what the pipeline sends'],
+    ['nbReplace', 'Notebook: find and replace']
   ];
-  A.CHANGE_HINTS = { replace: 'Paths, folders and other text inside values. Names of activities and datasets are left alone.', toParam: 'A value typed in, such as a folder, becomes a parameter, variable or global parameter everywhere it is used.', param: 'Add, rename, change the default of, or remove one.', var: 'Add, rename, change the default of, or remove one.', rename: 'Everything that refers to it is updated too.', notebook: 'Its path, or the parameters it is sent.', addNotebook: 'A new notebook step after an activity, or in between two.', dataset: 'Swap the dataset a step reads or writes.', policy: 'For one activity or all of them.', state: 'A step that is off is skipped; the steps after it see it as succeeded.', remove: 'Steps that ran after it then run after what it ran after.', schedule: 'A trigger that runs the pipeline daily, weekly or hourly.' };
+  A.CHANGE_HINTS = { replace: 'Paths, folders and other text inside values. Names of activities and datasets are left alone.', toParam: 'A value typed in, such as a folder, becomes a parameter, variable or global parameter everywhere it is used.', param: 'Add, rename, change the default of, or remove one.', var: 'Add, rename, change the default of, or remove one.', rename: 'Everything that refers to it is updated too.', notebook: 'Its path, or the parameters it is sent.', addNotebook: 'A new notebook step after an activity, or in between two.', dataset: 'Swap the dataset a step reads or writes.', dsParam: 'Every step that uses a dataset sends this value to one of its parameters (or stops sending it).', policy: 'For one activity or all of them.', state: 'A step that is off is skipped; the steps after it see it as succeeded.', remove: 'Steps that ran after it then run after what it ran after.', schedule: 'A trigger that runs the pipeline daily, weekly or hourly.', nbWidgets: 'Adds a widget line for each parameter a notebook step now sends that the pasted notebook doesn\u2019t read yet.', nbReplace: 'Changes text in a pasted notebook, for example a folder it builds itself. Type the new text as Python.' };
   A.newChange = kind => ({
     replace: { kind, find: '', repl: '', cs: true, skip: [], keep: [] },
     toParam: { kind, find: '', name: '', as: 'param', cs: true, skip: [], keep: [] },
@@ -2898,10 +2916,13 @@ td.flowname .ind{color:var(--ws)}
     notebook: { kind, activity: '', path: '', params: [] },
     addNotebook: { kind, after: '', name: '', path: '', ls: '', params: [], insert: false },
     dataset: { kind, activity: '', from: '', to: '' },
+    dsParam: { kind, dataset: '', activity: '*', name: '', value: '', remove: false },
     policy: { kind, activity: '*', timeout: '', retry: '', interval: '' },
     state: { kind, activity: '', active: false, markAs: 'Succeeded' },
     remove: { kind, activity: '' },
-    schedule: { kind, freq: 'daily', time: '02:00', tz: 'UTC', name: '' }
+    schedule: { kind, freq: 'daily', time: '02:00', tz: 'UTC', name: '' },
+    nbWidgets: { kind, path: '' },
+    nbReplace: { kind, path: '', find: '', repl: '', cs: true }
   }[kind] || { kind });
 
   /* find an activity anywhere, with the list it sits in */
@@ -2952,7 +2973,7 @@ td.flowname .ind{color:var(--ws)}
         if (!ds.properties.parameters[pn]) ds.properties.parameters[pn] = { type: 'string', defaultValue: (pieces.find(p => p.ref) ? h.value.match(re)[0] : '') };
         setAt(ds, path, np.length === 1 && np[0].ref ? X('@' + np[0].ref) : X(np.map(p => (p.ref ? '@{' + p.ref + '}' : p.text.replace(/@/g, '@@'))).join('')));
         const ref = pieces.find(p => p.ref).ref; let n = 0;
-        allActs(state.pl).forEach(a => JSON.stringify(a) && walkRefs(a, ds.name, r => { r.parameters = r.parameters || {}; if (r.parameters[pn] == null) { r.parameters[pn] = X('@' + ref); n++; } }));
+        allActs(state.pl).forEach(a => walkRefs(a, ds.name, r => { r.parameters = r.parameters || {}; if (r.parameters[pn] == null) { r.parameters[pn] = X('@' + ref); n++; } }));
         msgs.push({ sev: 'info', msg: 'Dataset ' + ds.name + ' gets a parameter ' + pn + ' (default "' + ds.properties.parameters[pn].defaultValue + '", so other pipelines using it keep working). ' + n + ' step' + (n === 1 ? '' : 's') + ' here now pass it.' });
         state.dsChanged[ds.name] = true;
       }
@@ -2962,7 +2983,14 @@ td.flowname .ind{color:var(--ws)}
     msgs.unshift({ sev: 'ok', msg: 'Changed ' + hits.length + ' place' + (hits.length === 1 ? '' : 's') + '.' });
     return msgs;
   }
-  function walkRefs(node, dsName, fn) { if (Array.isArray(node)) node.forEach(v => walkRefs(v, dsName, fn)); else if (isObj(node)) { if (node.type === 'DatasetReference' && node.referenceName === dsName) fn(node); Object.keys(node).forEach(k => walkRefs(node[k], dsName, fn)); } }
+  /* dataset references of one activity, not of the activities inside it (those are visited on their own) */
+  function walkRefs(node, dsName, fn, top) {
+    if (Array.isArray(node)) { node.forEach(v => walkRefs(v, dsName, fn, false)); return; }
+    if (!isObj(node)) return;
+    if (node.type === 'DatasetReference' && node.referenceName === dsName) fn(node);
+    const own = top !== false && typeof node.name === 'string' && isObj(node.typeProperties) ? CONTAINERS[node.type] || (node.type === 'Switch' ? ['cases', 'defaultActivities'] : []) : [];
+    Object.keys(node).forEach(k => { if (k === 'typeProperties' && own.length) { Object.keys(node.typeProperties).forEach(t => { if (own.indexOf(t) < 0) walkRefs(node.typeProperties[t], dsName, fn, false); }); return; } walkRefs(node[k], dsName, fn, false); });
+  }
   /* Set Variable at the start of the run, before everything that starts the run */
   function addInit(pl, v, body, msgs) {
     const acts = pl.properties.activities, name = 'set_' + v;
@@ -3040,6 +3068,35 @@ td.flowname .ind{color:var(--ws)}
           const nd = state.datasets.find(d => d.name === c.to); if (nd && r.parameters) { const want = Object.keys(nd.properties.parameters || {}); Object.keys(r.parameters).forEach(k => { if (want.indexOf(k) < 0) delete r.parameters[k]; }); want.filter(k => r.parameters[k] == null && (nd.properties.parameters[k] || {}).defaultValue == null).forEach(k => msgs.push({ sev: 'warn', msg: a.name + ' passes nothing to ' + c.to + '’s parameter ' + k + '. Add it with "Find and replace" or in ADF Studio.' })); } }));
         return n ? [{ sev: 'ok', msg: n + ' use' + (n === 1 ? '' : 's') + ' of ' + c.from + ' now use ' + c.to + '.' }].concat(msgs) : err('Nothing here uses the dataset ' + c.from + '.');
       }
+      case 'dsParam': {
+        if (!c.dataset) return err('Choose the dataset.'); if (!okName(c.name)) return err('Give the dataset parameter\u2019s name.');
+        if (!c.remove && !String(c.value || '').trim()) return err('Give the value to send, for example {var:location}.');
+        let n = 0; (c.activity && c.activity !== '*' ? [(locate(pl, c.activity) || {}).a].filter(Boolean) : allActs(pl)).forEach(a => walkRefs(a, c.dataset, r => { if (c.remove) { if (r.parameters && c.name in r.parameters) { delete r.parameters[c.name]; n++; } return; } r.parameters = r.parameters || {}; r.parameters[c.name] = valueOf(c.value.trim()); n++; }));
+        if (!n) return err(c.remove ? 'No step sends ' + c.name + ' to ' + c.dataset + '.' : 'No step here uses the dataset ' + c.dataset + '.');
+        const nd = state.datasets.find(d => d.name === c.dataset), has = nd && Object.keys(nd.properties.parameters || {}).indexOf(c.name) >= 0;
+        return [{ sev: 'ok', msg: n + ' use' + (n === 1 ? '' : 's') + ' of ' + c.dataset + (c.remove ? ' no longer send ' : ' now send ') + c.name + '.' }].concat(!c.remove && nd && !has ? [{ sev: 'warn', msg: 'The pasted ' + c.dataset + ' has no parameter called ' + c.name + '. Add it to the dataset, or ADF Studio will reject the pipeline.' }] : !c.remove && !nd ? [{ sev: 'info', msg: c.dataset + ' wasn\u2019t pasted, so the page can\u2019t check it has a parameter called ' + c.name + '.' }] : []);
+      }
+      case 'nbWidgets': {
+        const src = state.nbs[c.path]; if (src == null) return err('Paste this notebook in Step 1 first (Notebooks this pipeline runs).');
+        const nb = A.readNotebook(src), sent = {}; A.notebookSteps(pl).filter(x => x.path === c.path).forEach(x => Object.keys(x.params).forEach(k => { sent[k] = 1; }));
+        const miss = Object.keys(sent).filter(k => nb.names.indexOf(k) < 0); if (!miss.length) return [{ sev: 'ok', msg: 'The notebook already reads everything its steps send.' }];
+        const L = nb.lines.slice(), grp = re => { const i = L.findIndex(l => re.test(l)); if (i < 0) return -1; let j = i; while (j + 1 < L.length && re.test(L[j + 1])) j++; return j; };
+        const v = k => k.replace(/\W/g, '_');
+        let ti = grp(/^\s*dbutils\.widgets\.(text|dropdown|combobox)\(/); const tl = miss.map(k => 'dbutils.widgets.text("' + k + '", "")   # sent by the pipeline');
+        if (ti < 0) { ti = L.findIndex(l => !/^\s*#/.test(l) && l.trim()) - 1; if (ti < -1) ti = -1; }
+        L.splice(ti + 1, 0, ...tl);
+        let gi = grp(/^\s*\w+\s*=\s*dbutils\.widgets\.get\(/); const gl = miss.map(k => v(k) + ' = dbutils.widgets.get("' + k + '").strip()');
+        if (gi < 0) gi = ti + tl.length; L.splice(gi + 1, 0, ...gl);
+        state.nbs[c.path] = L.join('\n'); state.nbChanged[c.path] = true;
+        return [{ sev: 'ok', msg: 'Added widget lines for ' + miss.join(', ') + '. The notebook now has ' + miss.map(v).join(', ') + ' to use: say where with "Notebook: find and replace", or ask Copilot in Step 3.' }];
+      }
+      case 'nbReplace': {
+        const src = state.nbs[c.path]; if (src == null) return err('Paste this notebook in Step 1 first (Notebooks this pipeline runs).'); if (!c.find) return err('Type the text to find.');
+        const re = new RegExp(reEsc(c.find), c.cs !== false ? 'g' : 'gi'), lines = src.split('\n').map((l, i) => (re.test(l) ? i + 1 : 0)).filter(Boolean); re.lastIndex = 0;
+        if (!lines.length) return err('"' + c.find + '" isn\u2019t in the notebook.');
+        state.nbs[c.path] = src.replace(re, () => c.repl); state.nbChanged[c.path] = true;
+        return [{ sev: 'ok', msg: 'Changed line' + (lines.length === 1 ? ' ' : 's ') + lines.join(', ') + '.' }];
+      }
       case 'policy': {
         const to = timeout(c.timeout); if (to === null) return err('Timeout: hours (2) or d.hh:mm:ss (0.02:00:00).');
         const list = c.activity && c.activity !== '*' ? [(locate(pl, c.activity) || {}).a].filter(Boolean) : allActs(pl).filter(a => !NO_POLICY.test(a.type));
@@ -3074,17 +3131,17 @@ td.flowname .ind{color:var(--ws)}
   }
 
   /* apply the list in order, on copies; a change that fails leaves the pipeline as the change before it */
-  A.applyChanges = function (pipeline, datasets, changes, today) {
-    const state = { pl: clone(pipeline), datasets: clone(datasets || []), dsChanged: {}, globals: {}, trigger: null, today };
+  A.applyChanges = function (pipeline, datasets, changes, today, notebooks) {
+    const state = { pl: clone(pipeline), datasets: clone(datasets || []), dsChanged: {}, globals: {}, trigger: null, today, nbs: Object.assign({}, notebooks || {}), nbChanged: {} };
     ['parameters', 'variables'].forEach(k => { if (!isObj(state.pl.properties[k])) delete state.pl.properties[k]; });
     const results = (changes || []).map(c => {
-      const before = clone({ pl: state.pl, datasets: state.datasets });
+      const before = clone({ pl: state.pl, datasets: state.datasets, nbs: state.nbs });
       let msgs; try { msgs = applyOne(state, c); } catch (e) { msgs = [{ sev: 'err', msg: 'This change couldn’t be made: ' + e.message }]; }
-      if (msgs.some(m => m.sev === 'err')) { state.pl = before.pl; state.datasets = before.datasets; }
+      if (msgs.some(m => m.sev === 'err')) { state.pl = before.pl; state.datasets = before.datasets; state.nbs = before.nbs; }
       return { change: c, msgs };
     });
     if (isObj(state.pl.properties.parameters) && !Object.keys(state.pl.properties.parameters).length) delete state.pl.properties.parameters;
-    return { pipeline: state.pl, datasets: state.datasets.filter(d => state.dsChanged[d.name]), allDatasets: state.datasets, globals: state.globals, trigger: state.trigger, results };
+    return { pipeline: state.pl, datasets: state.datasets.filter(d => state.dsChanged[d.name]), allDatasets: state.datasets, globals: state.globals, trigger: state.trigger, results, notebooks: state.nbs, nbChanged: Object.keys(state.nbChanged) };
   };
 
   /* ---------- review ---------- */
@@ -3166,15 +3223,17 @@ td.flowname .ind{color:var(--ws)}
   };
 
   /* ---------- Copilot, for changes the page can't make ---------- */
-  A.changePrompt = function (pl, request, datasets) {
+  A.changePrompt = function (pl, request, datasets, notebooks) {
+    const nbp = A.notebookPromptPart ? A.notebookPromptPart(notebooks) : { context: [], start: [], rules: [], reply: [] };
     const L = ['You are a senior Azure Data Factory engineer changing a pipeline that already works. You cannot see the factory: use only the JSON under STARTING POINT.'];
     L.push('', 'TASK (the user’s request: all the change has to do)', String(request || '(not given)').trim());
     const o = A.outlinePipeline(pl);
     L.push('', 'CONTEXT', 'Activities (in order, with the container they sit in): ' + o.activities.map(a => a.name + ' [' + a.type + (a.inside ? ', inside ' + a.inside : '') + ']').join('; ') + '.',
       'Parameters: ' + (o.parameters.map(p => p.name).join(', ') || 'none') + '. Variables: ' + (o.variables.map(v => v.name).join(', ') || 'none') + '.',
-      'Datasets it uses: ' + (o.datasets.join(', ') || 'none') + (datasets && datasets.length ? '; the JSON of ' + datasets.map(d => d.name).join(', ') + ' is included below' : '') + '.');
+      'Datasets it uses: ' + (o.datasets.join(', ') || 'none') + (datasets && datasets.length ? '; the JSON of ' + datasets.map(d => d.name).join(', ') + ' is included below' : '') + '.', ...nbp.context);
     L.push('', 'STARTING POINT', 'The pipeline:', JSON.stringify(pl, null, 2));
     (datasets || []).forEach(d => L.push('', 'Dataset ' + d.name + ':', JSON.stringify(d, null, 2)));
+    nbp.start.forEach(x => L.push(x));
     L.push('', 'RULES',
       '- Change only what the TASK asks. Keep every other activity, name, dependency, dataset reference, parameter and expression exactly as it is.',
       '- Never invent dataset, linked service, notebook, procedure, table or column names. If the change needs one that isn’t in the JSON, use a placeholder in angle brackets like <NOTEBOOK_PATH> and list it under ALSO_CHANGE.',
@@ -3183,9 +3242,11 @@ td.flowname .ind{color:var(--ws)}
       '- Activity names stay unique. If you rename one, update every dependsOn and activity(\'name\') that uses it. A step inside a ForEach or If can only be depended on from inside the same container.',
       '- A dataset can’t read pipeline parameters: give the dataset a parameter (with the old value as its default) and pass the value from each step that uses it.',
       '- Valid JSON only: no comments, no trailing commas, no secrets or connection strings.',
+      ...nbp.rules,
       '- If the TASK can’t be done from what the JSON holds, change nothing and say why under NOTES.');
     L.push('', 'REPLY FORMAT (a template: replace the placeholder lines with your answer)', 'Reply inside one code block, with these labelled blocks and nothing else:',
       '@@@ PIPELINE @@@', '{ the complete changed pipeline JSON }', '@@@ DATASET @@@', '{ a changed dataset’s complete JSON: one DATASET block per changed dataset; leave the block out if none changed }',
+      ...nbp.reply,
       '@@@ ALSO_CHANGE @@@', '- anything the user must change outside this JSON (a notebook, a trigger, a global parameter), one per line, or: none', '@@@ NOTES @@@', '- what you changed, one line per change');
     return L.join('\n');
   };
@@ -3202,6 +3263,60 @@ td.flowname .ind{color:var(--ws)}
     if (!blocks.length) res.errors.push('No labelled blocks were found. Ask Copilot to answer in the reply format, inside one code block, and paste the whole reply.');
     else if (!res.pipeline && !res.errors.length) res.errors.push('The reply has no PIPELINE block with JSON in it.');
     return res;
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+/* ---------- notebooks the pipeline runs: what they are sent, and what they must change ---------- */
+(function (root) {
+  'use strict';
+  const A = root.ADF, isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  const CONTAINERS = { ForEach: ['activities'], Until: ['activities'], IfCondition: ['ifTrueActivities', 'ifFalseActivities'], Switch: ['defaultActivities'] };
+  const show = v => (isObj(v) ? String(v.value) : v == null ? '' : String(v));
+  /* a Databricks .py export, plain Python, or an .ipynb: as Python text, with the widgets it reads */
+  A.readNotebook = function (text) {
+    let t = String(text || '');
+    if (/^\s*\{/.test(t)) { try { const o = JSON.parse(t); if (Array.isArray(o.cells)) t = o.cells.map(c => (c.cell_type === 'markdown' ? '# MAGIC %md\n' + [].concat(c.source || []).join('').split('\n').map(l => '# MAGIC ' + l).join('\n') : [].concat(c.source || []).join(''))).join('\n\n# COMMAND ----------\n\n'); } catch (e) { /* not JSON: keep as text */ } }
+    const lines = t.split('\n'), widgets = [], reads = [];
+    lines.forEach((l, i) => {
+      let m; const dr = /dbutils\.widgets\.(?:text|dropdown|combobox|multiselect)\(\s*["']([^"']+)["']\s*,\s*(?:f?["']([^"']*)["'])?/g; while ((m = dr.exec(l))) if (!widgets.some(w => w.name === m[1])) widgets.push({ name: m[1], line: i + 1, def: m[2] || '' });
+      const gr = /(?:dbutils\.widgets\.get|getArgument)\(\s*["']([^"']+)["']/g; while ((m = gr.exec(l))) if (reads.indexOf(m[1]) < 0) reads.push(m[1]);
+    });
+    return { text: t, lines, widgets, reads, names: Array.from(new Set(widgets.map(w => w.name).concat(reads))) };
+  };
+  /* every notebook step: its path and the parameters it sends */
+  A.notebookSteps = function (pl) {
+    const out = [], walk = list => (Array.isArray(list) ? list : []).forEach(a => { if (!isObj(a)) return; const tp = a.typeProperties || {};
+      if (a.type === 'DatabricksNotebook') out.push({ activity: a.name, path: show(tp.notebookPath), params: Object.assign({}, tp.baseParameters || {}) });
+      (CONTAINERS[a.type] || []).forEach(k => walk(tp[k])); if (a.type === 'Switch') (tp.cases || []).forEach(c => walk(c && c.activities)); });
+    walk(((pl || {}).properties || {}).activities);
+    return out;
+  };
+  /* per notebook: what the pipeline sends now that it didn't (or no longer, or differently), whether the pasted
+     notebook reads it, the exact lines to add, and the lines that hold text a change replaced */
+  A.notebookReview = function (before, after, pasted, changes) {
+    const B = A.notebookSteps(before), N = A.notebookSteps(after), paths = Array.from(new Set(N.map(s => s.path).concat(B.map(s => s.path))));
+    const finds = (changes || []).filter(c => (c.kind === 'replace' || c.kind === 'toParam') && c.find).map(c => ({ find: c.find, to: c.kind === 'replace' ? c.repl : '{' + c.as + ':' + c.name + '}' }));
+    return paths.map(path => {
+      const now = N.filter(s => s.path === path), was = B.filter(s => s.path === path), src = (pasted || {})[path], nb = src ? A.readNotebook(src) : null;
+      const sentNow = {}, sentWas = {}; now.forEach(s => Object.keys(s.params).forEach(k => { sentNow[k] = show(s.params[k]); })); was.forEach(s => Object.keys(s.params).forEach(k => { sentWas[k] = show(s.params[k]); }));
+      const added = Object.keys(sentNow).filter(k => !(k in sentWas)), removed = Object.keys(sentWas).filter(k => !(k in sentNow)), changed = Object.keys(sentNow).filter(k => k in sentWas && sentNow[k] !== sentWas[k]).map(k => ({ name: k, from: sentWas[k], to: sentNow[k] }));
+      const missing = nb ? Object.keys(sentNow).filter(k => nb.names.indexOf(k) < 0) : added;
+      const addLines = missing.length ? missing.map(k => 'dbutils.widgets.text("' + k + '", "")').concat([''], missing.map(k => k.replace(/\W/g, '_') + ' = dbutils.widgets.get("' + k + '").strip()')) : [];
+      const hits = []; if (nb) finds.forEach(f => { const low = f.find.toLowerCase(), bare = low.replace(/\/+$/, ''); nb.lines.forEach((l, i) => { const L = l.toLowerCase(); if (L.indexOf(low) >= 0 || (bare.length > 2 && L.indexOf(bare) >= 0 && /["'\/]/.test(l))) hits.push({ find: f.find, to: f.to, line: i + 1, text: l.trim().slice(0, 200) }); }); });
+      return { path, steps: now.map(s => s.activity), gone: !now.length, pasted: !!nb, widgets: nb ? nb.names : [], added, removed, changed, missing, addLines, hits, unread: nb ? nb.widgets.filter(w => !(w.name in sentNow)).map(w => w.name) : [] };
+    });
+  };
+  /* Copilot: the notebooks go into the change prompt, and come back as NOTEBOOK blocks */
+  A.notebookPromptPart = function (pasted) {
+    const P = Object.keys(pasted || {}).filter(p => String(pasted[p] || '').trim());
+    if (!P.length) return { context: [], start: [], rules: [], reply: [] };
+    return { context: ['The pipeline runs these notebooks, included below: ' + P.join(', ') + '. A notebook reads what a step sends it with dbutils.widgets.get("name").'],
+      start: [].concat(...P.map(p => ['', 'Notebook ' + p + ':', String(pasted[p]).trim()])),
+      rules: ['- When the TASK changes what a notebook step sends, or a folder or name the notebook builds itself, change that notebook too: keep everything else in it exactly as it is, and return it whole in a NOTEBOOK block whose first line is PATH: and its path. Leave out notebooks that need no change.'],
+      reply: ['@@@ NOTEBOOK @@@', 'PATH: /the/notebook/path', '(the complete changed notebook; one NOTEBOOK block per changed notebook; leave the block out if none changed)'] };
+  };
+  A.notebookParse = function (reply, parseBlocks) {
+    return parseBlocks(reply).filter(b => b.tag === 'NOTEBOOK').map(b => { const body = b.body.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, ''), m = /^\s*PATH:\s*(.+)\n/.exec(body); return m ? { path: m[1].trim(), text: body.slice(m[0].length).replace(/\s+$/, '') + '\n' } : null; })
+      .filter(n => n && !/^\/the\/notebook\/path$/.test(n.path) && !/^\(the complete changed notebook/.test(n.text.trim()));
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -3748,7 +3863,7 @@ td.flowname .ind{color:var(--ws)}
 (function () {
   'use strict';
   const S = window.DE_SUITE, A = window.ADF, $ = S.$, esc = S.esc, store = S.store('dea.');
-  const blank = () => ({ pl: '', dsList: [], changes: [], ask: '', reply: '', replyFor: '' });   /* dsList: [{ for: dataset name or '', text }] */
+  const blank = () => ({ pl: '', dsList: [], nbList: [], changes: [], ask: '', reply: '', replyFor: '' });   /* nbList: [{ for: notebook path, text }] */   /* dsList: [{ for: dataset name or '', text }] */
   let g = blank(), view = null;   /* view: everything computed from g */
   const KIND = Object.fromEntries(A.CHANGE_KINDS);
   const str = v => (typeof v === 'string' ? v : '');
@@ -3756,6 +3871,7 @@ td.flowname .ind{color:var(--ws)}
   function load() {
     const s = store.get('chg', null); if (!s || typeof s !== 'object') return;
     ['pl', 'ask', 'reply', 'replyFor'].forEach(k => { g[k] = str(s[k]).slice(0, 2e6); });
+    g.nbList = Array.isArray(s.nbList) ? s.nbList.filter(d => d && typeof d === 'object').slice(0, 40).map(d => ({ for: str(d.for).slice(0, 400), text: str(d.text).slice(0, 1e6), ai: d.ai !== false })) : [];
     g.dsList = Array.isArray(s.dsList) ? s.dsList.filter(d => d && typeof d === 'object').slice(0, 60).map(d => ({ for: str(d.for).slice(0, 200), text: str(d.text).slice(0, 1e6) })) : str(s.ds).trim() ? [{ for: '', text: str(s.ds) }] : [];
     g.changes = (Array.isArray(s.changes) ? s.changes : []).filter(c => c && KIND[c.kind]).slice(0, 60).map(c => { const d = A.newChange(c.kind);
       Object.keys(d).forEach(k => { if (k === 'kind') return; if (Array.isArray(d[k])) d[k] = Array.isArray(c[k]) ? (k === 'params' ? c[k].filter(p => p && typeof p === 'object').map(p => ({ name: str(p.name), value: str(p.value), remove: !!p.remove })) : c[k].filter(x => typeof x === 'string')) : []; else if (typeof c[k] === typeof d[k]) d[k] = c[k]; });
@@ -3771,18 +3887,23 @@ td.flowname .ind{color:var(--ws)}
     v.orig = r.pipeline; const d = A.readDatasets(g.dsList.map(x => x.text).join('\n')); v.datasets = d.datasets; d.errors.forEach(e => v.msgs.push(S.msg('err', esc(e))));
     v.outline = A.outlinePipeline(v.orig);
     /* each change sees the pipeline as the changes above it left it */
-    v.before = g.changes.map((c, i) => A.applyChanges(v.orig, v.datasets, g.changes.slice(0, i), today()));   /* each card picks from the pipeline as the cards above it left it */
-    v.res = A.applyChanges(v.orig, v.datasets, g.changes, today());
+    v.nbs = {}; g.nbList.forEach(n => { if (n.for.trim() && n.text.trim()) v.nbs[n.for.trim()] = A.readNotebook(n.text).text; });
+    v.before = g.changes.map((c, i) => A.applyChanges(v.orig, v.datasets, g.changes.slice(0, i), today(), v.nbs));   /* each card picks from the pipeline as the cards above it left it */
+    v.res = A.applyChanges(v.orig, v.datasets, g.changes, today(), v.nbs);
     v.names = Array.from(new Set(v.outline.activities.map(a => a.name).concat(A.outlinePipeline(v.res.pipeline).activities.map(a => a.name))));
-    v.prompt = g.ask.trim() ? S.fullPrompt(A.changePrompt(v.res.pipeline, g.ask, v.res.allDatasets)) : '';
-    v.final = v.res.pipeline; v.finalDs = v.res.datasets.slice(); v.ai = null;
+    v.prompt = g.ask.trim() ? S.fullPrompt(A.changePrompt(v.res.pipeline, g.ask, v.res.allDatasets, Object.fromEntries(Object.keys(v.res.notebooks).filter(p => (g.nbList.find(n => n.for.trim() === p) || {}).ai !== false).map(p => [p, v.res.notebooks[p]])))) : '';
+    v.final = v.res.pipeline; v.finalDs = v.res.datasets.slice(); v.finalNbs = Object.assign({}, v.res.notebooks); v.ai = null; v.aiNbs = [];
     if (g.ask.trim() && g.reply.trim()) {
       v.ai = A.changeParse(g.reply, S.parseBlocks);
-      if (v.ai.pipeline && !v.ai.errors.length) { v.final = v.ai.pipeline; v.ai.datasets.forEach(ds => { const i = v.finalDs.findIndex(x => x.name === ds.name); if (i >= 0) v.finalDs[i] = ds; else v.finalDs.push(ds); }); }
+      v.aiNbs = A.notebookParse(g.reply, S.parseBlocks);
+      if (v.ai.pipeline && !v.ai.errors.length) { v.aiNbs.forEach(n => { v.finalNbs[n.path] = n.text; }); v.final = v.ai.pipeline; v.ai.datasets.forEach(ds => { const i = v.finalDs.findIndex(x => x.name === ds.name); if (i >= 0) v.finalDs[i] = ds; else v.finalDs.push(ds); }); }
       v.stale = g.replyFor && g.replyFor !== hash(JSON.stringify(v.res.pipeline) + g.ask);
     }
     if (g.changes.length || v.ai) v.review = A.reviewChange(v.orig, v.final, null, { fromCopilot: !!(v.ai && v.ai.pipeline && v.final === v.ai.pipeline), base: v.res.pipeline });
-    v.notes = A.changeNotes(v.orig, Object.assign({}, v.res, { pipeline: v.final, datasets: v.finalDs }), g.changes, v.datasets.map(x => x.name)).concat(v.ai ? v.ai.also : []);
+    v.nbReview = A.notebookReview(v.orig, v.final, v.finalNbs, g.changes).map(r => Object.assign(r, { orig: v.nbs[r.path], now: v.finalNbs[r.path], edited: v.nbs[r.path] != null && v.finalNbs[r.path] !== v.nbs[r.path] }));
+    v.nbReview.forEach(r => { if (r.edited) { const was = new Set(String(r.orig).split('\n').map(l => l.trim().slice(0, 200))), now = String(r.now).split('\n'); r.hits = r.hits.filter(h => was.has(h.text) && now[h.line - 1] !== undefined && now[h.line - 1].trim().slice(0, 200) === h.text); } });   /* a line already changed is no longer flagged */
+    v.nbNeeds = v.nbReview.filter(r => r.edited || r.added.length || r.changed.length || r.removed.length || r.missing.length || r.hits.length);
+    v.notes = A.changeNotes(v.orig, Object.assign({}, v.res, { pipeline: v.final, datasets: v.finalDs }), g.changes, v.datasets.map(x => x.name)).filter(n => !/^Notebooks this pipeline runs/.test(n) || !v.nbNeeds.length).concat(v.nbNeeds.map(r => 'Notebook ' + r.path.split('/').pop() + ': ' + (r.edited ? 'a new version is ready' + (r.missing.length ? ', but it still doesn\u2019t read ' + r.missing.join(', ') : '') : r.missing.length ? (r.pasted ? 'doesn\u2019t read ' : 'is now sent ') + r.missing.join(', ') : r.hits.length ? 'check the line' + (r.hits.length > 1 ? 's that build' : ' that builds') + ' the text you replaced' : 'what it is sent changed') + '. See the Notebooks tab.'), v.ai ? v.ai.also : []);
     return v;
   }
   const today = () => new Date().toISOString().slice(0, 10);
@@ -3815,6 +3936,11 @@ td.flowname .ind{color:var(--ws)}
         + '<button type="button" class="linkbtn" data-ci="' + i + '" data-padd>+ ' + (c.kind === 'notebook' ? 'Set or remove a parameter' : 'A parameter it reads') + '</button></div>';
     }
     if (c.kind === 'dataset') b = '<div class="qgrid">' + sel(i, 'activity', [['*', 'Every step']].concat(acts.map(a => [a, a])), c.activity || '*', 'Where') + sel(i, 'from', o ? o.datasets : [], c.from, 'Dataset used now', 'Choose') + inp(i, 'to', c.to, 'ds_...', 'Dataset to use', ' list="chgDsNames"') + '</div>';
+    if (c.kind === 'dsParam') b = '<div class="qgrid">' + sel(i, 'dataset', o ? A.outlinePipeline((view.before[i] || view.res).pipeline).datasets : [], c.dataset, 'Dataset', 'Choose') + sel(i, 'activity', [['*', 'Every step that uses it']].concat(acts.map(a => [a, a])), c.activity || '*', 'Where') + inp(i, 'name', c.name, 'location', 'Dataset parameter') + (c.remove ? '' : inp(i, 'value', c.value, '{var:location}', 'Value to send')) + '</div>' + chk(i, 'remove', c.remove, 'Stop sending it instead');
+    if (c.kind === 'nbWidgets' || c.kind === 'nbReplace') {
+      const paths = view && view.outline ? Array.from(new Set(view.outline.notebooks.concat(g.nbList.map(n => n.for).filter(Boolean)))).map(p => [p, p.split('/').pop() + (view.nbs[p] != null ? '' : ' (not pasted)')]) : [];
+      b = '<div class="qgrid">' + sel(i, 'path', paths, c.path, 'Notebook', 'Choose') + (c.kind === 'nbReplace' ? inp(i, 'find', c.find, '/careerconnect"', 'Find (in the notebook)') + inp(i, 'repl', c.repl, '/careerconnect/{location}"', 'Replace with (Python)') : '') + '</div>' + (c.kind === 'nbReplace' ? chk(i, 'cs', c.cs, 'Match upper and lower case') : '');
+    }
     if (c.kind === 'policy') b = '<div class="qgrid">' + sel(i, 'activity', [['*', 'Every activity']].concat(acts.map(a => [a, a])), c.activity || '*', 'Which') + inp(i, 'timeout', c.timeout, '2 (hours) or 0.02:00:00', 'Timeout') + inp(i, 'retry', c.retry, '2', 'Retries') + inp(i, 'interval', c.interval, '60', 'Seconds between retries') + '</div>';
     if (c.kind === 'state') b = '<div class="qgrid">' + sel(i, 'activity', acts, c.activity, 'Activity', 'Choose') + sel(i, 'active', [['off', 'Turn it off'], ['on', 'Turn it on']], c.active ? 'on' : 'off', 'What to do') + (c.active ? '' : sel(i, 'markAs', [['Succeeded', 'Succeeded'], ['Failed', 'Failed'], ['Skipped', 'Skipped']], c.markAs, 'Steps after it see it as')) + '</div>';
     if (c.kind === 'remove') b = '<div class="qgrid">' + sel(i, 'activity', acts, c.activity, 'Activity', 'Choose') + '</div><p class="note small">Steps that ran after it then run after what it ran after.</p>';
@@ -3850,6 +3976,23 @@ td.flowname .ind{color:var(--ws)}
         + '<textarea class="mid" data-dsi="' + i + '" spellcheck="false" aria-label="JSON of ' + esc(named ? d.for : 'another dataset') + '" placeholder=\'{ "name": "' + esc(named ? d.for : 'ds_...') + '", "properties": { ... } }\'>' + esc(d.text) + '</textarea><div class="msgs" data-dsmsg="' + i + '"></div></details>'; }).join('');
     dsPills();
   }
+  /* one box per notebook the pipeline runs, plus any others (with their path) */
+  function nbRows() {
+    const used = view && view.outline ? view.outline.notebooks : [];
+    used.forEach(n => { if (!g.nbList.some(d => d.for === n)) g.nbList.push({ for: n, text: '' }); });
+    const order = used.map(n => g.nbList.findIndex(d => d.for === n)).concat(g.nbList.map((d, i) => i).filter(i => used.indexOf(g.nbList[i].for) < 0));
+    $('chgNbBox').innerHTML = order.map(i => { const d = g.nbList[i], named = used.indexOf(d.for) >= 0;
+      return '<details class="chgdsrow" open><summary><b>' + esc(named ? d.for.split('/').pop() : 'Another notebook') + '</b><span data-nbpill="' + i + '"></span>' + (named ? '<span class="note small" style="flex-basis:100%">' + esc(d.for) + '</span>' : '<button type="button" class="linkbtn" data-nbdel="' + i + '" style="margin-left:auto">Remove</button>') + '</summary>'
+        + (named ? '' : '<label class="lab">Its path in Databricks<input type="text" data-nbpath="' + i + '" value="' + esc(d.for) + '" placeholder="/Shared/yourproject/nb_gold" spellcheck="false"></label>')
+        + '<textarea class="mid" data-nbi="' + i + '" spellcheck="false" aria-label="Notebook ' + esc(d.for) + '" placeholder="# Databricks notebook source">' + esc(d.text) + '</textarea>'
+        + '<div class="reply-actions"><label class="btn filebtn">Open the .py or .ipynb file<input type="file" data-nbfile="' + i + '" accept=".py,.ipynb,.txt"></label><label class="chk small"><input type="checkbox" data-nbai="' + i + '"' + (d.ai !== false ? ' checked' : '') + '> Send it to Copilot in Step 3</label></div></details>'; }).join('') || '<p class="note small">This pipeline runs no notebooks.</p>';
+    nbPills();
+  }
+  function nbPills() {
+    g.nbList.forEach((d, i) => { const pill = document.querySelector('[data-nbpill="' + i + '"]'); if (!pill) return;
+      if (!d.text.trim()) { pill.innerHTML = S.pill('info', 'Not pasted'); return; }
+      const nb = A.readNotebook(d.text); pill.innerHTML = S.pill('ok', 'Pasted: ' + nb.lines.length + ' lines, reads ' + (nb.names.length ? nb.names.join(', ') : 'no widgets')); });
+  }
   /* what each box holds: pasted, empty, or the wrong dataset */
   function dsPills() {
     g.dsList.forEach((d, i) => {
@@ -3873,9 +4016,10 @@ td.flowname .ind{color:var(--ws)}
     $('chgDsNames') && ($('chgDsNames').innerHTML = (v.datasets || []).map(d => '<option value="' + esc(d.name) + '"></option>').join(''));
     g.changes.forEach((c, i) => { const box = document.querySelector('[data-cmsg="' + i + '"]'); if (box) box.innerHTML = v.res ? (v.res.results[i].msgs || []).map(m => S.msg(m.sev, esc(m.msg))).join('') : ''; });
     /* Copilot */
-    $('chgAiBox').hidden = !v.prompt; $('chgPromptView').textContent = v.prompt; if (v.prompt) S.count($('chgCount'), v.prompt);
+    $('chgAiBox').hidden = !v.prompt;
+    $('chgAiWait').innerHTML = v.prompt ? '' : S.msg('info', !v.orig ? 'Paste the pipeline in Step 1 first: the prompt needs it.' : 'Type the change above and the prompt for Copilot appears here.'); $('chgPromptView').textContent = v.prompt; if (v.prompt) S.count($('chgCount'), v.prompt);
     $('chgAiMsg').innerHTML = !v.ai ? '' : (v.ai.errors.map(e => S.msg('err', esc(e))).join('') + (v.stale ? S.msg('warn', 'The changes in Step 2 or the request changed after this reply. Copy the prompt again and send it to Copilot, so its reply starts from the same pipeline.') : '')
-      + (v.ai.pipeline && !v.ai.errors.length ? S.msg('ok', 'Copilot’s pipeline is used below, after the review.' + (v.ai.notes.length ? '<ul>' + v.ai.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '')) : ''));
+      + (v.ai.pipeline && !v.ai.errors.length ? S.msg('ok', 'Copilot’s pipeline' + (v.aiNbs.length ? ' and ' + v.aiNbs.length + ' notebook' + (v.aiNbs.length === 1 ? '' : 's') : '') + ' are used below, after the review.' + (v.ai.notes.length ? '<ul>' + v.ai.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '')) : ''));
     /* review */
     const R = v.review; $('chgOut').hidden = !R; $('chgEmpty').hidden = !!R;
     if (R) {
@@ -3889,6 +4033,14 @@ td.flowname .ind{color:var(--ws)}
       $('chgJsonTitle').textContent = 'Pipeline JSON · ' + (v.final.name || 'pipeline'); $('chgJson').textContent = JSON.stringify(v.final, null, 4);
       $('chgDsOut').innerHTML = v.finalDs.map((d, k) => '<div class="codebox"><div class="codebox-bar"><span class="t">Dataset JSON · ' + esc(d.name) + '</span><span class="r"><button class="btn primary" type="button" data-chgds="' + k + '">Copy JSON</button></span></div><pre class="short">' + esc(JSON.stringify(d, null, 4)) + '</pre></div>').join('')
         + (v.res.trigger && !(v.ai && v.ai.pipeline) ? '<div class="codebox"><div class="codebox-bar"><span class="t">Trigger JSON · ' + esc(v.res.trigger.name) + '</span><span class="r"><button class="btn primary" type="button" data-copy="chgTrigger">Copy JSON</button></span></div><pre class="short">' + esc(JSON.stringify(v.res.trigger, null, 4)) + '</pre></div>' : '');
+      $('chgNbOut').innerHTML = v.nbNeeds.map((r, k) => '<div class="chgnb"><div><b>' + esc(r.path.split('/').pop()) + '</b> <span class="note small">' + esc(r.path) + '</span></div>'
+        + '<div class="note small">' + (r.gone ? 'No step runs it any more.' : 'Run by ' + esc(r.steps.join(', ')) + '.') + '</div>'
+        + (r.added.length || r.changed.length || r.removed.length ? '<div><b>What the pipeline now sends it</b><ul>' + r.added.map(n => '<li>New: <span class="mono">' + esc(n) + '</span></li>').join('') + r.changed.map(x => '<li><span class="mono">' + esc(x.name) + '</span>: <span class="mono">' + esc(x.from) + '</span> \u2192 <span class="mono">' + esc(x.to) + '</span></li>').join('') + r.removed.map(n => '<li>No longer sent: <span class="mono">' + esc(n) + '</span></li>').join('') + '</ul></div>' : '')
+        + (r.pasted && r.missing.length ? S.msg('warn', 'The notebook doesn\u2019t read ' + r.missing.map(esc).join(', ') + ' yet. These lines read ' + (r.missing.length === 1 ? 'it' : 'them') + ':<pre class="mono">' + esc(r.addLines.join('\n')) + '</pre><button type="button" class="btn" data-nbaddw="' + esc(r.path) + '">Add these lines for me</button> Then use the value where it belongs: "Notebook: find and replace", or ask Copilot in Step 3.') : '')
+        + (!r.pasted && (r.added.length || r.changed.length) ? S.msg('info', 'Paste this notebook in Step 1 to check it reads ' + (r.added.length ? r.added.map(esc).join(', ') : 'what it is sent') + ', and to change it here.') : '')
+        + (r.hits.length ? S.msg('info', '<b>Lines that build the text you replaced, so they may need the change too:</b><ul>' + r.hits.map(h => '<li>Line ' + h.line + ': <span class="mono">' + esc(h.text) + '</span></li>').join('') + '</ul>Change them with "Notebook: find and replace", or ask Copilot in Step 3.') : '')
+        + (r.edited ? '<div><b>The new version</b> (' + (v.aiNbs.some(n => n.path === r.path) && v.ai && v.ai.pipeline && !v.ai.errors.length ? 'from Copilot' : 'from the changes in Step 2') + ')</div><div class="chgdiff">' + lines(A.lineDiff(r.orig, r.now)) + '</div><div class="reply-actions"><button class="btn" type="button" data-nbsave="' + k + '">Download</button><button class="btn primary" type="button" data-nbcopy="' + k + '">Copy the notebook</button></div>' : '')
+        + '</div>').join('') || '<p class="note small">No notebook is affected by these changes.</p>';
       $('chgSteps').textContent = steps(v);
     }
     save();
@@ -3908,6 +4060,7 @@ td.flowname .ind{color:var(--ws)}
     v.finalDs.forEach(d => L.push((n++) + '. Datasets > ' + d.name + ' > code view {} > replace everything with its new JSON > OK.'));
     L.push((n++) + '. Pipelines > ' + (v.orig.name || 'the pipeline') + ' > code view {} > replace everything with the new pipeline JSON > OK.' + (v.final.name !== v.orig.name ? ' (Its name changed to ' + v.final.name + ': paste it into a new pipeline instead.)' : ''));
     L.push((n++) + '. Select Validate and fix anything it flags.');
+    (v.nbNeeds || []).filter(r => r.edited).forEach(r => L.push((n++) + '. Databricks: open ' + r.path + ' and replace its contents with the new version (Notebooks tab), or import the downloaded file in its place.'));
     if (v.res.trigger && !(v.ai && v.ai.pipeline)) L.push((n++) + '. Manage > Triggers > New > code view {} > paste the trigger JSON. It is created stopped.');
     v.notes.forEach(x => { if (!/^(Dataset .+ changed|Trigger )/.test(x)) L.push((n++) + '. ' + x); });
     L.push((n++) + '. Debug run on a small amount of data, then check the folders and logs say what you expect. Publish when it does.');
@@ -3927,20 +4080,25 @@ td.flowname .ind{color:var(--ws)}
     const hint = () => { $('chgKindHint').textContent = A.CHANGE_HINTS[$('chgKind').value] || ''; }; hint(); $('chgKind').addEventListener('change', hint);
     $('chgPl').value = g.pl; $('chgAsk').value = g.ask; $('chgReply').value = g.reply;
     S.tabs($('chgTabs'));
-    renderOut(); renderCards(); renderOut(); dsRows();
+    renderOut(); renderCards(); renderOut(); dsRows(); nbRows();
     $('chgAddBtn').addEventListener('click', () => { g.changes.push(A.newChange($('chgKind').value)); renderOut(); renderCards(); renderOut(); const last = $('chgList').lastElementChild; if (last) { last.scrollIntoView({ block: 'nearest' }); const f = last.querySelector('input,select'); if (f) f.focus(); } });
-    $('chgPl').addEventListener('input', () => { g.pl = $('chgPl').value; const before = view && view.outline ? view.outline.datasets.join() : ''; renderOut(); renderCards(); if ((view && view.outline ? view.outline.datasets.join() : '') !== before || $('chgDsWrap').hidden === !!(view && view.outline)) dsRows(); });
+    $('chgPl').addEventListener('input', () => { g.pl = $('chgPl').value; const before = view && view.outline ? view.outline.datasets.join() : ''; renderOut(); renderCards(); if ((view && view.outline ? view.outline.datasets.join() : '') !== before || $('chgDsWrap').hidden === !!(view && view.outline)) { dsRows(); nbRows(); } });
+    $('chgNbAdd').addEventListener('click', () => { g.nbList.push({ for: '', text: '' }); nbRows(); const t = $('chgNbBox').querySelectorAll('input[data-nbpath]'); if (t.length) t[t.length - 1].focus(); });
     $('chgDsAdd').addEventListener('click', () => { g.dsList.push({ for: '', text: '' }); dsRows(); const t = $('chgDsBox').querySelectorAll('textarea'); if (t.length) t[t.length - 1].focus(); });
     $('chgAsk').addEventListener('input', () => { g.ask = $('chgAsk').value; renderOut(); });
     $('chgReply').addEventListener('input', () => { g.reply = $('chgReply').value; const v = compute(); g.replyFor = v.res ? hash(JSON.stringify(v.res.pipeline) + g.ask) : ''; renderOut(); });
-    $('chgPlFile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; S.readFile(f).then(t => { g.pl = t; $('chgPl').value = t; renderOut(); renderCards(); dsRows(); e.target.value = ''; }); });
+    $('chgPlFile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; S.readFile(f).then(t => { g.pl = t; $('chgPl').value = t; renderOut(); renderCards(); dsRows(); nbRows(); e.target.value = ''; }); });
     const pane = $('paneChange');
     pane.addEventListener('input', e => {
+      if (e.target.dataset.nbi != null) { const d = g.nbList[Number(e.target.dataset.nbi)]; if (d) d.text = e.target.value; renderOut(); renderCards(); nbPills(); return; }
+      if (e.target.dataset.nbpath != null) { const d = g.nbList[Number(e.target.dataset.nbpath)]; if (d) d.for = e.target.value; renderOut(); renderCards(); return; }
       if (e.target.dataset.dsi != null) { const d = g.dsList[Number(e.target.dataset.dsi)]; if (d) d.text = e.target.value; renderOut(); renderCards(); dsPills(); return; }
       const el = e.target, i = Number(el.dataset.ci); if (el.dataset.ci == null) return;
       if (el.dataset.pj != null) { const p = g.changes[i].params[Number(el.dataset.pj)]; if (p && el.type === 'text') p[el.dataset.pf2] = el.value; renderOut(); return; }
       if (el.dataset.cf && el.type === 'text') { setField(i, el.dataset.cf, el); renderOut(); if (el.dataset.cf === 'find' || el.dataset.cf === 'name') found(i); }
     });
+    pane.addEventListener('change', e => { const el = e.target; if (el.dataset && el.dataset.nbai != null) { const d = g.nbList[Number(el.dataset.nbai)]; if (d) d.ai = el.checked; renderOut(); return; }
+      if (el.dataset && el.dataset.nbfile != null) { const f = el.files[0], d = g.nbList[Number(el.dataset.nbfile)]; if (f && d) S.readFile(f).then(t => { d.text = A.readNotebook(t).text; renderOut(); renderCards(); nbRows(); }); el.value = ''; } });
     pane.addEventListener('change', e => {
       const el = e.target, i = Number(el.dataset.ci); if (el.dataset.ci == null) return; const c = g.changes[i]; if (!c) return;
       if (el.dataset.hit) { const id = el.dataset.hit, list = el.dataset.unsure === '1' ? c.keep : c.skip, want = el.dataset.unsure === '1' ? el.checked : !el.checked, k = list.indexOf(id); if (want && k < 0) list.push(id); if (!want && k >= 0) list.splice(k, 1); renderOut(); return; }
@@ -3949,6 +4107,10 @@ td.flowname .ind{color:var(--ws)}
     });
     pane.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.nbdel != null) { g.nbList.splice(Number(b.dataset.nbdel), 1); nbRows(); renderOut(); renderCards(); return; }
+      if (b.dataset.nbaddw != null) { g.changes.push(Object.assign(A.newChange('nbWidgets'), { path: b.dataset.nbaddw })); renderOut(); renderCards(); renderOut(); return; }
+      if (b.dataset.nbcopy != null && view && view.nbNeeds) { const r = view.nbNeeds[Number(b.dataset.nbcopy)]; if (r) S.copyText(r.now, b); return; }
+      if (b.dataset.nbsave != null && view && view.nbNeeds) { const r = view.nbNeeds[Number(b.dataset.nbsave)]; if (r) S.saveText(r.path.split('/').pop().replace(/\.py$/, '') + '.py', r.now); return; }
       if (b.dataset.dsdel != null) { g.dsList.splice(Number(b.dataset.dsdel), 1); dsRows(); renderOut(); renderCards(); return; }
       if (b.dataset.cdel != null) { g.changes.splice(Number(b.dataset.cdel), 1); renderOut(); renderCards(); renderOut(); }
       else if (b.dataset.cup != null) { const i = Number(b.dataset.cup); const t = g.changes[i - 1]; g.changes[i - 1] = g.changes[i]; g.changes[i] = t; renderOut(); renderCards(); renderOut(); }
@@ -3963,7 +4125,7 @@ td.flowname .ind{color:var(--ws)}
       chgTrigger: () => view && view.res && view.res.trigger && JSON.stringify(view.res.trigger, null, 4)
     });
     /* Clear entries empties this tab too */
-    ['clearYes', 'clearAllPages'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => { g = blank(); store.del('chg'); ['chgPl', 'chgAsk', 'chgReply'].forEach(k => { $(k).value = ''; }); renderOut(); renderCards(); dsRows(); }); });
+    ['clearYes', 'clearAllPages'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', () => { g = blank(); store.del('chg'); ['chgPl', 'chgAsk', 'chgReply'].forEach(k => { $(k).value = ''; }); renderOut(); renderCards(); dsRows(); nbRows(); }); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -451,6 +451,9 @@ td.flowname .ind{color:var(--ws)}
 .chgdsrow { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .chgdsrow > summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
 .chgdsrow textarea { margin-top: 8px; width: 100%; }
+.chgnb { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); overflow-wrap: anywhere; }
+.chgnb ul { margin: 0; padding-left: 20px; }
+.chgnb pre { white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -741,7 +744,7 @@ td.flowname .ind{color:var(--ws)}
     document.addEventListener('click', e => {
       const b = e.target.closest('[data-copy],[data-save]'); if (!b) return;
       const key = b.dataset.copy || b.dataset.save, g = getters[key]; if (!g) return;
-      const v = g(); if (v == null || v === '') return;
+      const v = g(); if (v == null || v === '' || v === false || (typeof v === 'object' && !v.text)) { const old = b.textContent; b.textContent = 'Nothing to copy yet'; setTimeout(() => { b.textContent = old; }, 1600); return; }
       if (b.dataset.copy) S.copyText(typeof v === 'string' ? v : v.text, b);
       else S.saveText(v.name, v.text);
     });

@@ -98,7 +98,7 @@
     document.addEventListener('click', e => {
       const b = e.target.closest('[data-copy],[data-save]'); if (!b) return;
       const key = b.dataset.copy || b.dataset.save, g = getters[key]; if (!g) return;
-      const v = g(); if (v == null || v === '') return;
+      const v = g(); if (v == null || v === '' || v === false || (typeof v === 'object' && !v.text)) { const old = b.textContent; b.textContent = 'Nothing to copy yet'; setTimeout(() => { b.textContent = old; }, 1600); return; }
       if (b.dataset.copy) S.copyText(typeof v === 'string' ? v : v.text, b);
       else S.saveText(v.name, v.text);
     });
