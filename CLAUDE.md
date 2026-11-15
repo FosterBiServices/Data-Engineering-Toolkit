@@ -31,7 +31,7 @@ described in plain words, and the page checks its reply before using it.
 
 ```
 src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion; adf_change*.js: change a pipeline), py_* and ps_* (body.html, core.js, ex.js, ui.js)
-src/brand/   logo files
+src/brand/   logo files (the F waffle icon is the logo everywhere, home page included; the wordmark SVG is unused)
 src/build.py builds every page into the repo root:  python src/build.py   (Python 3, no packages)
 src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest, pycoretest and pscoretest need only Node and
              Python (pscoretest also runs the scripts when pandas, openpyxl and pyarrow are installed)
@@ -261,6 +261,16 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
 - pscoretest.js writes sample files and **runs** each generated script with pandas (3.0 here), then reads the output
   back. Found that way: regex patterns passed to `.str.replace` must hold the real characters, not `\u` escapes
   (pandas' Arrow-backed strings reject them).
+- **PDF input** (owner, Nov 2026: "import from a pdf and output to excel", system-export PDFs, "other PDFs as well"; no sample
+  PDF). `input.kind = 'pdf'`, settings in `input.pdf` (`K.pdfBlank`), written by `K.pdfSettings` at the top of the script;
+  the reading code is `PDF_READER` (pdfplumber; tested Python kept as a JS string array). Three methods, from the ways his
+  own notebooks read PDFs, made general: `table` (ruling lines), `text` (columns found from alignment), `label` (a name then
+  numbers, `VALUES_PER_ROW`). One file or a folder (`FILE_PATTERN`), `PAGES`, header row by its first cell (rows above it
+  dropped, repeats dropped), `SKIP_ROWS_WITH`, `SECTIONS` (a line starting with a label fills a column for the rows below;
+  several labels on one line), month from the file name, source_file/source_page, a per-page log (sheet "PDF pages").
+  First run with no columns keeps everything and writes `<output>_sample.csv`; the user pastes that into Step 1 to choose
+  columns and types. Check: `pspdftest.js` makes generic PDFs (`pdf_make.py`, reportlab) and runs the scripts. Not run on
+  his real exports; scanned PDFs give no rows (said on the page).
 - Not checked: pandas 1.x / 2.x, opening the `.ipynb` in Jupyter itself, real Copilot replies.
 
 ## Not yet run in a real factory or workspace

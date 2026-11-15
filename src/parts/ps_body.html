@@ -29,12 +29,32 @@
         <p>The page can&rsquo;t open your file, so you show it the header row and a few rows. It reads the column names and suggests a type for each.</p>
       </div>
       <div class="qgrid">
-        <label class="lab">File type<select data-k="input.kind"><option value="csv">CSV or text file</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option></select></label>
-        <label class="lab wide">Path to the file <span class="hint">as you would type it on your computer; a name alone means the folder the script runs in</span><input type="text" data-k="input.path" data-own spellcheck="false" autocomplete="off" placeholder="C:\Data\orders.csv"></label>
+        <label class="lab">File type<select data-k="input.kind"><option value="csv">CSV or text file</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option><option value="pdf">PDF (one file or a folder)</option></select></label>
+        <label class="lab wide">Path to the file <span class="hint">as you would type it on your computer; a name alone means the folder the script runs in. For PDFs, a folder reads every PDF in it.</span><input type="text" data-k="input.path" data-own spellcheck="false" autocomplete="off" placeholder="C:\Data\orders.csv"></label>
         <label class="lab" data-kind="excel">Sheet name <span class="hint">empty = the first sheet</span><input type="text" class="plain" data-k="input.sheet" spellcheck="false" autocomplete="off" placeholder="Sheet1"></label>
         <label class="lab" data-kind="csv">Separator<select data-k="input.sep"><option value=",">Comma</option><option value=";">Semicolon</option><option value="tab">Tab</option><option value="|">Pipe |</option></select></label>
         <label class="lab" data-kind="csv">Encoding<select data-k="input.encoding"><option value="utf-8">UTF-8</option><option value="utf-8-sig">UTF-8 with BOM</option><option value="cp1252">Windows (cp1252)</option><option value="latin-1">Latin-1</option></select></label>
         <label class="lab" data-kind="csv excel">Rows to skip above the header<input type="number" min="0" max="1000" data-k="input.skip"></label>
+      </div>
+      <div class="pdfbox" data-kind="pdf">
+        <p class="note">The script reads the text in the PDF with pdfplumber. It works for PDFs a system exported; a scanned page is a picture with no text, so it gives no rows. Not sure which way fits? Run the script once with the defaults: it prints what it read and lists each page.</p>
+        <div class="qgrid">
+          <label class="lab wide">How the rows look on the page<select data-k="input.pdf.method"><option value="table">Tables with lines or boxes around the cells</option><option value="text">Columns lined up under a header, no lines</option><option value="label">Each row is a name, then numbers</option></select></label>
+          <label class="lab">Pages <span class="hint">e.g. 1-3, 5; empty = all</span><input type="text" class="plain" data-k="input.pdf.pages" spellcheck="false" autocomplete="off" placeholder="all"></label>
+          <label class="lab">Files in the folder <span class="hint">when the path is a folder</span><input type="text" class="plain" data-k="input.pdf.pattern" spellcheck="false" autocomplete="off" placeholder="*.pdf"></label>
+          <label class="lab wide" data-pdf="table text">First cell of the header row <span class="hint">empty = the first row of the first table; rows above it on each page (titles, dates) are dropped</span><input type="text" class="plain" data-k="input.pdf.headerStarts" spellcheck="false" autocomplete="off" placeholder="Store"></label>
+          <label data-pdf="table text"><input type="checkbox" data-k="input.pdf.header"> The table has a header row <span class="hint">repeated on later pages is dropped</span></label>
+          <label class="lab wide">Column names <span class="hint">comma separated; only needed when there is no header row</span><input type="text" class="plain" data-k="input.pdf.names" spellcheck="false" autocomplete="off" placeholder="measure, jan, feb, mar"></label>
+          <label class="lab" data-pdf="label">Numbers per row <span class="hint">keep the last N; 0 = all</span><input type="number" min="0" max="100" data-k="input.pdf.values"></label>
+          <label class="lab wide">Drop rows containing <span class="hint">comma separated: page footers, totals</span><input type="text" class="plain" data-k="input.pdf.skip" spellcheck="false" autocomplete="off" placeholder="Page , Total"></label>
+          <label class="lab wide">Section lines <span class="hint">one per line: column = text the line starts with. The rest of that line fills the column for the rows below it, e.g. region = Region:</span><textarea class="short" id="pdfSections" spellcheck="false" aria-label="Section lines" placeholder="region = Region:"></textarea></label>
+          <label class="lab">Month from the file name <span class="hint">column name; reads MAR2026, 2026-03...; empty = none</span><input type="text" class="plain" data-k="input.pdf.month" spellcheck="false" autocomplete="off" placeholder="report_month"></label>
+          <label><input type="checkbox" data-k="input.pdf.source"> Add source_file and source_page</label>
+        </div>
+        <ol class="how">
+          <li>Choose the settings above, then download the script (Step 5) and run it once. With no columns chosen it keeps everything it reads.</li>
+          <li>It writes a sample file next to the output (<code>…_sample.csv</code>). Open it, copy the rows and paste them below to choose columns, names and types.</li>
+        </ol>
       </div>
       <ol class="how">
         <li>Open the file and copy the header row with the next few rows (in Excel, select the cells; in a text file, the lines).</li>

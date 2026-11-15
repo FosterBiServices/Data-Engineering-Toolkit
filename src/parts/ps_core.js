@@ -9,7 +9,8 @@
   K.snake = snake;
 
   K.TYPES = [['text', 'Text'], ['whole', 'Whole number'], ['decimal', 'Decimal number'], ['date', 'Date'], ['datetime', 'Date and time'], ['bool', 'True / false']];
-  K.KINDS = [['csv', 'CSV or text file', '.csv'], ['excel', 'Excel workbook', '.xlsx'], ['parquet', 'Parquet', '.parquet']];
+  K.KINDS = [['csv', 'CSV or text file', '.csv'], ['excel', 'Excel workbook', '.xlsx'], ['parquet', 'Parquet', '.parquet'], ['pdf', 'PDF (one file or a folder)', '.pdf']];
+  K.PDF_METHODS = [['table', 'Tables with lines or boxes around the cells'], ['text', 'Columns lined up under a header, no lines'], ['label', 'Each row is a name, then numbers']];
   K.RULES = [['min', 'is at least', 'number'], ['max', 'is at most', 'number'], ['inlist', 'is one of', 'A, B, C'], ['regex', 'matches pattern', '^[A-Z]{2}\\d{4}$'], ['notfuture', 'is not in the future', '']];
   K.AGGS = [['sum', 'Sum'], ['size', 'Count rows'], ['nunique', 'Count distinct'], ['mean', 'Average'], ['min', 'Minimum'], ['max', 'Maximum']];
   K.BAD = [['report', 'List them in the issues report and keep them'], ['split', 'Move them to a rejected-rows file or sheet'], ['stop', 'Stop the script']];
@@ -22,9 +23,14 @@
       s = i === 0 ? term : (i > 1 ? '(' + s + ')' : s) + ' ' + (x.join === 'or' ? 'OR' : 'AND') + ' ' + term; });
     return s;
   };
+  /* PDF input (owner, Nov 2026: system-export PDFs to Excel, more than one kind): the three ways his own notebooks read
+     PDFs, made general. table = pdfplumber tables with ruling lines; text = the same with columns found from the text
+     alignment; label = each line is a name then numbers. Section values (a line that starts with a label, carried down),
+     the month from the file name, source file and page, and a page log. */
+  K.pdfBlank = () => ({ pattern: '*.pdf', pages: '', method: 'table', header: true, headerStarts: '', names: '', values: 0, skip: 'Page ', sections: [], month: '', source: true });
   K.blank = () => ({
     name: '',
-    input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0 },
+    input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0, pdf: K.pdfBlank() },
     cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dayFirst: false },
     filters: [], keepRemoved: false, dedupe: { on: false, order: '', keep: 'last' },
     join: { on: false, kind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' },
@@ -95,7 +101,7 @@
   const stem = p => String(p || '').split(/[\\/]/).pop().replace(/\.[^.]*$/, '');
   const ext = k => (K.KINDS.find(x => x[0] === k) || K.KINDS[0])[2];
   /* extensions each kind of file may have; a path typed without one gets the first (owner: "my paths do not include the file extension") */
-  K.EXTS = { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx', '.xlsm', '.xls'], parquet: ['.parquet', '.pq'] };
+  K.EXTS = { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx', '.xlsm', '.xls'], parquet: ['.parquet', '.pq'], pdf: ['.pdf'] };
   K.hasExt = p => { const m = /\.[^.\\/]+$/.exec(String(p || '').trim()); return !!m && Object.keys(K.EXTS).some(k => K.EXTS[k].indexOf(m[0].toLowerCase()) >= 0); };
   K.withExt = (p, kind) => (K.hasExt(p) ? String(p).trim() : String(p).trim() + K.EXTS[kind][0]);
   K.names = function (cfg) {
@@ -118,6 +124,14 @@
   K.problems = function (cfg, ai) {
     const R = [], add = (sev, msg) => R.push({ sev, msg });
     const on = cfg.cols.filter(c => c.on), names = on.map(c => c.name), kn = K.known(cfg, ai), has = n => kn.open || kn.all.indexOf(n) >= 0;
+    const isPdf = cfg.input.kind === 'pdf', pp = Object.assign(K.pdfBlank(), cfg.input.pdf || {});
+    if (isPdf) {
+      if (!cfg.input.path.trim()) add('warn', 'No path: give the PDF, or the folder of PDFs, in Step 1.');
+      if (pp.method === 'label' && !String(pp.names).trim()) add('info', 'Each row is a name, then numbers: the columns are called label, value_1, value_2... unless you type names.');
+      (pp.sections || []).forEach((x, i) => { if (String(x.name || '').trim() && !String(x.label || '').trim()) add('err', 'Section ' + (i + 1) + ' needs the text its line starts with.'); });
+      if (/^\s*$/.test(pp.pages) === false && !/^[\d\s,-]+$/.test(pp.pages)) add('err', 'Pages: write page numbers like 1-3, 5.');
+    }
+    if (!cfg.cols.length && isPdf) { add('info', 'First run: the script keeps every column it reads and writes a sample file (…_sample.csv). Paste that sample below to choose columns, names and types.'); return R; }
     if (!cfg.cols.length) { add('err', 'Paste the header row and a few rows of the file in Step 1, so the page knows the columns.'); return R; }
     if (!on.length) add('err', 'Every column is turned off. Tick the columns to keep.');
     if (!cfg.input.path.trim()) add('warn', 'No input path: the script uses ' + K.names(cfg).inPath + '. Set INPUT_PATH at the top of the script before running it.');
@@ -159,7 +173,7 @@
     }
     const n = K.names(cfg), oe = (n.outPath.match(/\.[^.\\/]+$/) || [''])[0].toLowerCase();
     if (cfg.output.path.trim() && oe && { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx'], parquet: ['.parquet', '.pq'] }[cfg.output.kind].indexOf(oe) < 0) add('warn', 'The output path ends in ' + oe + ' but the format is ' + cfg.output.kind + '.');
-    [['input', cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].concat(cfg.join.on ? [['lookup', cfg.join.path, cfg.join.kind]] : []).forEach(([w, p, k]) => {
+    [['input', isPdf ? '' : cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].concat(cfg.join.on ? [['lookup', cfg.join.path, cfg.join.kind]] : []).forEach(([w, p, k]) => {
       if (String(p || '').trim() && !K.hasExt(p)) add('info', 'The ' + w + ' path has no file extension. ' + (w === 'output' ? 'The script adds ' + K.EXTS[k][0] + '.' : 'If no file has exactly that name, the script uses the one ending in ' + K.EXTS[k].join(', ') + '.')); });
     if (K.withExt(n.outPath, cfg.output.kind).toLowerCase() === K.withExt(n.inPath, cfg.input.kind).toLowerCase()) add('err', 'The output path is the same as the input. The script never overwrites its source: choose another name.');
     if (keys.length && !cfg.dedupe.on) add('info', 'A key is ticked and duplicates aren’t removed, so the script checks that the key is unique and reports rows that share one.');
@@ -232,6 +246,26 @@
     return res;
   };
 
+  /* the PDF settings block at the top of the script */
+  K.pdfSettings = function (p) {
+    const list = t => String(t || '').split(',').map(x => x.replace(/^\s+/, '')).filter(x => x.trim());
+    const secs = (p.sections || []).filter(x => x && String(x.name || '').trim() && String(x.label || '').trim());
+    return ['', '# ---- How to read the PDFs (see the page for what each setting does) ----',
+      'FILE_PATTERN = ' + py(p.pattern || '*.pdf') + '   # when INPUT_PATH is a folder: which files',
+      'PAGES = ' + py(p.pages || '') + '   # "1-3, 5" or empty for every page',
+      'METHOD = ' + py(p.method) + '   # "table": lines or boxes around cells | "text": columns lined up, no lines | "label": a name, then numbers',
+      'HEADER_ROW = ' + (p.header !== false && p.method !== 'label' ? 'True' : 'False') + '   # the first row of the first table names the columns; the same row on later pages is dropped',
+      'HEADER_STARTS_WITH = ' + py(p.headerStarts || '') + '   # the header row\'s first cell; rows above it on each page are dropped',
+      'COLUMN_NAMES = ' + pyList(list(p.names).map(x => x.trim())) + '   # names when there is no header row (for "label": the name column first)',
+      'VALUES_PER_ROW = ' + (Math.max(0, parseInt(p.values, 10) || 0)) + '   # "label": keep only the last N numbers of a line (0 = all of them)',
+      'SKIP_ROWS_WITH = ' + pyList(list(p.skip)) + '   # rows whose text contains any of these are dropped (page footers, totals)',
+      'SECTIONS = {' + secs.map(x => py(snake(x.name) || x.name) + ': ' + py(x.label.trim())).join(', ') + '}   # column: text a line starts with; the rest of that line fills the column for the rows below',
+      'MONTH_FROM_FILE_NAME = ' + py(p.month ? snake(p.month) : '') + '   # a column for the month in the file name (MAR2026, 2026-03...); empty = none',
+      'ADD_SOURCE_COLUMNS = ' + (p.source !== false ? 'True' : 'False') + '   # source_file and source_page on every row'];
+  };
+
+  const PDF_READER = ["MONTHS = {m: i for i, m in enumerate([\"jan\", \"feb\", \"mar\", \"apr\", \"may\", \"jun\", \"jul\", \"aug\", \"sep\", \"oct\", \"nov\", \"dec\"], 1)}", "NUMBER = re.compile(r\"^\\(?[-+]?[$\u20ac\u00a3]?\\d[\\d,]*(\\.\\d+)?%?\\)?$|^\\(?[-+]?[$\u20ac\u00a3]?\\.\\d+%?\\)?$\")", "", "def pdf_files():", "    \"\"\"One PDF, or every PDF in a folder (sorted by name).\"\"\"", "    if INPUT_PATH.is_dir():", "        files = sorted(p for p in INPUT_PATH.glob(FILE_PATTERN) if p.suffix.lower() == \".pdf\")", "    else:", "        files = [INPUT_PATH]", "    if not files or not files[0].exists():", "        raise FileNotFoundError(f\"No PDF found at {INPUT_PATH.resolve()} (pattern {FILE_PATTERN})\")", "    return files", "", "def pages_wanted(count):", "    \"\"\"PAGES like \"1-3, 5\" -> page numbers (1-based); empty = every page.\"\"\"", "    if not PAGES.strip():", "        return list(range(1, count + 1))", "    out = []", "    for part in PAGES.replace(\" \", \"\").split(\",\"):", "        a, _, b = part.partition(\"-\")", "        lo = int(a) if a else 1", "        hi = int(b) if b else (count if _ else lo)", "        out += [p for p in range(lo, hi + 1) if 1 <= p <= count]", "    return sorted(set(out))", "", "def month_from_name(name):", "    \"\"\"MAR2026, Mar-2026, March 2026, 2026-03, 202603 in a file name -> the first day of that month.\"\"\"", "    s = name.lower()", "    m = re.search(r\"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\\s._-]*(\\d{4}|\\d{2})(?!\\d)\", s)", "    if m:", "        y = int(m.group(2)); y = y + 2000 if y < 100 else y", "        return pd.Timestamp(year=y, month=MONTHS[m.group(1)], day=1)", "    m = re.search(r\"(20\\d{2})[\\s._-]?(0[1-9]|1[0-2])(?!\\d)\", s)", "    if m:", "        return pd.Timestamp(year=int(m.group(1)), month=int(m.group(2)), day=1)", "    return pd.NaT", "", "def clean(v):", "    return re.sub(r\"\\s+\", \" \", str(v)).strip() if v is not None else \"\"", "", "def skip_it(text):", "    t = text.lower()", "    return any(w.lower() in t for w in SKIP_ROWS_WITH if w)", "", "def section_of(text, current):", "    \"\"\"A line that starts with a section label sets that section's value for the rows below it.", "    Other labels on the same line are read too: \"Center: Harbor  Contractor: Acme\" gives both.\"\"\"", "    low = text.lower()", "    if not any(low.startswith(label.lower()) for label in SECTIONS.values()):", "        return current, False", "    found = sorted((low.find(label.lower()), col, label) for col, label in SECTIONS.items() if label.lower() in low)", "    current = dict(current)", "    for i, (pos, col, label) in enumerate(found):", "        end = found[i + 1][0] if i + 1 < len(found) else len(text)", "        current[col] = clean(text[pos + len(label):end]).lstrip(\":\").strip()", "    return current, True", "", "def page_lines(page):", "    \"\"\"Text lines in reading order, with their top position.\"\"\"", "    if hasattr(page, \"extract_text_lines\"):", "        return [(ln[\"top\"], clean(ln[\"text\"])) for ln in page.extract_text_lines()]", "    return [(i, clean(t)) for i, t in enumerate((page.extract_text() or \"\").split(\"\\n\"))]", "", "def split_label_numbers(text):", "    \"\"\"'Store A 10 $1,234.50 2.5%' -> ('Store A', ['10', '$1,234.50', '2.5%']): the numbers at the end of the line.\"\"\"", "    tokens = text.split()", "    i = len(tokens)", "    while i > 0 and NUMBER.match(tokens[i - 1]):", "        i -= 1", "    nums = tokens[i:]", "    if VALUES_PER_ROW and len(nums) > VALUES_PER_ROW:", "        i += len(nums) - VALUES_PER_ROW", "        nums = tokens[i:]", "    return \" \".join(tokens[:i]), nums", "", "def read_page(page, sections, log):", "    \"\"\"Rows of one page, each a list of text values, with the section values in force for it.\"\"\"", "    out = []", "    lines = page_lines(page)", "    if METHOD in (\"table\", \"text\"):", "        settings = {\"vertical_strategy\": \"lines\", \"horizontal_strategy\": \"lines\"} if METHOD == \"table\" else {\"vertical_strategy\": \"text\", \"horizontal_strategy\": \"text\"}", "        tables = sorted(page.find_tables(settings), key=lambda t: t.bbox[1])", "        for t in tables:", "            for top, text in lines:                                   # section lines above this table", "                if top < t.bbox[1]:", "                    sections, _ = section_of(text, sections)", "            for row in t.extract():", "                cells = [clean(c) for c in row]", "                if not any(cells):", "                    continue", "                sections, is_section = section_of(\" \".join(c for c in cells if c), sections)   # a section line inside the table", "                if not is_section:", "                    out.append((cells, sections))", "        if tables:", "            for top, text in lines:                                   # section lines below the last table carry on", "                if top > tables[-1].bbox[3]:", "                    sections, _ = section_of(text, sections)", "        elif any(section_of(t, sections)[1] for _, t in lines):", "            for _, text in lines:", "                sections, _ = section_of(text, sections)", "    else:                                                             # METHOD == \"label\": a name, then numbers", "        for _, text in lines:", "            sections, is_section = section_of(text, sections)", "            if is_section or not text:", "                continue", "            label, nums = split_label_numbers(text)", "            if not nums:", "                log[\"lines without numbers\"] += 1", "                continue", "            out.append(([label] + nums, sections))", "    return out, sections", "", "def header_match(cells):", "    \"\"\"The header row: its first cell is HEADER_STARTS_WITH, or (several words) the row starts with it. A title like 'Site report' is not 'Site'.\"\"\"", "    want = HEADER_STARTS_WITH.strip().lower()", "    first = next((c for c in cells if c), \"\").lower()", "    return first == want or (\" \" in want and \" \".join(c for c in cells if c).lower().startswith(want))", "", "def read_pdfs():", "    rows, log_rows, header = [], [], None", "    files = pdf_files()", "    for path in files:", "        sections = {c: None for c in SECTIONS}", "        month = month_from_name(path.name) if MONTH_FROM_FILE_NAME else None", "        with pdfplumber.open(path) as pdf:", "            for p in pages_wanted(len(pdf.pages)):", "                log = {\"file\": path.name, \"page\": p, \"rows\": 0, \"repeated headers\": 0, \"skipped rows\": 0, \"lines without numbers\": 0}", "                page_rows, sections = read_page(pdf.pages[p - 1], sections, log)", "                seen_header = not HEADER_STARTS_WITH", "                for cells, secs in page_rows:", "                    text = \" \".join(c for c in cells if c)", "                    if METHOD != \"label\" and HEADER_ROW:", "                        is_header = (header_match(cells) if HEADER_STARTS_WITH", "                                     else header is None or [c.lower() for c in cells] == [c.lower() for c in header])", "                        if not seen_header and not is_header:", "                            log[\"skipped rows\"] += 1                  # above the header row: titles and dates", "                            continue", "                        if is_header:", "                            seen_header = True", "                            if header is None:", "                                header = cells", "                            else:", "                                log[\"repeated headers\"] += 1", "                            continue", "                    if skip_it(text):", "                        log[\"skipped rows\"] += 1", "                        continue", "                    rec = {\"_cells\": cells}", "                    rec.update({c: v for c, v in secs.items()})", "                    if MONTH_FROM_FILE_NAME:", "                        rec[MONTH_FROM_FILE_NAME] = month", "                    if ADD_SOURCE_COLUMNS:", "                        rec[\"source_file\"], rec[\"source_page\"] = path.name, p", "                    rows.append(rec)", "                    log[\"rows\"] += 1", "                log_rows.append(log)", "    width = max([len(r[\"_cells\"]) for r in rows] + [len(header or [])] + [0])", "    names = [clean(h) or f\"column_{i + 1}\" for i, h in enumerate(header)] if header else list(COLUMN_NAMES)", "    names += [(\"label\" if METHOD == \"label\" and i == 0 else f\"value_{i}\" if METHOD == \"label\" else f\"column_{i + 1}\") for i in range(len(names), width)]", "    seen = {}", "    for i, n in enumerate(names):                                     # repeated names get _2, _3", "        seen[n] = seen.get(n, 0) + 1", "        if seen[n] > 1:", "            names[i] = f\"{n}_{seen[n]}\"", "    table = pd.DataFrame([r[\"_cells\"] + [\"\"] * (width - len(r[\"_cells\"])) for r in rows], columns=names[:width], dtype=\"string\")", "    extra = pd.DataFrame([{k: v for k, v in r.items() if k != \"_cells\"} for r in rows])", "    raw = pd.concat([table, extra.reset_index(drop=True)], axis=1) if len(extra.columns) else table", "    pdf_log = pd.DataFrame(log_rows)", "    return raw, pdf_log, files"];
+
   /* ---------- the script, as sections: [title, markdown, code] ---------- */
   const reader = function (kind, pathVar, o, lookup) {
     if (kind === 'excel') return 'pd.read_excel(' + pathVar + ', sheet_name=' + (o.sheet && o.sheet.trim() ? py(o.sheet.trim()) : '0') + ', dtype="string"' + (!lookup && Number(o.skip) ? ', skiprows=' + Number(o.skip) : '') + ')';
@@ -253,6 +287,8 @@
     const aiCols = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN'), aiFilter = ((ai && ai.ok) || []).find(i => i.kind === 'FILTER');
     const S = [], add = (title, md, code) => S.push({ title, md, code: code.join('\n') });
     const j = cfg.join, sm = cfg.summary, xl = cfg.output.kind === 'excel', needs = ['pandas'];
+    const pdf = cfg.input.kind === 'pdf', pd0 = Object.assign(K.pdfBlank(), cfg.input.pdf || {}), noCols = pdf && !on.length;
+    if (pdf) needs.push('pdfplumber');
     if (cfg.input.kind === 'excel' || xl || (j.on && j.kind === 'excel')) needs.push('openpyxl');
     if (cfg.input.kind === 'parquet' || cfg.output.kind === 'parquet' || (j.on && j.kind === 'parquet')) needs.push('pyarrow');
     const usesNp = aiCols.concat(aiFilter ? [aiFilter] : []).some(i => /\bnp\./.test(i.expr));
@@ -263,20 +299,36 @@
       'def with_extension(path, extensions):', '    """A path typed without its extension: use the file that has one (for the output, add the first)."""',
       '    if path.suffix.lower() in extensions or path.exists():', '        return path', '    for e in extensions:', '        if path.with_name(path.name + e).exists():', '            return path.with_name(path.name + e)',
       '    return path.with_name(path.name + extensions[0])', '',
-      'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], j.on ? ['LOOKUP_PATH = with_extension(Path(' + py(j.path.trim() || 'lookup' + ext(j.kind)) + '), ' + pyList(K.EXTS[j.kind]) + ')'] : [], ['',
-      '# Column in the file -> name in the output. Only these columns are kept.', 'COLUMNS = {'], on.map(c => '    ' + (py(c.src) + ':').padEnd(pad + 1) + ' ' + py(c.name) + ','), ['}'],
+      pdf ? 'INPUT_PATH  = Path(' + py(n.inPath) + ')   # one PDF, or a folder of PDFs' : 'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], j.on ? ['LOOKUP_PATH = with_extension(Path(' + py(j.path.trim() || 'lookup' + ext(j.kind)) + '), ' + pyList(K.EXTS[j.kind]) + ')'] : [], ['',
+      ], pdf ? K.pdfSettings(pd0) : [], noCols ? ['', '# No columns chosen yet: every column read from the PDFs is kept as text. Paste the sample this writes into the page to choose.', 'COLUMNS = None'] : ['', '# Column in the file -> name in the output. Only these columns are kept.', 'COLUMNS = {'].concat(on.map(c => '    ' + (py(c.src) + ':').padEnd(pad + 1) + ' ' + py(c.name) + ','), ['}']),
       keys.length ? ['KEY_COLS = ' + pyList(keys) + '   # identify one row'] : [], ['',
       'issues = []   # one entry per problem found; shown as you go and written out at the end', '', 'def note(check, rows, detail=""):', '    """Record a problem and show it."""',
       '    issues.append({"check": check, "rows": int(rows), "detail": detail})', '    print(f"  ! {check}: {int(rows):,} row(s) {detail}".rstrip())']);
     add('1. Settings', 'Paths and column names. Change these, not the code below.', C);
 
     /* 2 read */
-    const R = ['if not INPUT_PATH.exists():', '    raise FileNotFoundError(f"Input file not found: {INPUT_PATH.resolve()}")', ''];
+    const R = [];
+    if (pdf) {
+      R.push('import re', 'import pdfplumber', '');
+      PDF_READER.forEach(l => R.push(l));
+      R.push('', 'raw, pdf_log, files = read_pdfs()', 'raw.columns = [str(c).strip() for c in raw.columns]', 'rows_read = len(raw)',
+        'print(f"Read {len(files)} PDF file(s), {len(pdf_log)} page(s): {rows_read:,} row(s), {len(raw.columns)} column(s)")',
+        'for col in ["repeated headers", "skipped rows", "lines without numbers"]:', '    if pdf_log[col].sum():', '        print(f"  {col}: {int(pdf_log[col].sum()):,}")',
+        'empty_pages = pdf_log[pdf_log["rows"] == 0]', 'if len(empty_pages):', '    note("pages with no rows", len(empty_pages), ", ".join(f"{r.file} p{r.page}" for r in empty_pages.itertuples())[:300])', 'if rows_read == 0:',
+        '    raise ValueError("No rows were read. Check METHOD, PAGES and SKIP_ROWS_WITH in the settings, and that the PDF has text (a scanned PDF has none).")', '',
+        '# A sample of what was read: paste it into the page (Step 1) to choose columns, names and types', 'OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)', 'SAMPLE_PATH = OUTPUT_PATH.with_name(OUTPUT_PATH.stem + "_sample.csv")', 'raw.head(30).to_csv(SAMPLE_PATH, index=False, encoding="utf-8-sig")',
+        'print(f"Sample of what was read: {SAMPLE_PATH.resolve()}")', 'print(raw.head(10).to_string())', '');
+      if (noCols) R.push('df = raw.copy()');
+      else R.push('missing = [c for c in COLUMNS if c not in raw.columns]', 'if missing:', '    raise ValueError(f"The PDFs gave no column(s) called {missing}. They gave: {list(raw.columns)}")', '', 'df = raw[list(COLUMNS)].rename(columns=COLUMNS)', 'print(f"Keeping {len(df.columns)} of {len(raw.columns)} columns")');
+      add('2. Read the PDFs', 'Reads every page of every PDF the settings point at, the way METHOD says, and logs what each page gave. A page with no rows is listed as a problem. A scanned PDF (a picture of a page) has no text to read.', R);
+    } else {
+    R.push('if not INPUT_PATH.exists():', '    raise FileNotFoundError(f"Input file not found: {INPUT_PATH.resolve()}")', '');
     if (cfg.input.kind !== 'parquet') R.push('# Read every column as text so nothing is guessed: leading zeros, codes and dates stay as typed');
     R.push('raw = ' + reader(cfg.input.kind, 'INPUT_PATH', cfg.input, false), 'raw.columns = [str(c).strip() for c in raw.columns]', 'rows_read = len(raw)', '',
       'missing = [c for c in COLUMNS if c not in raw.columns]', 'if missing:', '    raise ValueError(f"The file is missing expected column(s): {missing}. It has: {list(raw.columns)}")', '',
       'df = raw[list(COLUMNS)].rename(columns=COLUMNS)', 'print(f"Read {rows_read:,} rows and {len(raw.columns)} columns; keeping {len(df.columns)} columns")');
     add('2. Read the file', 'Stops with a clear message if the file or an expected column is missing.', R);
+    }
 
     /* 3 clean text */
     const o = cfg.opts, T = [];
@@ -370,7 +422,7 @@
     }
 
     /* write */
-    const W = ['if OUTPUT_PATH.resolve() == INPUT_PATH.resolve():', '    raise ValueError("The output would overwrite the input file. Change OUTPUT_PATH.")', 'OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)', 'issues_table = pd.DataFrame(issues, columns=["check", "rows", "detail"])', ''];
+    const W = [pdf ? 'if OUTPUT_PATH.suffix.lower() == ".pdf":' : 'if OUTPUT_PATH.resolve() == INPUT_PATH.resolve():', '    raise ValueError("The output would overwrite the input file. Change OUTPUT_PATH.")', 'OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)', 'issues_table = pd.DataFrame(issues, columns=["check", "rows", "detail"])', ''];
     const sumOn = sm.on && sm.group.length && sm.metrics.length;
     if (xl) {
       W.push('with pd.ExcelWriter(OUTPUT_PATH) as book:', '    df.to_excel(book, sheet_name="Data", index=False)');
@@ -378,6 +430,7 @@
       if (sumOn) W.push('    summary.to_excel(book, sheet_name="Summary", index=False)');
       if (hasRules && !stop) W.push('    if len(rejected):', '        rejected.to_excel(book, sheet_name="' + (split ? 'Rejected rows' : 'Rows to review') + '", index=False)');
       W.push('    if len(issues_table):', '        issues_table.to_excel(book, sheet_name="Issues", index=False)');
+      if (pdf) W.push('    pdf_log.to_excel(book, sheet_name="PDF pages", index=False)   # what each page gave');
     } else {
       const wr = cfg.output.kind === 'parquet' ? (v, p) => v + '.to_parquet(' + p + ', index=False)' : (v, p) => v + '.to_csv(' + p + ', index=False, encoding="utf-8-sig")   # utf-8-sig opens cleanly in Excel';
       W.push('def beside(tag):', '    """A file next to the output: orders_clean.csv -> orders_clean_<tag>.csv"""', '    return OUTPUT_PATH.with_name(f"{OUTPUT_PATH.stem}_{tag}{OUTPUT_PATH.suffix}")', '', wr('df', 'OUTPUT_PATH'));
@@ -385,6 +438,7 @@
       if (sumOn) W.push(wr('summary', 'beside("summary")').replace(/   #.*$/, ''));
       if (hasRules && !stop) W.push('if len(rejected):', '    ' + wr('rejected', 'beside("' + (split ? 'rejected' : 'review') + '")').replace(/   #.*$/, ''));
       W.push('if len(issues_table):', '    issues_table.to_csv(beside("issues").with_suffix(".csv"), index=False, encoding="utf-8-sig")');
+      if (pdf) W.push('pdf_log.to_csv(beside("pdf_pages").with_suffix(".csv"), index=False, encoding="utf-8-sig")');
     }
     W.push('', 'print()', 'print(f"Rows read:     {rows_read:,}")', 'print(f"Rows written:  {len(df):,}")');
     if (keepOut) W.push('print(f"Filtered out:  {len(filtered_out):,} (kept ' + (xl ? 'on the Filtered out sheet' : 'in the _filtered_out file') + ')")');
@@ -393,7 +447,7 @@
     add('Write the output', xl ? 'One workbook: the data' + (keepOut ? ', the rows the filters took out, all rows before filtering' : '') + (sumOn ? ', the summary' : '') + ', and sheets for rows with problems and the issues list when there are any.' : 'The data, plus files beside it for ' + (sumOn ? 'the summary, ' : '') + 'rows with problems and the issues list when there are any.', W);
 
     S.forEach((s, i) => { if (!/^\d/.test(s.title)) s.title = (i + 1) + '. ' + s.title; else s.title = (i + 1) + '. ' + s.title.replace(/^\d+\.\s*/, ''); });
-    const intro = ['# ' + n.script, '', 'Reads `' + stem(n.inPath) + (n.inPath.match(/\.[^.\\/]+$/) || [''])[0] + '`, cleans and checks it, and writes `' + n.outPath.split(/[\\/]/).pop() + '`. The source file is never changed.', '', 'Needs: `pip install ' + needs.join(' ') + '`'];
+    const intro = ['# ' + n.script, '', 'Reads `' + (pdf ? n.inPath.split(/[\\/]/).pop() + (K.hasExt(n.inPath) ? '' : '` (every PDF in it) and writes the rows to `' + n.outPath.split(/[\\/]/).pop() + '`.') : stem(n.inPath) + (n.inPath.match(/\.[^.\\/]+$/) || [''])[0]) + '`, cleans and checks it, and writes `' + n.outPath.split(/[\\/]/).pop() + '`. The source file is never changed.', '', 'Needs: `pip install ' + needs.join(' ') + '`'];
     const out = { names: n, sections: S, needs, intro };
     out.py = '# %% [markdown]\n' + intro.map(l => ('# ' + l).trimEnd()).join('\n') + '\n\n' + S.map(s => '# %% [markdown]\n# ## ' + s.title + '\n# ' + s.md + '\n\n# %%\n' + s.code + '\n').join('\n');
     const lines = t => t.split('\n').map((l, i, a) => (i < a.length - 1 ? l + '\n' : l));

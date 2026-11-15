@@ -19,6 +19,9 @@
     c.filters = arr(s.filters).map(x => ({ when: str(x.when), label: str(x.label), join: x.join === 'or' ? 'or' : 'and' }));
     if (!c.filters.length && str(s.filter).trim()) c.filters = [{ when: str(s.filter), label: '', join: 'and' }];   // saved before filters became a list c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
     copy(c.input, s.input, ['path', 'sheet', 'encoding']); c.input.kind = oneOf(kinds, obj(s.input).kind, 'csv'); c.input.sep = oneOf([',', ';', 'tab', '|'], obj(s.input).sep, ','); c.input.skip = Math.max(0, parseInt(obj(s.input).skip, 10) || 0);
+    const sp = obj(obj(s.input).pdf), pd0 = c.input.pdf;
+    copy(pd0, sp, ['pattern', 'pages', 'headerStarts', 'names', 'skip', 'month', 'header', 'source']); pd0.method = oneOf(K.PDF_METHODS.map(m => m[0]), sp.method, 'table'); pd0.values = Math.max(0, parseInt(sp.values, 10) || 0);
+    pd0.sections = arr(sp.sections).map(x => ({ name: str(x.name), label: str(x.label) })).filter(x => x.name || x.label);
     copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dayFirst']);
     c.cols = arr(s.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: oneOf(K.TYPES.map(t => t[0]), x.type, 'text'), on: x.on !== false, key: !!x.key, req: !!x.req }));
     copy(c.dedupe, s.dedupe, ['on', 'order']); c.dedupe.keep = oneOf(['first', 'last'], obj(s.dedupe).keep, 'last');
@@ -42,6 +45,7 @@
   function fill(skip) {
     document.querySelectorAll('[data-k]').forEach(el => { if (el === skip || (el.tagName === 'SELECT' && el.id)) return; const v = get(cfg, el.dataset.k); if (el.type === 'checkbox') el.checked = !!v; else el.value = v == null ? '' : v; });
     if ($('sampleIn') !== skip) $('sampleIn').value = st.example ? window.PSG_EX_SAMPLE : '';
+    if ($('pdfSections') !== skip) $('pdfSections').value = cfg.input.pdf.sections.map(x => x.name + ' = ' + x.label).join('\n');
   }
   /* drop choices that point at columns that are gone */
   function prune() {
@@ -55,6 +59,7 @@
     ai = cfg.aiReq.trim() && cfg.aiReply.trim() ? K.aiParse(cfg.aiReply, cfg, S.parseBlocks, S.fields) : null;
     $('exampleBanner').hidden = !st.example;
     document.querySelectorAll('[data-kind]').forEach(el => { el.hidden = el.dataset.kind.split(' ').indexOf(cfg.input.kind) < 0; });
+    document.querySelectorAll('[data-pdf]').forEach(el => { el.hidden = el.dataset.pdf.split(' ').indexOf(cfg.input.pdf.method) < 0; });
     $('mapBody').innerHTML = cfg.cols.map((c, i) => '<tr data-i="' + i + '"><td class="ck"><input type="checkbox" data-f="on"' + (c.on ? ' checked' : '') + ' aria-label="Keep ' + esc(c.src) + '"></td><td class="nm">' + esc(c.src) + '</td>'
       + '<td><input type="text" data-f="name" value="' + esc(c.name) + '" spellcheck="false" aria-label="New name for ' + esc(c.src) + '"></td><td><select data-f="type" aria-label="Type">' + opts(K.TYPES, c.type) + '</select></td>'
       + '<td class="ck"><input type="checkbox" data-f="key"' + (c.key ? ' checked' : '') + ' aria-label="Key"></td><td class="ck"><input type="checkbox" data-f="req"' + (c.req || c.key ? ' checked' : '') + (c.key ? ' disabled' : '') + ' aria-label="Required"></td></tr>').join('')
@@ -128,6 +133,7 @@
   function init() {
     load(); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
     document.addEventListener('input', e => {
+      if (e.target.id === 'pdfSections') { cfg.input.pdf.sections = e.target.value.split('\n').map(l => { const k = l.indexOf('='); return k < 0 ? { name: l.trim(), label: '' } : { name: l.slice(0, k).trim(), label: l.slice(k + 1).trim() }; }).filter(x => x.name || x.label); renderOut(); return; }
       const el = e.target;
       if (el.id === 'sampleIn') { onSample(el.value); renderForm(); return; }
       const row = el.closest('[data-i]');

@@ -13,7 +13,7 @@ const { open } = require('./lib');
   await page.fill('#mapBody tr[data-i="5"] input[data-f=name]', 'sales_region');
   // own paste replaces the example
   await page.click('#sampleIn'); await page.keyboard.insertText('id;name;joined;balance\n001;Ann;31/12/2025;1.5\n002;Bob;01/01/2026;20');
-  await T('own paste: columns, types, sep, banner hidden, filter cleared', () => [[...document.querySelectorAll('#mapBody tr[data-i]')].map(r => r.children[1].textContent + ':' + r.querySelector('select').value), document.querySelector('[data-k="input.sep"]').value, document.getElementById('exampleBanner').hidden, document.querySelector('[data-k=filter]').value, document.querySelector('[data-k="opts.dayFirst"]').checked]);
+  await T('own paste: columns, types, sep, banner hidden, filter cleared', () => [[...document.querySelectorAll('#mapBody tr[data-i]')].map(r => r.children[1].textContent + ':' + r.querySelector('select').value), document.querySelector('[data-k="input.sep"]').value, document.getElementById('exampleBanner').hidden, (document.querySelector('#filterList [data-f=when]') || {}).value, document.querySelector('[data-k="opts.dayFirst"]').checked]);
   await T('script shown with default names', () => [!document.getElementById('outWrap').hidden, document.getElementById('codeTitle').textContent]);
   await page.fill('[data-k="input.path"]', 'C:\\Data\\members.csv');
   await T('windows path escaped in code (expect true), output placeholder', () => [document.getElementById('codeView').textContent.includes('Path("C:\\\\Data\\\\members.csv")'), document.getElementById('outPath').placeholder]);
