@@ -297,7 +297,7 @@
           if (miss.length) add('warn', 'Lookup ' + (i + 1) + ' is left out of the notebook until it has ' + miss.join(', ') + '.'); });
         const js = P.anyJoins(cfg);
         js.forEach(j => { if (js.some(o => o !== j && o.lookup.trim().toLowerCase() === j.obj.trim().toLowerCase())) add('info', j.obj.trim() + ' is itself a lookup for another object: that object gets ' + j.obj.trim() + '’s silver columns, not the ones joined into its gold.'); });
-        if (js.length) add('info', 'Lookups are read from silver when an object’s new rows load. A name changed later in a lookup reaches gold rows loaded after the change, not the ones already there.' + (cfg.any.store === 'path' ? ' Without a folder, a lookup is read from the folder next to the object’s silver folder (silver/' + js[0].obj.trim() + ' > silver/' + js[0].lookup.trim() + ').' : ''));
+        if (js.length) add('info', (cfg.any.load === 'replace' ? 'Lookups are read from silver each time an object’s gold is rebuilt.' : 'Lookups are read from silver when an object’s new rows load. A name changed later in a lookup reaches gold rows loaded after the change, not the ones already there.') + (cfg.any.store === 'path' ? ' Without a folder, a lookup is read from the folder next to the object’s silver folder (silver/' + js[0].obj.trim() + ' > silver/' + js[0].lookup.trim() + ').' : ''));
         if (js.length) add('info', 'In the pipeline, run silver for every file before gold, so a lookup that arrived in the same run is already in silver.');
       }
       return R;
