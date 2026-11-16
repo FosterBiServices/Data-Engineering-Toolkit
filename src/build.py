@@ -11,7 +11,7 @@ def b64(path, mime):
     with open(path, 'rb') as f: return 'data:%s;base64,%s' % (mime, base64.b64encode(f.read()).decode())
 ICON_SVG = b64(os.path.join(SRC, 'brand', 'foster-bi-icon.svg'), 'image/svg+xml')
 ICON_PNG = b64(os.path.join(SRC, 'brand', 'foster-bi-icon-64.png'), 'image/png')
-HOME_LOGO = b64(os.path.join(SRC, 'brand', 'foster-bi-logo-services-white.svg'), 'image/svg+xml')
+HOME_LOGO = b64(os.path.join(SRC, 'brand', 'foster-bi-logo-services-white.png'), 'image/png')
 CSS = rd(P, 'base.css') + '\n' + rd(P, 'extra.css')
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">')

@@ -31,7 +31,7 @@ described in plain words, and the page checks its reply before using it.
 
 ```
 src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion; adf_change*.js: change a pipeline), py_* and ps_* (body.html, core.js, ex.js, ui.js)
-src/brand/   logo files (the F waffle icon is the logo everywhere, home page included; the wordmark SVG is unused)
+src/brand/   logo files: the F waffle icon on tool pages and as favicon; the home page shows the owner's "foster BI services" white lockup PNG, as the Power BI toolkit does
 src/build.py builds every page into the repo root:  python src/build.py   (Python 3, no packages)
 src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest, pycoretest and pscoretest need only Node and
              Python (pscoretest also runs the scripts when pandas, openpyxl and pyarrow are installed)
