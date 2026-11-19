@@ -10,8 +10,8 @@ const TYPED = ['', '<img src=x onerror="window.__xss=1">', '"\'`;--', '\t\t\n\n'
     let n = 0;
     for (const v of TYPED) {
       await page.evaluate(val => { document.querySelectorAll('details').forEach(d => { d.open = true; }); document.querySelectorAll('textarea, input[type=text], input[type=number]').forEach(el => { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }); }, v);
-      const count = await page.evaluate(() => document.querySelectorAll('button:not(#clearYes):not(#clearAllPages), [role=tab], select:not(#suiteSwitch)').length);
-      for (let i = 0; i < count; i++) { await page.evaluate(k => { const el = document.querySelectorAll('button:not(#clearYes):not(#clearAllPages), [role=tab], select:not(#suiteSwitch)')[k]; if (!el) return; if (el.tagName === 'SELECT') { el.selectedIndex = el.options.length - 1; el.dispatchEvent(new Event('change', { bubbles: true })); } else if (!/Download/.test(el.textContent) && !el.dataset.save) el.click(); }, i); n++; }
+      const count = await page.evaluate(() => document.querySelectorAll('button:not(#clearYes):not(#clearAllPages):not(#jobNew), [role=tab], select:not(#suiteSwitch):not(#jobList)').length);
+      for (let i = 0; i < count; i++) { await page.evaluate(k => { const el = document.querySelectorAll('button:not(#clearYes):not(#clearAllPages):not(#jobNew), [role=tab], select:not(#suiteSwitch):not(#jobList)')[k]; if (!el) return; if (el.tagName === 'SELECT') { el.selectedIndex = el.options.length - 1; el.dispatchEvent(new Event('change', { bubbles: true })); } else if (!/Download/.test(el.textContent) && !el.dataset.save) el.click(); }, i); n++; }
     }
     const xss = await page.evaluate(() => window.__xss || document.querySelector('img[src=x]') ? 'MARKUP RAN' : 'none');
     console.log(file, '|', n, 'presses | typed markup ran:', xss, '| errors', JSON.stringify(errors.slice(0, 5)));

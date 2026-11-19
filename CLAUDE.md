@@ -21,7 +21,12 @@ described in plain words, and the page checks its reply before using it.
   `S.fullPrompt` appends READ_RULE, ONE_REPLY and `=== END OF PROMPT ===`. Replies are labelled `@@@ NAME @@@` blocks
   inside one code block (`S.parseBlocks`, `S.fields`); parsers skip a block that only repeats the template.
 - Clear entries in the banner with an inline confirm, plus Clear all pages. It removes the page's `localStorage` prefix
-  and sets `<prefix>blank` so a reload stays empty.
+  (except `<prefix>jobs`, the saved work) and sets `<prefix>blank` so a reload stays empty.
+- Saved work (review, Nov 2026: a second pipeline overwrote the first): `S.jobs` in suite.js puts a bar above Step 1 of each
+  tool (ADF: in the Build pane): name + Save, New (empties `<prefix>cfg` only; standards, logging and saved work stay), a
+  list to open one, Download (`<name>.<tool>.json` {tool, name, saved, cfg}), Open a file (refused from another tool),
+  Delete. `<prefix>jobs` [{name, saved, cfg}], `<prefix>job` = the one on the page. Opening writes `<prefix>cfg` and reloads,
+  so each page's own loader checks it. Unsaved changes (page cfg differs from the current job) ask first. Check: `jobstest.js`.
 - Branding: Foster BI Services, navy `#0A2D5A`, gold `#F2A900`, IBM Plex. `src/parts/base.css` is the Power BI toolkit's
   stylesheet as it stood in Nov 2026; site-only additions go in `extra.css`.
 - No scripts from other servers. Plain, short UI text. No horizontal scroll at 390px.
@@ -153,6 +158,12 @@ home_ui.js, a row in README.md, checks in `src/tests/` (run it through storagete
   object list is a warning (sent empty); an info that ADF can't write Parquet column names with spaces or `,;{}()=`
   (no fix in ADF; notebook bronze or rename at source); Build steps start with "BEFORE YOU START" (global parameters,
   notebooks, linked services the JSON uses). Gaps left: a database/ERP source for bronze, a generic bronze notebook.
+- Essentials / All settings (review, Nov 2026: 97 fields on the first screen): `st.view`, default essentials. Elements with
+  `data-adv` (object list, archive, run options, datasets, variables, logging) are hidden by `body.essentials`; values are
+  kept and the pipeline is the same either way. `#advSummary` names the hidden settings that differ from `A.blank()` and
+  has Show all settings, as does the "Fix the N items" message. Tests open in All settings (lib.js clicks it) unless
+  `open(file, { essentials: true })`. Check: `adfviewtest.js`.
+- Checker: a ForEach whose items are a Get Metadata childItems directly (folders reach the copy) is medium.
 - `adfmedtest.js` sets up a medallion pipeline through the page with his sample datasets (`/home/claude/samples`,
   not in the repo) and expects no findings; it then runs the checker on his samples.
 
@@ -255,6 +266,10 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   `\s` became the letter s, and `to_number` stripped every s instead of spaces; found Nov 2026). pscoretest checks it.
 - The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
 - Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
+- Review fixes (Nov 2026): exact copies are always counted and removed by default (`opts.dropDupRows`); values in a non-key
+  text column that differ only in capitals take the most common spelling (`opts.sameCase`, printed), else are listed; `#`
+  and a trailing "No." make a column an id (Text) and `#` is named `no` (Order # -> order_no). A list row's text change no
+  longer redraws the form (it threw when a measure's column was chosen right after typing its name). Check: `psreviewtest.js`.
 - The pasted sample rows are never saved (only column names and types are); `st.example` refills the example sample.
 - Copilot blocks: COLUMN (NAME, EXPR) and one FILTER (KEEP_WHEN), vetted by `K.vetExpr` (only df/pd/np, known columns,
   no lambda, imports or file access).

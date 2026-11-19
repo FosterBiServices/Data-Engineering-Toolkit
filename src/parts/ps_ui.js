@@ -137,7 +137,7 @@
   const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : cfg.cols);
 
   function init() {
-    load(); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
+    load(); S.jobs({ prefix: 'des.', what: 'script', tool: 'python-script-generator', place: document.querySelector('.step') }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
     document.addEventListener('input', e => {
       if (e.target.id === 'pdfSections') { cfg.input.pdf.sections = e.target.value.split('\n').map(l => { const k = l.indexOf('='); return k < 0 ? { name: l.trim(), label: '' } : { name: l.slice(0, k).trim(), label: l.slice(k + 1).trim() }; }).filter(x => x.name || x.label); renderOut(); return; }
       const el = e.target;

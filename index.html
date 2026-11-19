@@ -461,6 +461,15 @@ textarea.short{min-height:64px}
 .viewbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:-4px 0 4px}
 .viewbar .note{margin:0}
 body.essentials [data-adv]{display:none!important}
+.jobs{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:10px 14px;margin:0 0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.jobs-t{font-weight:600;font-size:13.5px;color:var(--ink)}
+.jobs input#jobName{flex:1 1 180px;min-width:0;max-width:260px}
+.jobs select{flex:1 1 200px;min-width:0;max-width:300px}
+.jobs-more{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.jobs-msg{flex-basis:100%;font-size:13.5px}
+.jobs-msg:empty{display:none}
+.jobs-msg .ok{color:var(--ok)}.jobs-msg .err{color:var(--err)}.jobs-msg .warn{color:var(--ink)}
+.jobs-msg .btn{margin:0 6px}
 </style>
 </head>
 <body>
@@ -493,7 +502,7 @@ body.essentials [data-adv]{display:none!important}
     <h2>Good to know</h2>
     <ul>
       <li><b>Nothing leaves your browser.</b> The pages don&rsquo;t send data anywhere. A prompt only reaches Copilot when you paste it yourself, and it carries column names and types, never rows of data.</li>
-      <li><b>What the pages keep:</b> your entries and team standards, in this browser&rsquo;s storage for this site. They aren&rsquo;t on another computer or in another browser.</li>
+      <li><b>What the pages keep:</b> your entries, team standards and the work you save by name (Saved pipelines, notebooks and scripts at the top of each page), in this browser&rsquo;s storage for this site. They aren&rsquo;t on another computer or in another browser: use Download and Open a file to move or share one.</li>
       <li><b>Never paste secrets.</b> Connection strings, keys and passwords belong in Azure Key Vault, reached through the linked service. The pipeline checker flags anything that looks like one.</li>
       <li><b>Clear entries</b> on each tool empties that tool. <button type="button" class="linkbtn" id="clearAllHome">Clear all pages</button> empties them all.</li>
     </ul>
@@ -587,11 +596,101 @@ body.essentials [data-adv]{display:none!important}
       get(k, def) { if (!ok) return def; try { const v = localStorage.getItem(prefix + k); return v == null ? def : JSON.parse(v); } catch (e) { return def; } },
       set(k, v) { if (!ok) return; try { localStorage.setItem(prefix + k, JSON.stringify(v)); } catch (e) { } },
       del(k) { if (!ok) return; try { localStorage.removeItem(prefix + k); } catch (e) { } },
-      clear() { if (!ok) return; try { Object.keys(localStorage).filter(k => k.indexOf(prefix) === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { } }
+      clear() { if (!ok) return; try { Object.keys(localStorage).filter(k => k.indexOf(prefix) === 0 && k !== prefix + 'jobs').forEach(k => localStorage.removeItem(k)); } catch (e) { } }   // saved work is kept
     };
   };
   S.clearAll = function () {
     S.PREFIXES.forEach(p => { const st = S.store(p); st.clear(); st.set('blank', true); });
+  };
+
+  /* ---- saved work (review, Nov 2026: one piece of work per page meant a second pipeline overwrote the first) ----
+     A named copy of the page's saved setup (<prefix>cfg) in <prefix>jobs, kept when entries are cleared. Opening one
+     writes it back as the page's setup and reloads, so each page's own loader checks it. Download / Open a file share a
+     job with a colleague or keep a backup. o: { prefix, what: 'pipeline', tool: file name, place: element to sit before } */
+  S.JOB_MAX = 200;
+  S.jobs = function (o) {
+    const P = o.prefix, get = (k, d) => { try { const v = localStorage.getItem(P + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+    const put = (k, v) => { try { localStorage.setItem(P + k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+    const list = () => { const a = get('jobs', []); return Array.isArray(a) ? a.filter(j => j && typeof j.name === 'string' && j.cfg && typeof j.cfg === 'object') : []; };
+    const bar = document.createElement('div'); bar.className = 'jobs'; bar.id = 'jobBar';
+    bar.innerHTML = '<span class="jobs-t">Saved ' + o.what + 's</span>'
+      + '<input type="text" id="jobName" class="plain" spellcheck="false" autocomplete="off" aria-label="Name for this ' + o.what + '" placeholder="Name this ' + o.what + '">'
+      + '<button type="button" class="btn" id="jobSave">Save</button><button type="button" class="btn" id="jobNew">New</button>'
+      + '<select id="jobList" aria-label="Open a saved ' + o.what + '"></select>'
+      + '<span class="jobs-more"><button type="button" class="linkbtn" id="jobDown">Download</button><label class="linkbtn filebtn">Open a file<input type="file" id="jobFile" accept=".json,application/json"></label><button type="button" class="linkbtn" id="jobDel">Delete</button></span>'
+      + '<div class="jobs-msg" id="jobMsg" role="status" aria-live="polite"></div>';
+    o.place.parentNode.insertBefore(bar, o.place);
+    const $n = S.$('jobName'), $l = S.$('jobList'), $m = S.$('jobMsg');
+    const cur = () => get('job', '');
+    const say = (cls, html) => { $m.innerHTML = html ? '<span class="' + cls + '">' + html + '</span>' : ''; };
+    const ask = (html, yes, label) => {
+      $m.innerHTML = '<span class="warn">' + html + '</span> <button type="button" class="btn" data-jy>' + (label || 'Yes') + '</button><button type="button" class="linkbtn" data-jn>Cancel</button>';
+      $m.querySelector('[data-jy]').onclick = () => { say(); yes(); }; $m.querySelector('[data-jn]').onclick = () => say();
+    };
+    const when = t => { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
+    const draw = () => {
+      const a = list().sort((x, y) => x.name.localeCompare(y.name)), c = cur();
+      $l.innerHTML = '<option value="">' + (a.length ? 'Open a saved ' + o.what + ' (' + a.length + ')' : 'Nothing saved yet') + '</option>'
+        + a.map(j => '<option value="' + S.esc(j.name) + '"' + (j.name === c ? ' selected' : '') + '>' + S.esc(j.name) + (j.saved ? ' · ' + when(j.saved) : '') + '</option>').join('');
+      $l.disabled = !a.length; if (document.activeElement !== $n) $n.value = c;
+      S.$('jobDel').hidden = !a.some(j => j.name === c);
+    };
+    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); return j ? JSON.stringify(j.cfg) !== now : !!now && !get('st', {}).example; };
+    const store = (name, cfg) => {
+      const a = list().filter(j => j.name !== name); a.push({ name, saved: new Date().toISOString(), cfg });
+      if (a.length > S.JOB_MAX) { say('err', 'You have ' + S.JOB_MAX + ' saved. Delete one first.'); return false; }
+      if (!put('jobs', a)) { say('err', 'The browser refused to save (storage full?). Download it instead.'); return false; }
+      put('job', name); return true;
+    };
+    const openCfg = (name, cfg) => {
+      put('cfg', cfg); const st = get('st', {}) || {}; st.example = false; put('st', st);
+      try { localStorage.removeItem(P + 'blank'); } catch (e) { } put('job', name); location.reload();
+    };
+    S.$('jobSave').addEventListener('click', () => {
+      const name = $n.value.trim().slice(0, 80); if (!name) { say('err', 'Type a name first.'); $n.focus(); return; }
+      let cfg; try { cfg = JSON.parse(localStorage.getItem(P + 'cfg')); } catch (e) { cfg = null; }
+      if (!cfg) { say('err', 'Nothing to save yet.'); return; }
+      const go = () => { if (store(name, cfg)) { draw(); say('ok', 'Saved as ' + S.esc(name) + '.'); } };
+      if (name !== cur() && list().some(j => j.name === name)) ask('Replace the saved ' + o.what + ' ' + S.esc(name) + '?', go, 'Replace'); else go();
+    });
+    $l.addEventListener('change', () => {
+      const name = $l.value, j = list().find(x => x.name === name); if (!j) return;
+      if (name === cur() && !changed()) { draw(); return; }
+      const go = () => openCfg(j.name, j.cfg);
+      if (changed()) { draw(); ask('What is on the page now isn&rsquo;t saved. Open ' + S.esc(name) + ' anyway?', go, 'Open it'); } else go();
+    });
+    S.$('jobNew').addEventListener('click', () => {   // an empty setup; team standards, logging and saved work stay
+      const go = () => { try { localStorage.removeItem(P + 'cfg'); localStorage.removeItem(P + 'job'); } catch (e) { } put('blank', true); const st = get('st', {}) || {}; st.example = false; put('st', st); location.reload(); };
+      if (changed()) ask('What is on the page now isn&rsquo;t saved. Start a new ' + o.what + ' anyway?', go, 'Start new'); else go();
+    });
+    S.$('jobDel').addEventListener('click', () => {
+      const c = cur(); if (!c) return;
+      ask('Delete the saved ' + o.what + ' ' + S.esc(c) + '? What is on the page stays.', () => { put('jobs', list().filter(j => j.name !== c)); try { localStorage.removeItem(P + 'job'); } catch (e) { } draw(); say('ok', 'Deleted.'); }, 'Delete');
+    });
+    S.$('jobDown').addEventListener('click', () => {
+      let cfg; try { cfg = JSON.parse(localStorage.getItem(P + 'cfg')); } catch (e) { cfg = null; }
+      if (!cfg) { say('err', 'Nothing to download yet.'); return; }
+      const name = $n.value.trim() || cur() || o.what;
+      S.saveText(name.replace(/[^\w.-]+/g, '_') + '.' + o.tool + '.json', JSON.stringify({ tool: o.tool, name, saved: new Date().toISOString(), cfg }, null, 2));
+      say('ok', 'Downloaded. Open it here on another computer with Open a file.');
+    });
+    S.$('jobFile').addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        let d; try { d = JSON.parse(r.result); } catch (err) { say('err', 'That file isn&rsquo;t JSON.'); return; }
+        if (!d || d.tool !== o.tool || !d.cfg || typeof d.cfg !== 'object') { say('err', 'That file wasn&rsquo;t saved from this page' + (d && d.tool ? ' (it is from ' + S.esc(String(d.tool)) + ')' : '') + '.'); return; }
+        const name = String(d.name || f.name.replace(/\..*$/, '')).trim().slice(0, 80) || 'opened';
+        const go = () => { if (store(name, d.cfg)) openCfg(name, d.cfg); };
+        if (changed()) ask('What is on the page now isn&rsquo;t saved. Open ' + S.esc(name) + ' anyway?', go, 'Open it');
+        else if (list().some(j => j.name === name)) ask('Replace the saved ' + o.what + ' ' + S.esc(name) + ' with the file?', go, 'Replace'); else go();
+      };
+      r.readAsText(f);
+    });
+    // Starting over or clearing means the page no longer shows the saved one
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#startOwn, #clearYes, #clearAllPages')) setTimeout(() => { try { localStorage.removeItem(P + 'job'); } catch (err) { } draw(); }, 0); });
+    draw();
+    return { draw };
   };
 
   /* ---- copy and download ---- */

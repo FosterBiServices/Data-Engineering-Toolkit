@@ -433,6 +433,7 @@
     load();
     $('tzSel').innerHTML = A.TZ.map(t => '<option>' + esc(t) + '</option>').join('');
     $('checklist').innerHTML = CHECKLIST.map((t, i) => '<li><label><input type="checkbox" data-done="' + i + '"> <span>' + esc(t) + '</span></label></li>').join('');
+    S.jobs({ prefix: 'dea.', what: 'pipeline', tool: 'adf-pipeline-generator', place: document.querySelector('#paneBuild .step') });
     S.nav(); fill(); onSchema(false);
     const wrap = $('modeBar').closest('.wrap'); // panes sit in .wrap, not next to the bar
     const mode = m => { $('modeBar').querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === m ? 'true' : 'false')); wrap.querySelectorAll(':scope > [data-pane]').forEach(p => { p.hidden = p.dataset.pane !== m; }); st.mode = m; store.set('st', st); };

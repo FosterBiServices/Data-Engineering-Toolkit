@@ -142,3 +142,12 @@ textarea.short{min-height:64px}
 .viewbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:-4px 0 4px}
 .viewbar .note{margin:0}
 body.essentials [data-adv]{display:none!important}
+.jobs{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:10px 14px;margin:0 0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.jobs-t{font-weight:600;font-size:13.5px;color:var(--ink)}
+.jobs input#jobName{flex:1 1 180px;min-width:0;max-width:260px}
+.jobs select{flex:1 1 200px;min-width:0;max-width:300px}
+.jobs-more{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.jobs-msg{flex-basis:100%;font-size:13.5px}
+.jobs-msg:empty{display:none}
+.jobs-msg .ok{color:var(--ok)}.jobs-msg .err{color:var(--err)}.jobs-msg .warn{color:var(--ink)}
+.jobs-msg .btn{margin:0 6px}

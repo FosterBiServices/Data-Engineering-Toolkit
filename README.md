@@ -1,6 +1,6 @@
 # Foster BI Data Engineering Toolkit
 
-Single-file HTML tools for building Azure Data Factory pipelines, the Databricks notebooks they run, and pandas scripts for files. Nothing to install: each page runs in the browser, saves only to that browser, and sends nothing anywhere. Copilot is optional and only used for logic described in plain words; the pages check its reply before using it.
+Single-file HTML tools for building Azure Data Factory pipelines, the Databricks notebooks they run, and pandas scripts for files. Nothing to install: each page runs in the browser, saves only to that browser, and sends nothing anywhere. Save work by name at the top of each page; Download and Open a file move it between computers. Copilot is optional and only used for logic described in plain words; the pages check its reply before using it.
 
 | Page | What it does | AI |
 |---|---|---|

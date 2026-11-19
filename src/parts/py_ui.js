@@ -178,7 +178,7 @@
   function toBlank(keep) { cfg = Object.assign(P.blank(), { layer: cfg.layer }); st.example = false; ai = null; fill(keep); renderForm(); }
 
   function init() {
-    load(); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
+    load(); S.jobs({ prefix: 'dep.', what: 'notebook', tool: 'python-notebook-generator', place: document.querySelector('.step') }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
     $('layerBar').addEventListener('click', e => { const b = e.target.closest('[data-layer]'); if (!b) return; cfg.layer = b.dataset.layer; fill(); renderForm(); });
     document.addEventListener('input', e => {
       const el = e.target;
