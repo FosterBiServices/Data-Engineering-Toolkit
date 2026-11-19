@@ -79,6 +79,8 @@
         <label><input type="checkbox" data-k="opts.trim"> Trim spaces around text</label>
         <label><input type="checkbox" data-k="opts.emptyNa"> Treat empty text as missing</label>
         <label><input type="checkbox" data-k="opts.dropBlank"> Drop completely blank rows</label>
+        <label><input type="checkbox" data-k="opts.dropDupRows"> Remove rows that are exact copies</label>
+        <label><input type="checkbox" data-k="opts.sameCase"> Same text in different capitals (north, North): use the most common</label>
         <label><input type="checkbox" data-k="opts.dayFirst"> Dates are written day first (31/12/2026)</label>
       </div>
       <p class="note small"><b>Key</b>: the column or columns that identify one row. <b>Required</b>: a row with no value there is a problem. Codes with leading zeros (ZIP, account numbers) are suggested as Text so the zeros survive.</p>

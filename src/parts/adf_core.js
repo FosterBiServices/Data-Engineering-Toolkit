@@ -762,10 +762,10 @@
       T.push('Select Debug' + (n.inc ? ' with p_full_reload = false. The first run loads everything after the seeded watermark; for a large table, set the watermark row to a recent value first to load a small window.' : '.'));
       T.push('Compare counts: rows read and written (' + (n.logMethod === 'sp_new' ? 'in ' + std.ctlSchema + '.' + std.logTable : 'the Copy activity\u2019s output in the debug run') + ') against SELECT COUNT(*) on the source for the same window' + (n.sql ? ', and against the ' + (o.staged ? 'staging' : 'target') + ' table.' : '.'));
       if (n.inc) T.push('Check the watermark moved: SELECT * FROM ' + std.ctlSchema + '.' + std.wmTable + ' WHERE table_name = ' + sq(n.wmKey) + ';');
-      if (n.inc) T.push('Force a failure (rename the ' + (o.staged ? 'staging' : 'target') + ' table for one run, or cancel the Copy) and confirm the watermark did not move.');
+      if (n.inc) T.push('Force a failure (' + (cfg.tgt.kind === 'adls' ? 'for one run, change the table name in the Copy source query to one that doesn\u2019t exist' : 'rename the ' + (o.staged ? 'staging' : 'target') + ' table for one run') + ') and confirm the watermark did not move.');
       if (o.staged) T.push('Run the same window twice (set the watermark row back to its earlier value): the target row count must not change.');
     }
-    if (n.noHandler) T.push('Force a failure (for example a wrong folder) and confirm the run shows Failed in Monitor. Nothing logs or alerts: you chose no logging and no alert.'); else
+    if (n.noHandler) T.push((n.inc && !n.files ? 'That failed run' : 'Force a failure (for example a wrong folder) and confirm it') + ' shows Failed in Monitor. Nothing logs or alerts: you chose no logging and no alert.'); else
     T.push('Failure path: after the forced failure, confirm ' + [n.logMethod !== 'none' ? 'a Failed entry in your log' : '', cfg.alert === 'web' ? 'the alert arriving' : ''].filter(Boolean).join(', ') + ' and the pipeline run showing Failed in Monitor.');
     if (o.trigger) T.push('Check the trigger time and time zone (' + (cfg.sched.tz || 'UTC') + '), including across a daylight saving change.');
     T.forEach((t, k) => L.push((k + 1) + '. ' + t));
@@ -905,6 +905,13 @@
       if ((wf != null || wd != null) && !/item\(\)/.test(sval(wf) + sval(wd)))
         add('high', 'Correctness', 'It is inside the loop ' + loop.name + ' but uses a wildcard (' + [wd != null ? 'folder ' + sval(wd) : '', wf != null ? 'file ' + sval(wf) : ''].filter(Boolean).join(', ') + ') that doesn’t use the loop’s item, so every pass ' + (f.type === 'Delete' ? 'deletes all the matching files: the first pass removes files the later passes still need.' : 'copies all the matching files, not just its own.'), f.name,
           'Select ' + f.name + ', ' + (f.type === 'Copy' ? 'Source' : 'Source') + ' tab: change File path type from Wildcard file path to File path in dataset, so the dataset’s file name parameter (@item().name) picks the one file. Or take the activity out of the loop and let one wildcard run handle every file.');
+    });
+    /* a ForEach straight over a folder listing: childItems holds folders too (review, Nov 2026) */
+    flat.filter(f => f.type === 'ForEach').forEach(f => {
+      const m = /^@\s*activity\('([^']+)'\)\??\.output\??\.childItems\s*$/i.exec(sval((f.a.typeProperties || {}).items).trim()); if (!m) return;
+      if (!flat.some(x => x.name === m[1] && x.type === 'GetMetadata')) return;
+      add('medium', 'Correctness', f.name + ' loops over everything ' + m[1] + ' lists. A folder listing (Child items) holds subfolders as well as files, so a subfolder in that folder reaches the copy as if it were a file, and the run fails or copies the wrong thing.', f.name,
+        'Add a Filter activity after ' + m[1] + ': Items = @activity(\'' + m[1] + '\').output.childItems, Condition = @equals(item().type, \'File\') (add an and(...) with endswith(item().name, \'.csv\') to keep one kind). Then set ' + f.name + ' Items to @activity(\'<filter name>\').output.value and make it run after the Filter.');
     });
     /* the existence check and the copy must point at the same file */
     flat.filter(f => f.type === 'GetMetadata' && (f.a.typeProperties.fieldList || []).indexOf('exists') >= 0).forEach(g => {

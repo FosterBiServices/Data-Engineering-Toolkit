@@ -4,7 +4,7 @@
   const K = {};
   const py = s => JSON.stringify(String(s));
   const pyList = a => '[' + a.map(py).join(', ') + ']';
-  const snake = s => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+  const snake = s => String(s || '').replace(/#/g, ' no ').replace(/%/g, ' pct ').normalize('NFKD')   /* Order # -> order_no, Margin % -> margin_pct */.replace(/[̀-ͯ]/g, '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
     .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
   K.snake = snake;
 
@@ -31,7 +31,7 @@
   K.blank = () => ({
     name: '',
     input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0, pdf: K.pdfBlank() },
-    cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dayFirst: false },
+    cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dropDupRows: true, sameCase: true, dayFirst: false },
     filters: [], keepRemoved: false, dedupe: { on: false, order: '', keep: 'last' },
     join: { on: false, kind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' },
     summary: { on: false, group: [], metrics: [] },
@@ -61,7 +61,7 @@
     const all = re => v.every(s => re.test(s));
     if (all(RX.bool)) return 'bool';
     /* numbers are Decimal unless you choose Whole: a sample of whole numbers says nothing about the rest of the file (owner: "users need a float / decimal") */
-    if (all(RX.whole)) return v.some(s => /^-?0\d/.test(s)) || ID_NAME.test(String(name || '').replace(/([a-z])([A-Z])/g, '$1 $2')) ? 'text' : 'decimal';      // leading zeros or an id-like name: a code, not a number
+    if (all(RX.whole)) return v.some(s => /^-?0\d/.test(s)) || (ID_NAME.test(String(name || '').replace(/([a-z])([A-Z])/g, '$1 $2')) || /#|\bno\.?\s*$/i.test(String(name || ''))) ? 'text' : 'decimal';      // leading zeros or an id-like name: a code, not a number
     if (all(RX.decimal) && v.some(s => /\d/.test(s))) return 'decimal';
     if (all(RX.datetime)) return v.every(s => /[ T]0?0:00(:00)?$/.test(s)) ? 'date' : 'datetime';
     if (all(RX.date)) return 'date';
@@ -334,7 +334,11 @@
     const o = cfg.opts, T = [];
     if (o.trim || o.emptyNa) { T.push('for col in df.columns:', '    if not (pd.api.types.is_string_dtype(df[col]) or df[col].dtype == object):', '        continue', '    df[col] = df[col].astype("string")' + (o.trim ? '.str.strip()' : '')); if (o.emptyNa) T.push('    df[col] = df[col].mask(df[col] == "", pd.NA)   # empty text counts as missing'); }
     if (o.dropBlank) T.push(T.length ? '' : '# nothing to trim', 'blank = df.isna().all(axis=1)', 'df = df[~blank]', 'print(f"Dropped {int(blank.sum()):,} completely blank row(s)")');
-    if (T.length) add('3. Clean the text', (o.trim ? 'Trims spaces around text. ' : '') + (o.emptyNa ? 'Empty text becomes a missing value. ' : '') + (o.dropBlank ? 'Rows with nothing in them are dropped.' : ''), T.filter(l => l !== '# nothing to trim'));
+    /* exact copies: always counted; dropped unless the user said keep them (review, Nov 2026: a duplicate row passed silently) */
+    T.push(T.length ? '' : '# nothing to trim', 'copies = df.duplicated(keep="first")', 'rows_copies = int(copies.sum())');
+    if (o.dropDupRows !== false) T.push('df = df[~copies]', 'print(f"Removed {rows_copies:,} row(s) that were exact copies of an earlier row")');
+    else T.push('if rows_copies:', '    note("rows that are exact copies of an earlier row", rows_copies, "kept, because Remove exact copies is off")');
+    if (T.length) add('3. Clean the text', (o.trim ? 'Trims spaces around text. ' : '') + (o.emptyNa ? 'Empty text becomes a missing value. ' : '') + (o.dropBlank ? 'Rows with nothing in them are dropped. ' : '') + (o.dropDupRows !== false ? 'Rows that are exact copies of an earlier row are removed.' : 'Rows that are exact copies are counted and listed.'), T.filter(l => l !== '# nothing to trim'));
 
     /* 4 types */
     const conv = on.filter(c => c.type !== 'text'), kinds = new Set(conv.map(c => c.type)), V = [];
@@ -353,6 +357,17 @@
         '        examples = ", ".join(original[failed].astype(str).unique()[:3])', '        note(f"{col}: could not convert", failed.sum(), f"for example: {examples}")');
       add('4. Set the types', 'A value that can’t be converted becomes missing and is listed as a problem. It is never guessed.', V);
     }
+    /* same text in different capitals (review, Nov 2026: "north" and "North" were summed as two regions) */
+    const textCols = on.filter(c => c.type === 'text' && !c.key).map(c => c.name);
+    if (textCols.length) add('Same text, different capitals', o.sameCase !== false ? 'Values in a text column that differ only in capitals ("north", "North") all take the spelling used most often, so they group together. Each change is printed. Key columns are left alone.' : 'Values in a text column that differ only in capitals ("north", "North") are listed as a problem. They are left as they are.', [
+      'TEXT_COLUMNS = ' + pyList(textCols) + '   # key columns are left alone',
+      'UNIFY_CAPITALS = ' + (o.sameCase !== false ? 'True' : 'False') + '   # True: use the most common spelling | False: only list them', '',
+      'def spellings(s):', '    """Groups of values that differ only in capitals, most used first."""', '    t = s.dropna().astype("string")', '    groups = []',
+      '    for _, vals in t.groupby(t.str.casefold()):', '        counts = vals.value_counts()', '        if len(counts) > 1:', '            groups.append(list(counts.index))', '    return groups', '',
+      'for col in TEXT_COLUMNS:', '    groups = spellings(df[col])', '    if not groups:', '        continue', '    shown = "; ".join(" / ".join(g[:3]) for g in groups[:3])',
+      '    if UNIFY_CAPITALS:', '        swap = {v: g[0] for g in groups for v in g[1:]}', '        changed = int(df[col].isin(list(swap)).sum())', '        df[col] = df[col].replace(swap)',
+      '        print(f"{col}: {changed:,} value(s) now use the most common spelling ({shown})")', '    else:', '        rows = int(df[col].isin([v for g in groups for v in g[1:]]).sum())',
+      '        note(f"{col}: same text in different capitals", rows, shown)']);
     if (aiCols.length) add('Added columns', 'Written with Copilot and checked on the page. Read each one.', aiCols.map(c => 'df[' + py(c.name) + '] = ' + c.expr));
 
     /* lookup */

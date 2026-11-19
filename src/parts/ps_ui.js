@@ -22,7 +22,7 @@
     const sp = obj(obj(s.input).pdf), pd0 = c.input.pdf;
     copy(pd0, sp, ['pattern', 'pages', 'headerStarts', 'names', 'skip', 'month', 'header', 'source']); pd0.method = oneOf(K.PDF_METHODS.map(m => m[0]), sp.method, 'table'); pd0.values = Math.max(0, parseInt(sp.values, 10) || 0);
     pd0.sections = arr(sp.sections).map(x => ({ name: str(x.name), label: str(x.label) })).filter(x => x.name || x.label);
-    copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dayFirst']);
+    copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dropDupRows', 'sameCase', 'dayFirst']);
     c.cols = arr(s.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: oneOf(K.TYPES.map(t => t[0]), x.type, 'text'), on: x.on !== false, key: !!x.key, req: !!x.req }));
     copy(c.dedupe, s.dedupe, ['on', 'order']); c.dedupe.keep = oneOf(['first', 'last'], obj(s.dedupe).keep, 'last');
     copy(c.join, s.join, ['on', 'path', 'sheet', 'leftKey', 'rightKey', 'cols']); c.join.kind = oneOf(kinds, obj(s.join).kind, 'csv'); c.join.how = oneOf(['left', 'inner'], obj(s.join).how, 'left');
@@ -55,7 +55,13 @@
     if (!all.open) cfg.summary.group = cfg.summary.group.filter(g => all.all.indexOf(g) >= 0 || (ai && ai.ok.some(i => i.name === g)));
   }
 
+  let drawing = false;
   function renderForm() {
+    if (drawing) return;   /* replacing a focused box fires blur and change; a second redraw inside the first one throws */
+    drawing = true;
+    try { drawForm(); } finally { drawing = false; }
+  }
+  function drawForm() {
     ai = cfg.aiReq.trim() && cfg.aiReply.trim() ? K.aiParse(cfg.aiReply, cfg, S.parseBlocks, S.fields) : null;
     $('exampleBanner').hidden = !st.example;
     document.querySelectorAll('[data-kind]').forEach(el => { el.hidden = el.dataset.kind.split(' ').indexOf(cfg.input.kind) < 0; });
@@ -158,7 +164,7 @@
       const row = el.closest('[data-i]');
       if (row && el.dataset.f) {
         const it = listOf(row)[Number(row.dataset.i)]; if (!it) return;
-        if (el.type === 'checkbox') it[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') it[el.dataset.f] = el.value; else if (row.dataset.list === 'filters') { renderOut(); return; } else { prune(); renderForm(); return; }   /* a redraw here would take the cursor out of the next box */
+        if (el.type === 'checkbox') it[el.dataset.f] = el.checked; else if (el.tagName === 'SELECT') it[el.dataset.f] = el.value; else if (row.dataset.list) { renderOut(); return; } else { prune(); renderForm(); return; }   /* a redraw here would take the cursor out of the next box */
         if (!row.dataset.list && el.dataset.f === 'key' && it.key) it.req = true;
         prune(); renderForm(); return;
       }
