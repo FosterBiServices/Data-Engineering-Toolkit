@@ -34,7 +34,8 @@
   }
   function load() {
     std = readStd(store.get('std', null));
-    st = merge({ example: false, mode: 'build', check: '', done: [], runBy: 'auto' }, store.get('st', null));
+    st = merge({ example: false, mode: 'build', check: '', done: [], runBy: 'auto', view: 'essentials' }, store.get('st', null));
+    if (st.view !== 'all') st.view = 'essentials';
     const saved = store.get('cfg', null);
     if (saved) cfg = readCfg(saved);
     else if (store.get('blank', false)) cfg = A.blank();
@@ -101,12 +102,35 @@
     'A debug run on a small window succeeds', 'Source and target row counts match for that window', 'The watermark moves only after a successful load (force a failure and check)', 'Running the same window twice adds no duplicate rows',
     'The failure path fires: a log row is written and the alert arrives', 'The trigger time and time zone are right, including daylight saving', 'No secrets or connection strings are in the pipeline JSON'];
 
+  /* Essentials / All settings (review, Nov 2026: 97 fields on the first screen). Hidden sections keep their values; the
+     summary names the hidden settings that are in use, so nothing set is out of sight without a word. */
+  function advNotes() {
+    const med = cfg.src.kind === 'medallion', m = cfg.med, d = A.blank().med, out = [];
+    if (med) {   // only what differs from a blank pipeline
+      if (m.lookup.on !== d.lookup.on) out.push('object list ' + (m.lookup.on ? 'on' : 'off'));
+      if (m.archive !== d.archive) out.push('archive ' + (m.archive ? 'on' : 'off'));
+      [['vars', 'paths in variables'], ['logEach', 'log each file'], ['failOnError', 'a failed file fails the run'], ['sequential', 'one file at a time']].forEach(x => { if (!!m[x[0]] !== !!d[x[0]]) out.push(x[1] + (m[x[0]] ? ' on' : ' off')); });
+    }
+    const roles = med ? ['list', 'read', 'sink', 'meta'] : ['src', 'tgt'], own = roles.filter(k => cfg.ds[k] && cfg.ds[k].mode === 'own').length;
+    if (own) out.push(own + ' of your own dataset' + (own > 1 ? 's' : ''));
+    if (cfg.vars.length) out.push(cfg.vars.length + ' variable' + (cfg.vars.length > 1 ? 's' : ''));
+    if (std.log.method !== 'none') out.push('logging: ' + ((A.LOG_METHODS.find(x => x[0] === std.log.method) || [])[1] || '').toLowerCase());
+    return out;
+  }
+  function renderView() {
+    const ess = st.view !== 'all';
+    document.body.classList.toggle('essentials', ess);
+    document.querySelectorAll('[data-view]').forEach(el => { el.checked = el.value === (ess ? 'essentials' : 'all'); });
+    const n = advNotes();
+    $('advSummary').innerHTML = ess ? (n.length ? 'Also set, hidden here: ' + esc(n.join(' · ')) + '. ' : 'Hidden here: datasets (created for you), your own variables (none) and logging (off). ') + '<button type="button" class="linkbtn" data-advshow>Show all settings</button>' : 'Every setting is shown.';
+  }
   function render() {
     const kind = cfg.src.kind, med = kind === 'medallion', files = kind !== 'sql', sqlT = cfg.tgt.kind === 'sql' && !files, inc = !files && cfg.load.type === 'incremental';
     document.querySelectorAll('[data-not="medallion"]').forEach(el => { el.hidden = med; });
     $('medSub').hidden = !med; $('dsMed').hidden = !med; $('dsClassic').hidden = med;
     if (med) renderMed();
     $('exampleBanner').hidden = !st.example;
+    renderView();
     $('srcSql').hidden = files; $('srcFiles').hidden = !files;
     document.querySelectorAll('[data-only="sql"]').forEach(el => { el.hidden = files; });
     document.querySelectorAll('[data-not="sql"]').forEach(el => { el.hidden = !files; });
@@ -169,7 +193,7 @@
     /* step 4 */
     const errs = probs.filter(p => p.sev === 'err');
     const blocking = errs.filter(p => !/Overwrite with an incremental/.test(p.msg));
-    if (blocking.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (blocking.length === 1 ? 'item' : blocking.length + ' items') + ' marked in red in Step 2 and the pipeline appears here.'); }
+    if (blocking.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (blocking.length === 1 ? 'item' : blocking.length + ' items') + ' marked in red in Step 2 and the pipeline appears here.' + (st.view !== 'all' ? ' If one is about a setting you can\u2019t see, <button type="button" class="linkbtn" data-advshow>show all settings</button>.' : '')); }
     else {
       out = A.build(cfg, std, ai);
       const own = A.check(out.pipeline, std, { off: out.names.noHandler ? ['Failure path'] : [] }).filter(f => f.sev !== 'low');
@@ -415,6 +439,8 @@
     $('modeBar').querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => mode(b.dataset.tab)));
     mode(st.mode === 'check' || st.mode === 'change' ? st.mode : 'build');
     S.tabs($('outTabs'));
+    document.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.view != null && e.target.checked) { st.view = e.target.value; save(); renderView(); } });
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest("[data-advshow]")) { st.view = 'all'; save(); renderView(); } });
     document.querySelectorAll('[data-done]').forEach(el => { el.checked = st.done.indexOf(el.dataset.done) >= 0; });
 
     const ownField = el => el.dataset && (el.dataset.k || el.dataset.s || el.dataset.l || el.dataset.dsjson);

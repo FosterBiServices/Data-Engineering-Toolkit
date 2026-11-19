@@ -12,5 +12,10 @@ exports.open = async function (file, opts) {
   page.on('pageerror', e => errors.push(String(e.message || e)));
   page.on('console', m => { if (m.type() === 'error' && !/net::ERR|Failed to load resource/.test(m.text())) errors.push(m.text()); });
   await page.goto('file://' + path.join(ROOT, file));
+  // The ADF page opens in Essentials; the older checks fill every setting, so they start in All settings unless asked.
+  if (/adf-pipeline/.test(file) && !o.essentials) {
+    const shown = await page.evaluate(() => { const r = document.querySelector('[data-view][value=all]'); if (r && !r.checked) { r.click(); return true; } return false; });
+    if (shown) await page.waitForTimeout(50);
+  }
   return { browser, page, errors };
 };

@@ -458,6 +458,9 @@ td.flowname .ind{color:var(--ws)}
 textarea.short{min-height:64px}
 .pdfbox{margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
 .pdfbox .qgrid{margin-top:8px}
+.viewbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:-4px 0 4px}
+.viewbar .note{margin:0}
+body.essentials [data-adv]{display:none!important}
 </style>
 </head>
 <body>
@@ -549,6 +552,13 @@ textarea.short{min-height:64px}
         <h2 id="s2">Describe the load</h2>
         <p>Fill in what you know. Anything left empty becomes a placeholder like <span class="mono">&lt;LS_SOURCE&gt;</span> that Step 4 lists for you to replace.</p>
       </div>
+      <div class="viewbar">
+        <div class="seg" role="radiogroup" aria-label="Settings shown">
+          <label><input type="radio" name="advView" value="essentials" data-view><span>Essentials</span></label>
+          <label><input type="radio" name="advView" value="all" data-view><span>All settings</span></label>
+        </div>
+        <span class="note small" id="advSummary" aria-live="polite"></span>
+      </div>
 
       <div class="qgrid">
         <label class="lab">Subject area <span class="hint">used in names</span><input type="text" data-k="domain" spellcheck="false" autocomplete="off" placeholder="sales"></label>
@@ -571,6 +581,7 @@ textarea.short{min-height:64px}
           <label class="lab">Databricks linked service <span class="hint">runs every notebook below</span><input type="text" data-k="nbLs" spellcheck="false" autocomplete="off" placeholder="ls_databricks"></label>
           <label class="lab">Storage linked service <span class="hint">only for datasets the page creates</span><input type="text" data-k="med.ls" spellcheck="false" autocomplete="off" placeholder="ls_yourstorage"></label>
         </div>
+        <div data-adv style="display:flex;flex-direction:column;gap:12px">
         <h3>Objects</h3>
         <div class="opts">
           <label><input type="checkbox" data-k="med.obj.stripExt"> Object name = file name without its extension</label>
@@ -582,6 +593,7 @@ textarea.short{min-height:64px}
           <label class="lab">Id field<input type="text" data-k="med.lookup.idField" spellcheck="false" autocomplete="off" placeholder="id"></label>
           <label class="lab">Name field <span class="hint">matched to the object name</span><input type="text" data-k="med.lookup.nameField" spellcheck="false" autocomplete="off" placeholder="object_name"></label>
           <label class="lab">A file whose object isn&rsquo;t in the list<select data-k="med.lookup.unknown"><option value="stop">Fails with a clear message</option><option value="continue">Is loaded anyway, with an empty id</option></select></label>
+        </div>
         </div>
 
         <h3>Bronze</h3>
@@ -595,10 +607,12 @@ textarea.short{min-height:64px}
             <label class="lab wide">Bronze folder<input type="text" data-k="med.bronzeFolder" spellcheck="false" autocomplete="off" placeholder="yourproject/bronze/{object}"></label>
             <label class="lab">Bronze file name<input type="text" data-k="med.bronzeFile" spellcheck="false" autocomplete="off" placeholder="{object}.parquet"></label>
           </div>
+          <div data-adv style="display:flex;flex-direction:column;gap:12px">
           <label class="chk"><input type="checkbox" data-k="med.archive"> Archive the bronze file that&rsquo;s already there before replacing it</label>
           <div class="qgrid" id="archiveBox">
             <label class="lab wide">Archive folder<input type="text" data-k="med.archiveFolder" spellcheck="false" autocomplete="off" placeholder="yourproject/archive/{object}"></label>
             <label class="lab">Archive file name<input type="text" data-k="med.archiveFile" spellcheck="false" autocomplete="off" placeholder="{yyyy}-{MM}-{dd}_{object}.parquet"></label>
+          </div>
           </div>
           <div class="qgrid">
             <label class="lab">Once a file is in bronze, the landing file is<select data-k="med.after"><option value="leave">Left where it is (loaded again next run)</option><option value="move">Moved to a processed folder (only new files next run)</option><option value="delete">Deleted (only new files next run)</option></select></label>
@@ -616,7 +630,7 @@ textarea.short{min-height:64px}
         <div id="stageList" style="display:flex;flex-direction:column;gap:12px"></div>
 
         <p class="note small"><b>In folders and names</b> type the structure you use, with tokens where the value changes: <span class="mono" id="tokenList"></span>. Fixed text is kept as typed, slashes included.</p>
-        <div class="opts">
+        <div class="opts" data-adv>
           <label><input type="checkbox" data-k="med.vars"> Keep paths in pipeline variables (edit them later on the Variables tab)</label>
           <label><input type="checkbox" data-k="med.logEach"> Log each file and layer run with my logging setup below</label>
           <label><input type="checkbox" data-k="med.failOnError"> A file that fails makes the run fail (after it is logged)</label>
@@ -652,7 +666,7 @@ textarea.short{min-height:64px}
       </div>
 
 
-      <div class="sub" id="dsSub">
+      <div class="sub" id="dsSub" data-adv>
         <h3>Datasets</h3>
         <p class="note small" style="margin-top:-6px">Use the datasets your factory already has, and the pipeline works as soon as it is pasted. Or let the page create parameterized ones.</p>
         <div id="dsMed" style="display:flex;flex-direction:column;gap:12px">
@@ -781,14 +795,14 @@ textarea.short{min-height:64px}
       </div>
 
 
-      <div class="sub" id="varSub">
+      <div class="sub" id="varSub" data-adv>
         <div class="details-head"><h3>Pipeline variables</h3><button type="button" class="btn" id="addVar">Add a variable</button></div>
         <p class="note small" style="margin-top:-8px">Your own variables, with their default values. Use one in a folder or file name as <span class="mono">{var:name}</span>, or choose <b>Pipeline variable</b> for a dataset, notebook or logging parameter. A default is plain text: ADF never evaluates one that starts with @.</p>
         <div class="rowlist" id="varRows"></div>
         <p class="note small" id="autoVars"></p>
         <datalist id="varNames"></datalist>
       </div>
-      <div class="sub" id="logSub">
+      <div class="sub" id="logSub" data-adv>
         <h3>Logging</h3>
         <p class="note small" style="margin-top:-6px">How a run is recorded, on success and on failure. Set it once: it is saved with your team standards and used for every pipeline.</p>
         <div class="qgrid">
@@ -3408,7 +3422,8 @@ textarea.short{min-height:64px}
   }
   function load() {
     std = readStd(store.get('std', null));
-    st = merge({ example: false, mode: 'build', check: '', done: [], runBy: 'auto' }, store.get('st', null));
+    st = merge({ example: false, mode: 'build', check: '', done: [], runBy: 'auto', view: 'essentials' }, store.get('st', null));
+    if (st.view !== 'all') st.view = 'essentials';
     const saved = store.get('cfg', null);
     if (saved) cfg = readCfg(saved);
     else if (store.get('blank', false)) cfg = A.blank();
@@ -3475,12 +3490,35 @@ textarea.short{min-height:64px}
     'A debug run on a small window succeeds', 'Source and target row counts match for that window', 'The watermark moves only after a successful load (force a failure and check)', 'Running the same window twice adds no duplicate rows',
     'The failure path fires: a log row is written and the alert arrives', 'The trigger time and time zone are right, including daylight saving', 'No secrets or connection strings are in the pipeline JSON'];
 
+  /* Essentials / All settings (review, Nov 2026: 97 fields on the first screen). Hidden sections keep their values; the
+     summary names the hidden settings that are in use, so nothing set is out of sight without a word. */
+  function advNotes() {
+    const med = cfg.src.kind === 'medallion', m = cfg.med, d = A.blank().med, out = [];
+    if (med) {   // only what differs from a blank pipeline
+      if (m.lookup.on !== d.lookup.on) out.push('object list ' + (m.lookup.on ? 'on' : 'off'));
+      if (m.archive !== d.archive) out.push('archive ' + (m.archive ? 'on' : 'off'));
+      [['vars', 'paths in variables'], ['logEach', 'log each file'], ['failOnError', 'a failed file fails the run'], ['sequential', 'one file at a time']].forEach(x => { if (!!m[x[0]] !== !!d[x[0]]) out.push(x[1] + (m[x[0]] ? ' on' : ' off')); });
+    }
+    const roles = med ? ['list', 'read', 'sink', 'meta'] : ['src', 'tgt'], own = roles.filter(k => cfg.ds[k] && cfg.ds[k].mode === 'own').length;
+    if (own) out.push(own + ' of your own dataset' + (own > 1 ? 's' : ''));
+    if (cfg.vars.length) out.push(cfg.vars.length + ' variable' + (cfg.vars.length > 1 ? 's' : ''));
+    if (std.log.method !== 'none') out.push('logging: ' + ((A.LOG_METHODS.find(x => x[0] === std.log.method) || [])[1] || '').toLowerCase());
+    return out;
+  }
+  function renderView() {
+    const ess = st.view !== 'all';
+    document.body.classList.toggle('essentials', ess);
+    document.querySelectorAll('[data-view]').forEach(el => { el.checked = el.value === (ess ? 'essentials' : 'all'); });
+    const n = advNotes();
+    $('advSummary').innerHTML = ess ? (n.length ? 'Also set, hidden here: ' + esc(n.join(' · ')) + '. ' : 'Hidden here: datasets (created for you), your own variables (none) and logging (off). ') + '<button type="button" class="linkbtn" data-advshow>Show all settings</button>' : 'Every setting is shown.';
+  }
   function render() {
     const kind = cfg.src.kind, med = kind === 'medallion', files = kind !== 'sql', sqlT = cfg.tgt.kind === 'sql' && !files, inc = !files && cfg.load.type === 'incremental';
     document.querySelectorAll('[data-not="medallion"]').forEach(el => { el.hidden = med; });
     $('medSub').hidden = !med; $('dsMed').hidden = !med; $('dsClassic').hidden = med;
     if (med) renderMed();
     $('exampleBanner').hidden = !st.example;
+    renderView();
     $('srcSql').hidden = files; $('srcFiles').hidden = !files;
     document.querySelectorAll('[data-only="sql"]').forEach(el => { el.hidden = files; });
     document.querySelectorAll('[data-not="sql"]').forEach(el => { el.hidden = !files; });
@@ -3543,7 +3581,7 @@ textarea.short{min-height:64px}
     /* step 4 */
     const errs = probs.filter(p => p.sev === 'err');
     const blocking = errs.filter(p => !/Overwrite with an incremental/.test(p.msg));
-    if (blocking.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (blocking.length === 1 ? 'item' : blocking.length + ' items') + ' marked in red in Step 2 and the pipeline appears here.'); }
+    if (blocking.length) { out = null; $('outWrap').hidden = true; $('outMsg').innerHTML = S.msg('warn', 'Fix the ' + (blocking.length === 1 ? 'item' : blocking.length + ' items') + ' marked in red in Step 2 and the pipeline appears here.' + (st.view !== 'all' ? ' If one is about a setting you can\u2019t see, <button type="button" class="linkbtn" data-advshow>show all settings</button>.' : '')); }
     else {
       out = A.build(cfg, std, ai);
       const own = A.check(out.pipeline, std, { off: out.names.noHandler ? ['Failure path'] : [] }).filter(f => f.sev !== 'low');
@@ -3789,6 +3827,8 @@ textarea.short{min-height:64px}
     $('modeBar').querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => mode(b.dataset.tab)));
     mode(st.mode === 'check' || st.mode === 'change' ? st.mode : 'build');
     S.tabs($('outTabs'));
+    document.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.view != null && e.target.checked) { st.view = e.target.value; save(); renderView(); } });
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest("[data-advshow]")) { st.view = 'all'; save(); renderView(); } });
     document.querySelectorAll('[data-done]').forEach(el => { el.checked = st.done.indexOf(el.dataset.done) >= 0; });
 
     const ownField = el => el.dataset && (el.dataset.k || el.dataset.s || el.dataset.l || el.dataset.dsjson);
