@@ -8,8 +8,8 @@
     c.input.path = 'orders.csv';
     c.cols = K.mapCols(K.parseSample(SAMPLE), []);
     c.cols.forEach(x => { if (x.name === 'order_id') { x.key = true; x.req = true; } if (x.name === 'order_date' || x.name === 'amount') x.req = true; });
-    c.dedupe = { on: true, order: 'order_date', keep: 'last' };
     c.filters = [{ when: 'status != "TEST"', label: '', join: 'and' }];
+    c.tasks = [Object.assign(K.taskBlank('filter'), { open: false }), Object.assign(K.taskBlank('dedupe'), { order: 'order_date', open: false })];
     c.rules = [{ kind: 'min', col: 'amount', val: '0' }, { kind: 'inlist', col: 'status', val: 'OPEN, SHIPPED, CANCELLED' }];
     c.bad = 'split';
     c.summary = { on: true, group: ['sales_region'], metrics: [{ name: 'orders', agg: 'size', col: '' }, { name: 'total_amount', agg: 'sum', col: 'amount' }] };

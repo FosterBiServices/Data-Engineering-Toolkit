@@ -25,15 +25,12 @@
     pd0.sections = arr(sp.sections).map(x => ({ name: str(x.name), label: str(x.label) })).filter(x => x.name || x.label);
     copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dropDupRows', 'sameCase', 'dayFirst']);
     c.cols = arr(s.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: oneOf(K.TYPES.map(t => t[0]), x.type, 'text'), on: x.on !== false, key: !!x.key, req: !!x.req }));
-    copy(c.dedupe, s.dedupe, ['on', 'order']); c.dedupe.keep = oneOf(['first', 'last'], obj(s.dedupe).keep, 'last');
-    copy(c.join, s.join, ['on', 'path', 'sheet', 'leftKey', 'rightKey', 'cols']); c.join.kind = oneOf(kinds, obj(s.join).kind, 'csv'); c.join.how = oneOf(['left', 'inner'], obj(s.join).how, 'left');
     c.summary.on = obj(s.summary).on === true; c.summary.group = (Array.isArray(obj(s.summary).group) ? s.summary.group : []).filter(x => typeof x === 'string');
     c.summary.metrics = arr(obj(s.summary).metrics).map(x => ({ name: str(x.name), agg: oneOf(K.AGGS.map(a => a[0]), x.agg, 'sum'), col: str(x.col) }));
     c.rules = arr(s.rules).map(x => ({ kind: oneOf(K.RULES.map(r => r[0]), x.kind, 'min'), col: str(x.col), val: str(x.val) }));
     copy(c.output, s.output, ['path']); c.output.kind = oneOf(kinds, obj(s.output).kind, 'csv');
-    const rn = obj(s.rowNo); c.rowNo = { on: rn.on === true, name: str(rn.name) || 'row_number', from: rn.from === 'clean' ? 'clean' : 'file' };
-    c.fills = arr(s.fills).map(x => ({ col: str(x.col), passes: str(x.passes), swapA: str(x.swapA), swapB: str(x.swapB) }));
-    const cf = obj(s.conflicts); c.conflicts = { on: cf.on === true, group: str(cf.group), cols: (Array.isArray(cf.cols) ? cf.cols : []).filter(x => typeof x === 'string'), missing: cf.missing === true };
+    /* tasks; settings saved before Common tasks (duplicates, lookup, row numbers, fills, comparison) become tasks */
+    c.tasks = K.migrate({ tasks: arr(s.tasks), filters: c.filters, dedupe: obj(s.dedupe), join: obj(s.join), rowNo: obj(s.rowNo), fills: arr(s.fills), conflicts: obj(s.conflicts) }).tasks;
     return c;
   }
   function load() {
@@ -54,10 +51,6 @@
   /* drop choices that point at columns that are gone */
   function prune() {
     const n = names(), all = K.known(cfg, null);
-    if (n.indexOf(cfg.dedupe.order) < 0) cfg.dedupe.order = '';
-    if (n.indexOf(cfg.join.leftKey) < 0) cfg.join.leftKey = '';
-    if (n.indexOf(cfg.conflicts.group) < 0) cfg.conflicts.group = '';
-    cfg.conflicts.cols = cfg.conflicts.cols.filter(c => n.indexOf(c) >= 0);
     if (!all.open) cfg.summary.group = cfg.summary.group.filter(g => all.all.indexOf(g) >= 0 || (ai && ai.ok.some(i => i.name === g)));
   }
 
@@ -76,41 +69,69 @@
       + '<td><input type="text" data-f="name" value="' + esc(c.name) + '" spellcheck="false" aria-label="New name for ' + esc(c.src) + '"></td><td><select data-f="type" aria-label="Type">' + opts(K.TYPES, c.type) + '</select></td>'
       + '<td class="ck"><input type="checkbox" data-f="key"' + (c.key ? ' checked' : '') + ' aria-label="Key"></td><td class="ck"><input type="checkbox" data-f="req"' + (c.req || c.key ? ' checked' : '') + (c.key ? ' disabled' : '') + ' aria-label="Required"></td></tr>').join('')
       || '<tr><td colspan="6" class="muted">Paste the header row and a few rows in Step 1 and the columns appear here.</td></tr>';
-    const n = names(), on = cfg.cols.filter(c => c.on);
-    $('dedupeBox').hidden = !cfg.dedupe.on; $('joinBox').hidden = !cfg.join.on; $('joinNote').hidden = !cfg.join.on; $('sumBox').hidden = !cfg.summary.on;
-    $('dedupeOrder').innerHTML = opts(on.filter(c => /^(date|datetime|whole|decimal)$/.test(c.type)).map(c => [c.name, 'The one with the latest ' + c.name]), cfg.dedupe.order, 'By position in the file');
-    $('keepBox').hidden = !!cfg.dedupe.order; $('joinSheet').hidden = cfg.join.kind !== 'excel';
-    $('joinLeft').innerHTML = opts(n, cfg.join.leftKey, 'Choose a column');
+    $('sumBox').hidden = !cfg.summary.on;
     $('badSel').innerHTML = opts(K.BAD, cfg.bad);
     const all = K.known(cfg, ai).all;
-    $('filterList').innerHTML = cfg.filters.map((f, i) => '<div class="rrow filt" data-list="filters" data-i="' + i + '">'
-      + (i ? '<select data-f="join" aria-label="Combine with the filters before"><option value="and"' + (f.join !== 'or' ? ' selected' : '') + '>AND</option><option value="or"' + (f.join === 'or' ? ' selected' : '') + '>OR</option></select>' : '<span class="muted small" style="align-self:center">Keep if</span>')
-      + '<input type="text" data-f="when" value="' + esc(f.when) + '" placeholder=\'order_date >= "2026-06-01"\' spellcheck="false" aria-label="Condition">'
-      + '<input type="text" data-f="label" value="' + esc(f.label) + '" placeholder="name (optional)" spellcheck="false" aria-label="Name shown in Filtered out">'
-      + '<button type="button" class="x" data-del aria-label="Remove filter">&times;</button></div>').join('');
+    renderTasks();
     filterPreview();
     $('ruleList').innerHTML = cfg.rules.map((r, i) => '<div class="rrow" data-list="rules" data-i="' + i + '"><select data-f="col" aria-label="Column">' + opts(all, r.col, 'Column') + '</select><select data-f="kind" aria-label="Check">' + opts(K.RULES.map(x => [x[0], x[1]]), r.kind) + '</select>'
       + (r.kind === 'notfuture' ? '<span></span><span></span>' : '<input type="text" data-f="val" value="' + esc(r.val) + '" placeholder="' + esc((K.RULES.find(x => x[0] === r.kind) || [])[2] || '') + '" spellcheck="false" aria-label="Value" style="grid-column:span 2">') + '<button type="button" class="x" data-del aria-label="Remove check">&times;</button></div>').join('');
     $('groupChips').innerHTML = all.length ? all.map(c => '<button type="button" class="chip" data-group="' + esc(c) + '" aria-pressed="' + (cfg.summary.group.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
     $('metricList').innerHTML = cfg.summary.metrics.map((m, i) => '<div class="rrow" data-list="metrics" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(m.name) + '" placeholder="total_amount" spellcheck="false" aria-label="Measure name"><select data-f="agg" aria-label="How">' + opts(K.AGGS, m.agg) + '</select>'
       + (m.agg === 'size' ? '<span style="grid-column:span 2"></span>' : '<select data-f="col" aria-label="Column" style="grid-column:span 2">' + opts(all, m.col, 'Column') + '</select>') + '<button type="button" class="x" data-del aria-label="Remove measure">&times;</button></div>').join('');
-    /* across rows */
-    const rc = K.rowCol(cfg), cf = cfg.conflicts;
-    $('rowNoBox').hidden = !rc;
-    $('rowNoNote').textContent = rc && !cfg.rowNo.on ? 'Added because a fill or a comparison below uses row numbers.' : '';
-    $('fillList').innerHTML = cfg.fills.map((f, i) => '<div class="fillcard" data-list="fills" data-i="' + i + '">'
-      + '<label class="lab">Column to fill<select data-f="col" aria-label="Column to fill">' + opts(n, f.col, 'Choose a column') + '</select></label>'
-      + '<label class="lab">Also try with these swapped <span class="hint">optional: names entered the wrong way round</span><span class="pair"><select data-f="swapA" aria-label="First column to swap">' + opts(n, f.swapA, '—') + '</select><select data-f="swapB" aria-label="Second column to swap">' + opts(n, f.swapB, '—') + '</select></span></label>'
-      + '<label class="lab full">Match on, one try per line <span class="hint">columns separated by commas; tried in order, first line first</span><textarea data-f="passes" spellcheck="false" aria-label="Columns to match on" placeholder="first_name, last_name, date_of_birth&#10;first_name, last_name">' + esc(f.passes) + '</textarea></label>'
-      + '<button type="button" class="x" data-del aria-label="Remove fill">&times;</button></div>').join('');
-    $('conflictBox').hidden = !cf.on;
-    $('cfGroup').innerHTML = opts(n, cf.group, 'Choose a column');
-    $('cfChips').innerHTML = n.length ? n.filter(c => c !== cf.group).map(c => '<button type="button" class="chip" data-cfcol="' + esc(c) + '" aria-pressed="' + (cf.cols.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
     $('checklist').innerHTML = K.CHECKLIST.map((t, i) => '<li><label><input type="checkbox" data-done="' + i + '"' + (st.done.indexOf(String(i)) >= 0 ? ' checked' : '') + '> <span>' + esc(t) + '</span></label></li>').join('');
     renderOut();
   }
 
+  /* Common tasks: a picker grouped by purpose, then one card per task in run order; a card folds to one line */
+  const TD = K.TASK_DEFS;
+  function filterRows() {
+    return '<div id="filterList" class="rlist">' + cfg.filters.map((f, i) => '<div class="rrow filt" data-list="filters" data-i="' + i + '">'
+      + (i ? '<select data-f="join" aria-label="Combine with the filters before"><option value="and"' + (f.join !== 'or' ? ' selected' : '') + '>AND</option><option value="or"' + (f.join === 'or' ? ' selected' : '') + '>OR</option></select>' : '<span class="muted small" style="align-self:center">Keep if</span>')
+      + '<input type="text" data-f="when" value="' + esc(f.when) + '" placeholder=\'order_date >= "2026-06-01"\' spellcheck="false" aria-label="Condition">'
+      + '<input type="text" data-f="label" value="' + esc(f.label) + '" placeholder="name (optional)" spellcheck="false" aria-label="Name shown in Filtered out">'
+      + '<button type="button" class="x" data-del aria-label="Remove filter">&times;</button></div>').join('') + '</div>'
+      + '<div><button type="button" class="btn" data-addfilter>Add a filter</button></div><p class="note small" id="filterLogic"></p>'
+      + '<label class="chk"><input type="checkbox" data-k="keepRemoved"' + (cfg.keepRemoved ? ' checked' : '') + '> <span>Keep what the filters remove: a &ldquo;Filtered out&rdquo; sheet with the filters each row failed, and an &ldquo;Original&rdquo; sheet with every row before filtering (separate files for CSV or Parquet)</span></label>';
+  }
+  function fieldHtml(t, f, before) {
+    const full = ' style="grid-column:1/-1"', hint = f.hint ? ' <span class="hint">' + esc(f.hint) + '</span>' : '';
+    const fits = c => !f.types || !c.type || f.types.some(w => (w === 'number' ? /^(whole|decimal)$/.test(c.type) : w === 'date' ? /^date/.test(c.type) : c.type === w));
+    if (f.type === 'filter') return '<div class="rlist"' + full + '>' + filterRows() + '</div>';
+    if (f.type === 'col') {
+      const v = t[f.k], list = before.filter(fits).map(c => [c.name, f.optLabel ? f.optLabel(c.name) : c.name]);
+      const extra = (f.extra || []).concat(v && !list.some(o => o[0] === v) && !(f.extra || []).some(o => o[0] === v) ? [[v, v + ' (not a column here)']] : []);
+      return '<label class="lab">' + esc(f.label) + hint + '<select data-f="' + f.k + '" aria-label="' + esc(f.label) + '">' + opts(extra.concat(list), v, f.empty || 'Choose a column') + '</select></label>';
+    }
+    if (f.type === 'cols' || f.type === 'pick') {
+      const v = t[f.k], skip = f.not ? t[f.not] : null;
+      let list = f.type === 'pick' ? f.opts : before.filter(c => fits(c) && c.name !== skip).map(c => [c.name, c.name]);
+      v.filter(x => !list.some(o => o[0] === x)).forEach(x => { list = list.concat([[x, x + ' (not a column here)']]); });
+      return '<div class="picker"' + full + '><div class="picker-head"><h3>' + esc(f.label) + '</h3>' + (f.hint ? '<span class="hint">' + esc(f.hint) + '</span>' : '') + '</div><div class="chips">'
+        + (list.length ? list.map(o => { const at = v.indexOf(o[0]); return '<button type="button" class="chip" data-tchip="' + f.k + '" data-v="' + esc(o[0]) + '" aria-pressed="' + (at >= 0 ? 'true' : 'false') + '">' + esc(o[1]) + (f.ordered && at >= 0 ? '<small>' + (at + 1) + '</small>' : '') + '</button>'; }).join('') : '<span class="note small">Paste the sample in Step 1 first.</span>') + '</div></div>';
+    }
+    if (f.type === 'select') return '<label class="lab">' + esc(f.label) + hint + '<select data-f="' + f.k + '" aria-label="' + esc(f.label) + '">' + opts(f.opts, t[f.k]) + '</select></label>';
+    if (f.type === 'check') return '<label class="chk"' + full + '><input type="checkbox" data-f="' + f.k + '"' + (t[f.k] ? ' checked' : '') + '> <span>' + esc(f.label) + '</span></label>';
+    if (f.type === 'textarea') return '<label class="lab"' + full + '>' + esc(f.label) + hint + '<textarea data-f="' + f.k + '" spellcheck="false" aria-label="' + esc(f.label) + '" placeholder="' + esc(f.ph || '') + '">' + esc(t[f.k]) + '</textarea></label>';
+    return '<label class="lab"' + (f.wide ? ' style="grid-column:span 2"' : '') + '>' + esc(f.label) + hint + '<input type="text" class="plain" data-f="' + f.k + '" value="' + esc(t[f.k]) + '" placeholder="' + esc(f.ph || '') + '" spellcheck="false" autocomplete="off" aria-label="' + esc(f.label) + '"></label>';
+  }
+  function renderTasks() {
+    const fl = K.taskFlow(cfg, ai), keys = cfg.cols.filter(c => c.on && c.key).map(c => c.name), probs = K.problems(cfg, ai);
+    $('taskAdd').innerHTML = '<option value="">Add a task&hellip;</option>' + K.TASK_GROUPS.map(g => '<optgroup label="' + esc(g[1]) + '">' + Object.keys(TD).filter(k => TD[k].group === g[0]).map(k => '<option value="' + k + '"' + (TD[k].once && cfg.tasks.some(t => t.kind === k) ? ' disabled' : '') + '>' + esc(TD[k].label) + '</option>').join('') + '</optgroup>').join('');
+    $('taskEmpty').hidden = cfg.tasks.length > 0;
+    $('taskList').innerHTML = cfg.tasks.map((t, i) => {
+      const d = TD[t.kind], step = fl.steps.find(x => x.t === t) || { before: [] }, tag = 'Task ' + (i + 1) + ' (';
+      const bad = probs.some(p => p.sev === 'err' && p.msg.indexOf(tag) === 0);
+      const body = !t.open ? '' : '<div class="taskbody"><p class="note small thint">' + esc(d.hint) + '</p><div class="qgrid">'
+        + d.fields.filter(f => !f.show || f.show(t)).map(f => fieldHtml(t, f, step.before)).join('') + '</div></div>';
+      return '<div class="task' + (t.open ? ' open' : '') + (bad ? ' bad' : '') + '" data-list="tasks" data-i="' + i + '"><div class="taskhead">'
+        + '<button type="button" class="taskfold" data-tfold aria-expanded="' + (t.open ? 'true' : 'false') + '"><span class="tnum">' + (i + 1) + '</span><span class="tlab">' + esc(d.label) + '</span><span class="tsum">' + esc(K.taskSummary(t, { cfg, keys })) + '</span></button>'
+        + '<button type="button" class="tb" data-tmove="-1" aria-label="Move up"' + (i ? '' : ' disabled') + '>&uarr;</button><button type="button" class="tb" data-tmove="1" aria-label="Move down"' + (i < cfg.tasks.length - 1 ? '' : ' disabled') + '>&darr;</button>'
+        + '<button type="button" class="tb x" data-del aria-label="Remove task">&times;</button></div>' + body + '</div>';
+    }).join('');
+  }
   function filterPreview() {
+    if (!$('filterLogic')) return;
     const act = K.activeFilters(cfg); $('filterLogic').textContent = act.length > 1 ? 'Rows are kept when: ' + K.filterLogic(act) + (act.some((f, i) => i && f.join === 'or') && act.some((f, i) => i && f.join !== 'or') && act.length > 2 ? '. Read left to right: each AND or OR applies to everything before it.' : '.') : '';
   }
   function renderOut() {
@@ -152,10 +173,10 @@
     prune(); fill($('sampleIn'));
   }
   function toBlank(keep) { cfg = K.blank(); st.example = false; ai = null; $('sampleMsg').innerHTML = ''; fill(keep); renderForm(); }
-  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : row.dataset.list === 'fills' ? cfg.fills : cfg.cols);
+  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : row.dataset.list === 'tasks' ? cfg.tasks : cfg.cols);
 
   function init() {
-    load(); S.jobs({ prefix: 'des.', what: 'script', tool: 'python-script-generator', place: document.querySelector('.step') }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
+    load(); S.jobs({ prefix: 'des.', what: 'script', tool: 'python-script-generator', place: document.querySelector('.step'), compare: c => JSON.stringify(Object.assign({}, restore(c), { tasks: restore(c).tasks.map(t => Object.assign({}, t, { open: false })) })) }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
     document.addEventListener('input', e => {
       if (e.target.id === 'pdfSections') { cfg.input.pdf.sections = e.target.value.split('\n').map(l => { const k = l.indexOf('='); return k < 0 ? { name: l.trim(), label: '' } : { name: l.slice(0, k).trim(), label: l.slice(k + 1).trim() }; }).filter(x => x.name || x.label); renderOut(); return; }
       const el = e.target;
@@ -166,11 +187,11 @@
         const was = it[el.dataset.f]; it[el.dataset.f] = el.value;
         if (!row.dataset.list && el.dataset.f === 'name' && was && el.value) {     // a renamed column takes its uses with it
           const sw = v => (v === was ? el.value : v);
-          cfg.dedupe.order = sw(cfg.dedupe.order); cfg.join.leftKey = sw(cfg.join.leftKey); cfg.summary.group = cfg.summary.group.map(sw);
+          cfg.summary.group = cfg.summary.group.map(sw);
           cfg.summary.metrics.forEach(m => { m.col = sw(m.col); }); cfg.rules.forEach(r => { r.col = sw(r.col); });
-          cfg.conflicts.group = sw(cfg.conflicts.group); cfg.conflicts.cols = cfg.conflicts.cols.map(sw);
           const word0 = new RegExp('(^|[^\\w])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?!\\w)', 'g');
-          cfg.fills.forEach(f => { f.col = sw(f.col); f.swapA = sw(f.swapA); f.swapB = sw(f.swapB); f.passes = f.passes.replace(word0, (m0, p) => p + el.value); });
+          cfg.tasks.forEach(t => { TD[t.kind].fields.forEach(f => { if (f.type === 'col') t[f.k] = sw(t[f.k]); if (f.type === 'cols') t[f.k] = t[f.k].map(sw); });
+            if (t.kind === 'fillmatch') t.passes = t.passes.replace(word0, (m0, p) => p + el.value); });
           const word = new RegExp('(^|[^\\w"\'])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w"\'])', 'g');
           cfg.filters.forEach(f => { f.when = f.when.replace(word, (m0, p) => p + el.value); });
           document.querySelectorAll('#filterList [data-i]').forEach(r => { const f = cfg.filters[Number(r.dataset.i)], b = r.querySelector('[data-f="when"]'); if (f && b && b.value !== f.when) b.value = f.when; });
@@ -192,15 +213,29 @@
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'checkbox')) { set(cfg, el.dataset.k, el.type === 'checkbox' ? el.checked : el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
-      const del = e.target.closest('[data-del]'), g = e.target.closest('[data-group]'), cc = e.target.closest('[data-cfcol]');
-      if (cc) { const a = cfg.conflicts.cols, i = a.indexOf(cc.dataset.cfcol); if (i >= 0) a.splice(i, 1); else a.push(cc.dataset.cfcol); renderForm(); return; }
-      if (del) { const row = del.closest('[data-i]'); listOf(row).splice(Number(row.dataset.i), 1); renderForm(); }
+      const del = e.target.closest('[data-del]'), g = e.target.closest('[data-group]'), card = e.target.closest('.task[data-i]'), at = card ? Number(card.dataset.i) : -1;
+      const chip = e.target.closest('[data-tchip]'), fold = e.target.closest('[data-tfold]'), move = e.target.closest('[data-tmove]');
+      if (e.target.closest('[data-addfilter]')) { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); return; }
+      if (chip && card) { const a = cfg.tasks[at][chip.dataset.tchip], i = a.indexOf(chip.dataset.v); if (i >= 0) a.splice(i, 1); else a.push(chip.dataset.v); renderForm(); return; }
+      if (fold && card) { cfg.tasks[at].open = !cfg.tasks[at].open; renderForm(); const b = document.querySelector('.task[data-i="' + at + '"] [data-tfold]'); if (b) b.focus(); return; }
+      if (move && card) { const to = at + Number(move.dataset.tmove); if (to < 0 || to >= cfg.tasks.length) return; const t = cfg.tasks.splice(at, 1)[0]; cfg.tasks.splice(to, 0, t); renderForm();
+        const b = document.querySelector('.task[data-i="' + to + '"] [data-tmove="' + move.dataset.tmove + '"]'); if (b && !b.disabled) b.focus(); return; }
+      if (del) { const row = del.closest('[data-i]');
+        if (row.dataset.list === 'tasks' && cfg.tasks[Number(row.dataset.i)].kind === 'filter') { cfg.filters = []; cfg.keepRemoved = false; }   // the filters live with their task
+        listOf(row).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (g) { const a = cfg.summary.group, i = a.indexOf(g.dataset.group); if (i >= 0) a.splice(i, 1); else a.push(g.dataset.group); renderForm(); }
     });
     $('addRule').addEventListener('click', () => { cfg.rules.push({ kind: 'min', col: '', val: '' }); renderForm(); });
-    $('addFilter').addEventListener('click', () => { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); });
+    $('taskAdd').addEventListener('change', e => {
+      const k = e.target.value; e.target.value = ''; if (!TD[k]) return;
+      cfg.tasks.forEach(t => { t.open = false; });
+      cfg.tasks.push(K.taskBlank(k));
+      if (k === 'filter' && !cfg.filters.length) cfg.filters.push({ when: '', label: '', join: 'and' });
+      renderForm();
+      const card = document.querySelector('.task[data-i="' + (cfg.tasks.length - 1) + '"]');
+      if (card) { card.scrollIntoView({ block: 'nearest' }); const f = card.querySelector('.taskbody input, .taskbody select, .taskbody textarea, .taskbody .chip'); if (f) f.focus(); }
+    });
     $('addMetric').addEventListener('click', () => { cfg.summary.metrics.push({ name: '', agg: 'sum', col: '' }); renderForm(); });
-    $('addFill').addEventListener('click', () => { cfg.fills.push(K.fillBlank()); renderForm(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });
     S.clearSetup({ onClear: () => { store.clear(); store.set('blank', true); st = { example: false, done: [] }; cfg = K.blank(); $('sampleMsg').innerHTML = ''; fill(); renderForm(); } });

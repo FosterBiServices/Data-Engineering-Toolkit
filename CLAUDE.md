@@ -35,7 +35,7 @@ described in plain words, and the page checks its reply before using it.
 ## Build
 
 ```
-src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion; adf_change*.js: change a pipeline), py_* and ps_* (body.html, core.js, ex.js, ui.js)
+src/parts/   base.css, extra.css, suite.js (shared), home_*, adf_* (adf_med.js: medallion; adf_change*.js: change a pipeline), py_* and ps_* (body.html, core.js, ex.js, ui.js; ps_tasks.js: Common tasks)
 src/brand/   logo files: the F waffle icon on tool pages and as favicon; the home page shows the owner's "foster BI services" white lockup PNG, as the Power BI toolkit does
 src/build.py builds every page into the repo root:  python src/build.py   (Python 3, no packages)
 src/tests/   node run.js  (needs Playwright and Chrome); adfcoretest, pycoretest and pscoretest need only Node and
@@ -247,7 +247,23 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
 - `K.build(cfg, ai)` returns sections (title, markdown, code) and renders them twice: `.py` with `# %%` cells and
   `.ipynb` (nbformat 4.4). Same code in both.
 - Order in the script: settings > read (everything as text; only empty is missing) > trim > types (`CONVERT`, failures
-  noted, never guessed) > Copilot columns > lookup from a second file > filter > dedupe > checks > summary > write.
+  noted, never guessed) > same capitals > Copilot columns > Common tasks in the user's order > Copilot steps > checks >
+  summary > write.
+- **Common tasks** (`ps_tasks.js`, owner, Nov 2026: "common scenarios... choose one and then the form expands"; cards fold;
+  the existing options became tasks). Step 3 has an "Add a task" list grouped by purpose and one card per task, in run order
+  (arrows move, × removes, the header folds to a one-line summary; a new card opens and folds the others; a card with an error
+  is red). `cfg.tasks` [{kind, open, ...}]; `K.TASK_DEFS[kind]` = label, group, hint, fields (col, cols, pick, text, textarea,
+  select, check, filter; the page draws them), summary, problems, flow (columns after it) and `K.TASK_CODE[kind]`. Kinds:
+  filter (once; the rows stay in `cfg.filters`/`keepRemoved`, removing the task removes them), dedupe (columns, empty = Key),
+  lookup (any number: `LOOKUP_PATH`, `LOOKUP_PATH_2`...; the merge keeps the row labels so file row numbers still work),
+  rownum (once), filldown, fillmatch, replace (whole value or part, `old => new` or a tab), split, combine (click order),
+  unpivot, bands, dates (parts, days until a date or today), rank, running (total, previous, change, % change), dupflag,
+  conflicts (once). `K.taskFlow` tracks the columns before each task, so a field lists only columns that exist there (and
+  of the right type), and a task using a later task's column is an error. Row numbers are added first when fillmatch,
+  dupflag or conflicts need them (`K.runList`); row numbers from the file after an unpivot are refused. Saved settings from
+  before (`dedupe`, `join`, `rowNo`, `fills`, `conflicts`) become tasks in the order they ran (`K.migrate`; `K.norm` does it
+  on a copy for every core call). Renaming a column renames it in every task. Copilot COLUMN blocks run before the tasks;
+  the prompt lists the tasks and the columns they make, for STEP blocks. Check: `pstasktest.js` runs a script per task.
 - Filters (owner, Nov 2026: "more than 1 filter... with AND or OR", and keep what is filtered out): `cfg.filters` [{when,
   label, join}], each a pandas condition run with `df.eval(..., engine="python")`; from the second on joined with and / or,
   left to right (`K.filterLogic` shows the grouping, e.g. "(A AND B) OR C"); a missing value never passes. The Copilot
@@ -286,7 +302,7 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   First run with no columns keeps everything and writes `<output>_sample.csv`; the user pastes that into Step 1 to choose
   columns and types. Check: `pspdftest.js` makes generic PDFs (`pdf_make.py`, reportlab) and runs the scripts. Not run on
   his real exports; scanned PDFs give no rows (said on the page).
-- **Across rows** (owner, Nov 2026: a Copilot request to fill a missing id from rows matching on names and birth date, names
+- **Across rows** (now the fillmatch, conflicts and rownum tasks; owner, Nov 2026: a Copilot request to fill a missing id from rows matching on names and birth date, names
   maybe swapped, then list differing demographics per id; Copilot rightly SKIPPED it under the one-expression rules). Step 3
   "Across rows", run after dedupe and lookup, before the checks: `cfg.rowNo` (`from: 'file'` = the row as Excel shows it,
   `ROW_NUMBERS` taken right after reading so cleaning keeps the gaps; `'clean'` = 1..n), forced on by a fill or comparison

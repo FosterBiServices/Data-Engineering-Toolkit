@@ -17,7 +17,7 @@ const { open } = require('./lib');
   await T('script shown with default names', () => [!document.getElementById('outWrap').hidden, document.getElementById('codeTitle').textContent]);
   await page.fill('[data-k="input.path"]', 'C:\\Data\\members.csv');
   await T('windows path escaped in code (expect true), output placeholder', () => [document.getElementById('codeView').textContent.includes('Path("C:\\\\Data\\\\members.csv")'), document.getElementById('outPath').placeholder]);
-  await page.check('[data-k="dedupe.on"]');
+  await page.selectOption('#taskAdd', 'dedupe');
   await T('dedupe without key blocks (expect true)', () => document.getElementById('outWrap').hidden);
   await page.check('#mapBody tr[data-i="0"] input[data-f=key]');
   await T('key ticked: shown again, required auto-ticked', () => [!document.getElementById('outWrap').hidden, document.querySelector('#mapBody tr[data-i="0"] input[data-f=req]').checked]);

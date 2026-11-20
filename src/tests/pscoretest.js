@@ -31,10 +31,10 @@ const run = (label, edit, expect) => {
   return { c, o, out: r.stdout };
 };
 const ex = run('example (excel out, split, dedupe, summary, Copilot)', c => {}, ['Rows read: 10'.replace(': ', ':     '), 'Removed 1 duplicate']);
-run('csv out, report mode, no dedupe (key uniqueness check)', c => { c.output = { kind: 'csv', path: path.join(dir, 'o.csv') }; c.bad = 'report'; c.dedupe.on = false; c.aiReply = ''; c.aiReq = ''; c.rules.pop(); }, ['duplicate_key']);
+run('csv out, report mode, no dedupe (key uniqueness check)', c => { c.output = { kind: 'csv', path: path.join(dir, 'o.csv') }; c.bad = 'report'; c.tasks = c.tasks.filter(t => t.kind !== 'dedupe'); c.aiReply = ''; c.aiReq = ''; c.rules.pop(); }, ['duplicate_key']);
 run('parquet out, stop mode', c => { c.output = { kind: 'parquet', path: path.join(dir, 'o.parquet') }; c.bad = 'stop'; }, 'fails');
-run('no rules, no keys, nothing optional', c => { c.cols.forEach(x => { x.key = false; x.req = false; }); c.rules = []; c.dedupe.on = false; c.summary.on = false; c.filters = []; c.aiReply = ''; c.opts = { trim: false, emptyNa: false, dropBlank: false, dayFirst: true }; c.output = { kind: 'csv', path: path.join(dir, 'p.csv') }; });
-run('all text, dedupe keep first', c => { c.cols.forEach(x => { x.type = 'text'; }); c.rules = []; c.summary.on = false; c.aiReply = ''; c.dedupe = { on: true, order: '', keep: 'first' }; });
+run('no rules, no keys, nothing optional', c => { c.cols.forEach(x => { x.key = false; x.req = false; }); c.rules = []; c.tasks = c.tasks.filter(t => t.kind !== 'dedupe'); c.summary.on = false; c.filters = []; c.aiReply = ''; c.opts = { trim: false, emptyNa: false, dropBlank: false, dayFirst: true }; c.output = { kind: 'csv', path: path.join(dir, 'p.csv') }; });
+run('all text, dedupe keep first', c => { c.cols.forEach(x => { x.type = 'text'; }); c.rules = []; c.summary.on = false; c.aiReply = ''; c.tasks.find(t => t.kind === 'dedupe').order = ''; c.tasks.find(t => t.kind === 'dedupe').keep = 'first'; });
 run('lookup join left', c => { c.join = { on: true, kind: 'csv', path: path.join(dir, 'regions.csv'), sheet: '', leftKey: 'sales_region', rightKey: 'Region', cols: 'Manager', how: 'left' }; }, ['no match in the lookup file']);
 run('lookup join inner, all columns', c => { c.join = { on: true, kind: 'csv', path: path.join(dir, 'regions.csv'), sheet: '', leftKey: 'sales_region', rightKey: 'Region', cols: '', how: 'inner' }; c.summary.group = ['Manager']; });
 run('lookup with repeated keys stops', c => { c.join = { on: true, kind: 'csv', path: path.join(dir, 'regions_dupe.csv'), sheet: '', leftKey: 'sales_region', rightKey: 'Region', cols: '', how: 'left' }; }, 'fails');

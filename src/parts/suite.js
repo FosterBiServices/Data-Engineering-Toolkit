@@ -110,7 +110,9 @@
       $l.disabled = !a.length; if (document.activeElement !== $n) $n.value = c;
       S.$('jobDel').hidden = !a.some(j => j.name === c);
     };
-    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); return j ? JSON.stringify(j.cfg) !== now : !!now && !get('st', {}).example; };
+    /* o.compare: the page's own view of "the same" (the script page ignores folded cards and settings it moved into tasks) */
+    const same = (a, b) => { if (!o.compare) return JSON.stringify(a) === JSON.stringify(b); try { return o.compare(a) === o.compare(b); } catch (e) { return false; } };
+    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); if (!j) return !!now && !get('st', {}).example; let v = null; try { v = JSON.parse(now); } catch (e) { return true; } return !same(j.cfg, v); };
     const store = (name, cfg) => {
       const a = list().filter(j => j.name !== name); a.push({ name, saved: new Date().toISOString(), cfg });
       if (a.length > S.JOB_MAX) { say('err', 'You have ' + S.JOB_MAX + ' saved. Delete one first.'); return false; }

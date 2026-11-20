@@ -479,6 +479,29 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
 .tablewrap{max-width:100%;overflow-x:auto}
 .maptable td.nm{overflow-wrap:anywhere;min-width:110px;max-width:260px}
 .chips .chip{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
+
+/* script page: Common tasks */
+.taskadd select { max-width: 100%; }
+.tasks { display: flex; flex-direction: column; gap: 8px; }
+.task { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.task.bad { border-color: var(--err); }
+.taskhead { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 4px; }
+.taskfold { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; border: 0; background: none; color: var(--ink); text-align: left; padding: 6px 6px; border-radius: 8px; cursor: pointer; font: inherit; }
+.taskfold:hover { background: var(--accent-soft); }
+.taskfold .tnum { flex: 0 0 auto; min-width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
+.taskfold .tlab { flex: 0 0 auto; font-weight: 600; }
+.taskfold .tsum { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task.open .taskfold .tsum { display: none; }
+.taskhead .tb { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 6px 7px; border-radius: 6px; }
+.taskhead .tb:hover:not(:disabled) { color: var(--ink); background: var(--accent-soft); }
+.taskhead .tb:disabled { opacity: .3; }
+.taskhead .tb.x:hover { color: var(--err); }
+.taskbody { padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.taskbody .thint { margin: 0; }
+.taskbody .qgrid { margin: 0; }
+.taskbody textarea { min-height: 64px; font-family: var(--mono); font-size: 13px; width: 100%; }
+@media (max-width: 560px) { .taskfold { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; } .taskfold .tsum { grid-column: 2; white-space: normal; } .taskfold .tlab { min-width: 0; } }
+.taskbody .picker-head h3 { font-size: 13px; } .taskbody .picker-head .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
 </style>
 </head>
 <body>
@@ -837,7 +860,9 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       $l.disabled = !a.length; if (document.activeElement !== $n) $n.value = c;
       S.$('jobDel').hidden = !a.some(j => j.name === c);
     };
-    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); return j ? JSON.stringify(j.cfg) !== now : !!now && !get('st', {}).example; };
+    /* o.compare: the page's own view of "the same" (the script page ignores folded cards and settings it moved into tasks) */
+    const same = (a, b) => { if (!o.compare) return JSON.stringify(a) === JSON.stringify(b); try { return o.compare(a) === o.compare(b); } catch (e) { return false; } };
+    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); if (!j) return !!now && !get('st', {}).example; let v = null; try { v = JSON.parse(now); } catch (e) { return true; } return !same(j.cfg, v); };
     const store = (name, cfg) => {
       const a = list().filter(j => j.name !== name); a.push({ name, saved: new Date().toISOString(), cfg });
       if (a.length > S.JOB_MAX) { say('err', 'You have ' + S.JOB_MAX + ' saved. Delete one first.'); return false; }

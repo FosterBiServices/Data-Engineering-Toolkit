@@ -32,21 +32,12 @@
     name: '',
     input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0, pdf: K.pdfBlank() },
     cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dropDupRows: true, sameCase: true, dayFirst: false },
-    filters: [], keepRemoved: false, dedupe: { on: false, order: '', keep: 'last' },
-    join: { on: false, kind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' },
+    filters: [], keepRemoved: false,
+    tasks: [],          // Common tasks, run in this order (ps_tasks.js): [{ kind, open, ...fields }]
     summary: { on: false, group: [], metrics: [] },
-    rules: [], bad: 'report', output: { kind: 'csv', path: '' }, aiReq: '', aiReply: '',
-    /* across rows (owner, Nov 2026: fill a missing id from matching rows, then compare values within each id) */
-    rowNo: { on: false, name: 'row_number', from: 'file' },
-    fills: [],          // [{ col, passes: 'first_name, last_name, date_of_birth\nfirst_name, last_name', swapA, swapB }]
-    conflicts: { on: false, group: '', cols: [], missing: false }
+    rules: [], bad: 'report', output: { kind: 'csv', path: '' }, aiReq: '', aiReply: ''
   });
-  K.rowNumberLines = cfg => !K.rowCol(cfg) || cfg.rowNo.from === 'clean' ? [] : /^(excel|csv)$/.test(cfg.input.kind)
-    ? ['ROW_NUMBERS = pd.Series(raw.index + ' + (Number(cfg.input.skip || 0) + 2) + ', index=raw.index)   # each row as Excel or a text editor numbers it (the header is row ' + (Number(cfg.input.skip || 0) + 1) + ')']
-    : ['ROW_NUMBERS = pd.Series(raw.index + 1, index=raw.index)   # 1 = the first row read'];
-  K.fillBlank = () => ({ col: '', passes: '', swapA: '', swapB: '' });
   K.fillPasses = f => String(f.passes || '').split('\n').map(l => l.split(/[,+]/).map(x => x.trim()).filter(Boolean)).filter(a => a.length);
-  K.rowCol = cfg => (cfg.rowNo && (cfg.rowNo.on || (cfg.fills || []).some(f => f.col) || (cfg.conflicts && cfg.conflicts.on)) ? (snake(cfg.rowNo.name || '') || 'row_number') : '');
 
   /* ---------- reading a pasted sample: the header row and a few rows ---------- */
   const splitLine = function (line, d) {
@@ -122,21 +113,18 @@
     return { script: base, inPath, outPath };
   };
   /* column names available after each stage */
-  K.known = function (cfg, ai) {
-    const base = cfg.cols.filter(c => c.on).map(c => c.name);
-    const extra = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN').map(i => i.name);
-    const look = cfg.join.on ? cfg.join.cols.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const rc = K.rowCol(cfg), cross = rc ? [rc] : [];
-    (cfg.fills || []).filter(f => f.col).forEach(f => cross.push(f.col + '_filled_from_row', f.col + '_fill_note'));
-    if (cfg.conflicts && cfg.conflicts.on && cfg.conflicts.group) { cfg.conflicts.cols.forEach(c => cross.push(c + '_conflict_rows', c + '_conflict_values')); cross.push('conflict_columns'); }
+  K.known = function (cfg0, ai) {
+    const fl = K.taskFlow(cfg0, ai), cfg = fl.cfg;
+    const base = cfg.cols.filter(c => c.on).map(c => c.name), all = fl.cols.map(c => c.name);
     const steps = ((ai && ai.ok) || []).filter(i => i.kind === 'STEP');
-    return { base, cross, all: Array.from(new Set(base.concat(extra, look, cross))), open: (cfg.join.on && !look.length) || steps.length > 0 };
+    const extra = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN').map(i => i.name);
+    return { base, cross: all.filter(n => base.indexOf(n) < 0 && extra.indexOf(n) < 0), all, types: fl.cols, open: fl.open || steps.length > 0 };
   };
-  const typeOf = (cfg, name) => (cfg.cols.find(c => c.on && c.name === name) || {}).type || '';
+  const typeOf = (cfg, name) => { const c = cfg.cols.find(x => x.on && x.name === name); if (c) return c.type; const t = K.taskFlow(cfg, null).cols.find(x => x.name === name); return t ? t.type : ''; };
 
   /* ---------- checks on the setup ---------- */
-  K.problems = function (cfg, ai) {
-    const R = [], add = (sev, msg) => R.push({ sev, msg });
+  K.problems = function (cfg0, ai) {
+    const cfg = K.norm(cfg0), R = [], add = (sev, msg) => R.push({ sev, msg });
     const on = cfg.cols.filter(c => c.on), names = on.map(c => c.name), kn = K.known(cfg, ai), has = n => kn.open || kn.all.indexOf(n) >= 0;
     const isPdf = cfg.input.kind === 'pdf', pp = Object.assign(K.pdfBlank(), cfg.input.pdf || {});
     if (isPdf) {
@@ -152,19 +140,11 @@
     names.filter((n, i) => names.indexOf(n) !== i).forEach(n => add('err', 'Two columns are both named ' + n + '. Rename one.'));
     on.filter(c => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.name)).forEach(c => add('err', 'The name “' + c.name + '” needs to be letters, digits and underscores, starting with a letter. That keeps filters and formulas simple.'));
     const keys = on.filter(c => c.key).map(c => c.name);
-    if (cfg.dedupe.on && !keys.length) add('err', 'Removing duplicates needs a key. Tick Key for the column or columns that identify one row.');
-    if (cfg.dedupe.on && cfg.dedupe.order && names.indexOf(cfg.dedupe.order) < 0) add('err', 'The column to pick the latest row by, ' + cfg.dedupe.order + ', isn’t a kept column.');
     K.activeFilters(cfg).forEach((x, i) => { const f = x.when.trim(), n = 'Filter ' + (i + 1);
       if (/@|__|`|;|\bimport\b/.test(f)) add('err', n + ' can only compare columns with values, for example amount > 0 and status != "TEST".');
       if (/(^|[^=!<>])=([^=]|$)/.test(f.replace(/"[^"]*"|'[^']*'/g, '""'))) add('err', n + ': write == to compare (a single = doesn’t work in pandas).'); });
     if (cfg.keepRemoved && !K.activeFilters(cfg).length && !(ai && ai.ok && ai.ok.some(i => i.kind === 'FILTER'))) add('info', 'Keeping what the filters remove does nothing until there is a filter.');
-    if (cfg.join.on) {
-      const j = cfg.join;
-      if (!j.path.trim()) add('warn', 'No lookup file path: set LOOKUP_PATH in the script.');
-      if (names.indexOf(j.leftKey) < 0) add('err', 'Lookup: choose the column in your data to match on.');
-      if (!j.rightKey.trim()) add('err', 'Lookup: give the header of the matching column in the lookup file.');
-      j.cols.split(',').map(s => s.trim()).filter(Boolean).forEach(c => { if (names.indexOf(c) >= 0) add('err', 'Lookup: the column ' + c + ' already exists in your data. Rename one of them.'); });
-    }
+    K.taskProblems(cfg, ai, add);
     cfg.rules.forEach((r, i) => {
       if (!r.col) add('err', 'Check ' + (i + 1) + ' has no column.'); else if (!has(r.col)) add('err', 'Check ' + (i + 1) + ' uses ' + r.col + ', which isn’t a column at that point.');
       if (/^(min|max|inlist|regex)$/.test(r.kind) && !String(r.val || '').trim()) add('err', 'Check ' + (i + 1) + ' needs a value.');
@@ -187,29 +167,12 @@
     }
     const n = K.names(cfg), oe = (n.outPath.match(/\.[^.\\/]+$/) || [''])[0].toLowerCase();
     if (cfg.output.path.trim() && oe && { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx'], parquet: ['.parquet', '.pq'] }[cfg.output.kind].indexOf(oe) < 0) add('warn', 'The output path ends in ' + oe + ' but the format is ' + cfg.output.kind + '.');
-    [['input', isPdf ? '' : cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].concat(cfg.join.on ? [['lookup', cfg.join.path, cfg.join.kind]] : []).forEach(([w, p, k]) => {
+    [['input', isPdf ? '' : cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].forEach(([w, p, k]) => {
       if (String(p || '').trim() && !K.hasExt(p)) add('info', 'The ' + w + ' path has no file extension. ' + (w === 'output' ? 'The script adds ' + K.EXTS[k][0] + '.' : 'If no file has exactly that name, the script uses the one ending in ' + K.EXTS[k].join(', ') + '.')); });
     if (K.withExt(n.outPath, cfg.output.kind).toLowerCase() === K.withExt(n.inPath, cfg.input.kind).toLowerCase()) add('err', 'The output path is the same as the input. The script never overwrites its source: choose another name.');
-    if (keys.length && !cfg.dedupe.on) add('info', 'A key is ticked and duplicates aren’t removed, so the script checks that the key is unique and reports rows that share one.');
-    /* across rows */
-    const rc = K.rowCol(cfg);
-    if (rc && names.indexOf(rc) >= 0) add('err', 'The row number column ' + rc + ' has the same name as a column. Change the name under Row numbers.');
-    (cfg.fills || []).forEach((f, i) => { const w = 'Fill ' + (i + 1);
-      if (!f.col) { add('err', w + ': choose the column to fill.'); return; }
-      if (names.indexOf(f.col) < 0) add('err', w + ': ' + f.col + ' isn’t a kept column.');
-      const ps = K.fillPasses(f);
-      if (!ps.length) add('err', w + ': give at least one set of columns to match on.');
-      ps.forEach((p, j) => { p.filter(c => names.indexOf(c) < 0).forEach(c => add('err', w + ', match ' + (j + 1) + ': ' + c + ' isn’t a kept column.')); if (p.indexOf(f.col) >= 0) add('err', w + ', match ' + (j + 1) + ' uses the column it fills.'); });
-      if ((f.swapA || f.swapB) && (!f.swapA || !f.swapB || f.swapA === f.swapB)) add('err', w + ': choose two different columns to swap, or neither.');
-      if (f.swapA && f.swapB && !ps.some(p => p.indexOf(f.swapA) >= 0 && p.indexOf(f.swapB) >= 0)) add('warn', w + ': no match uses both ' + f.swapA + ' and ' + f.swapB + ', so the swapped try never runs.');
-    });
-    if (cfg.conflicts && cfg.conflicts.on) { const c = cfg.conflicts;
-      if (names.indexOf(c.group) < 0) add('err', 'Values that differ: choose the column that identifies one person or thing.');
-      if (!c.cols.length) add('err', 'Values that differ: choose the columns to compare.');
-      if (c.cols.indexOf(c.group) >= 0) add('err', 'Values that differ: ' + c.group + ' is the group, so it can’t be compared.');
-      if (c.group && !(cfg.fills || []).some(f => f.col === c.group) && !(cfg.cols.find(x => x.name === c.group) || {}).req) add('info', 'Values that differ: rows with no ' + c.group + ' aren’t compared with anything.');
-    }
-    if (ai && ai.ok && ai.ok.some(i => i.kind === 'STEP')) add('info', 'Copilot steps run as written after the options above. Read each one in Step 4 before you run the script.');
+    const dedupeOnKeys = cfg.tasks.some(t => t.kind === 'dedupe' && (!t.cols.length || (t.cols.length === keys.length && t.cols.every(c => keys.indexOf(c) >= 0))));
+    if (keys.length && !dedupeOnKeys) add('info', 'A key is ticked and duplicates aren’t removed, so the script checks that the key is unique and reports rows that share one.');
+    if (ai && ai.ok && ai.ok.some(i => i.kind === 'STEP')) add('info', 'Copilot steps run as written after the tasks in Step 3. Read each one in Step 4 before you run the script.');
     return R;
   };
 
@@ -248,20 +211,19 @@
     const unknown = Array.from(used).filter(c => !known.has(c) && !made.has(c) && /^[a-z_][a-z0-9_]*$/.test(c));
     return { problems: f, made: Array.from(made), unknown };
   };
-  K.aiPrompt = function (cfg) {
-    const T = [], on = cfg.cols.filter(c => c.on), label = t => (K.TYPES.find(x => x[0] === t) || ['', t])[1].toLowerCase();
+  K.aiPrompt = function (cfg0) {
+    const cfg = K.norm(cfg0), T = [], on = cfg.cols.filter(c => c.on), label = t => (K.TYPES.find(x => x[0] === t) || ['', t])[1].toLowerCase();
     T.push('You are writing pandas expressions for a data-preparation script. You cannot see the data: use only the columns listed under CONTEXT.');
     T.push('', 'TASK (the user’s request: all the expressions have to do)', (cfg.aiReq || '(not given)').trim());
     T.push('', 'CONTEXT', 'A pandas DataFrame named df, already read from the file, renamed, trimmed and converted to these types:');
     on.forEach(c => T.push('- ' + c.name + ' | ' + label(c.type)));
-    const rc = K.rowCol(cfg), kn = K.known(cfg, null);
-    kn.cross.forEach(c => T.push('- ' + c + ' | ' + (c === rc ? 'whole number: the row in the file, use it to say which row a value came from' : /_filled_from_row$/.test(c) ? 'whole number: the row a filled value came from' : 'text, made by the page')));
+    const rc = K.rowCol(cfg), kn = K.known(cfg, null), label2 = t => (t ? label(t) : 'text');
+    if (kn.cross.length) { T.push('Made by the page’s tasks (Step 3). They exist only for STEP blocks, which run after the tasks:');
+      kn.cross.forEach(c => { const ty = (kn.types.find(x => x.name === c) || {}).type; T.push('- ' + c + ' | ' + (c === rc ? 'whole number: the row in the file, use it to say which row a value came from' : /_filled_from_row$/.test(c) ? 'whole number: the row a filled value came from' : label2(ty))); }); }
     T.push('Text columns use the pandas string dtype; whole numbers are Int64 (missing values allowed); dates are datetime64; true/false is the boolean dtype. Missing values are pd.NA or NaT.');
-    const done = [];
-    (cfg.fills || []).filter(f => f.col).forEach(f => done.push('- Fills a missing ' + f.col + ' from rows that match on ' + K.fillPasses(f).map(p => p.join(' + ')).join(', then ') + (f.swapA && f.swapB ? ' (each also with ' + f.swapA + ' and ' + f.swapB + ' swapped)' : '') + '. It writes ' + f.col + '_filled_from_row and ' + f.col + '_fill_note.'));
-    if (cfg.conflicts && cfg.conflicts.on && cfg.conflicts.group) done.push('- Finds rows with the same ' + cfg.conflicts.group + ' whose ' + cfg.conflicts.cols.join(', ') + ' differ, and writes <column>_conflict_rows, <column>_conflict_values and conflict_columns.');
-    if (done.length) T.push('', 'ALREADY DONE BY THE PAGE (don’t repeat these; you can use their columns):', ...done);
-    T.push('', 'STARTING POINT', 'The script already cleans and types the columns above and applies the checks set on the page. You add COLUMN and FILTER blocks, and STEP blocks for logic that needs more than one row at a time.');
+    const fl = K.taskFlow(cfg, null), done = fl.steps.filter(x => !(x.t.kind === 'filter' && !K.activeFilters(cfg).length)).map(x => '- ' + K.TASK_DEFS[x.t.kind].label + ': ' + K.taskSummary(x.t, { cfg, keys: cfg.cols.filter(c => c.on && c.key).map(c => c.name) }));
+    if (done.length) T.push('', 'ALREADY DONE BY THE PAGE, in this order (don’t repeat these; STEP blocks can use their columns):', ...done);
+    T.push('', 'STARTING POINT', 'The script already cleans and types the columns above and applies the checks set on the page. You add COLUMN and FILTER blocks, and STEP blocks for logic that needs more than one row at a time. COLUMN blocks run before the page’s tasks and see only the columns in the first list; STEP blocks run after the tasks.');
     T.push('', 'RULES',
       '- Write columns as df["name"] with the exact names listed. Use only df, pd (pandas) and np (numpy).',
       '- One expression per EXPR or KEEP_WHEN line: no assignments, no semicolons, no line breaks, no lambda, no apply with Python functions, no imports, no reading or writing files.',
@@ -278,10 +240,11 @@
       '@@@ STEP @@@', 'NAME: step_name', 'WHAT: one line on what it does', 'CODE:', 'def step(df):', '    # pandas code', '    return df', '@@@ SKIPPED @@@', 'what could not be done and why', '@@@ NOTES @@@', 'assumptions to confirm, one per line');
     return T.join('\n');
   };
-  K.aiParse = function (reply, cfg, parseBlocks, fields) {
+  K.aiParse = function (reply, cfg0, parseBlocks, fields) {
+    const cfg = K.norm(cfg0);
     const res = { items: [], notes: [], skipped: [], any: false };
     const blocks = parseBlocks(reply); if (!blocks.length) { res.ok = []; return res; }
-    const base = cfg.cols.filter(c => c.on).map(c => c.name), known = new Set(base.concat(K.rowCol(cfg) ? [K.rowCol(cfg)] : [])), cross = K.known(cfg, null).cross, keys = new Set(cfg.cols.filter(c => c.on && c.key).map(c => c.name));
+    const base = cfg.cols.filter(c => c.on).map(c => c.name), known = new Set(base), cross = K.known(cfg, null).cross, keys = new Set(cfg.cols.filter(c => c.on && c.key).map(c => c.name));
     const one = s => (s || '').replace(/\s*\n\s*/g, ' ').trim(); let filters = 0; const taken = new Set();
     blocks.forEach(b => {
       if (b.tag === 'NOTES') { b.body.split('\n').map(s => s.replace(/^[-*]\s*/, '').trim()).filter(s => s && !/^assumptions to confirm/i.test(s)).forEach(s => res.notes.push(s)); if (res.notes.length) res.any = true; return; }
@@ -354,15 +317,16 @@
     return [tag('in_future'), c + ' > pd.Timestamp.now()'];
   };
 
-  K.build = function (cfg, ai) {
+  K.build = function (cfg0, ai) {
+    const cfg = K.norm(cfg0), looks = cfg.tasks.filter(t => t.kind === 'lookup');
     const n = K.names(cfg), on = cfg.cols.filter(c => c.on), keys = on.filter(c => c.key).map(c => c.name);
     const aiCols = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN'), aiFilter = ((ai && ai.ok) || []).find(i => i.kind === 'FILTER');
     const S = [], add = (title, md, code) => S.push({ title, md, code: code.join('\n') });
-    const j = cfg.join, sm = cfg.summary, xl = cfg.output.kind === 'excel', needs = ['pandas'];
+    const sm = cfg.summary, xl = cfg.output.kind === 'excel', needs = ['pandas'];
     const pdf = cfg.input.kind === 'pdf', pd0 = Object.assign(K.pdfBlank(), cfg.input.pdf || {}), noCols = pdf && !on.length;
     if (pdf) needs.push('pdfplumber');
-    if (cfg.input.kind === 'excel' || xl || (j.on && j.kind === 'excel')) needs.push('openpyxl');
-    if (cfg.input.kind === 'parquet' || cfg.output.kind === 'parquet' || (j.on && j.kind === 'parquet')) needs.push('pyarrow');
+    if (cfg.input.kind === 'excel' || xl || looks.some(t => t.fileKind === 'excel')) needs.push('openpyxl');
+    if (cfg.input.kind === 'parquet' || cfg.output.kind === 'parquet' || looks.some(t => t.fileKind === 'parquet')) needs.push('pyarrow');
     const usesNp = aiCols.concat(aiFilter ? [aiFilter] : []).some(i => /\bnp\./.test(i.expr)) || ((ai && ai.ok) || []).some(i => i.kind === 'STEP' && /\bnp\./.test(i.code));
 
     /* 1 settings */
@@ -371,7 +335,7 @@
       'def with_extension(path, extensions):', '    """A path typed without its extension: use the file that has one (for the output, add the first)."""',
       '    if path.suffix.lower() in extensions or path.exists():', '        return path', '    for e in extensions:', '        if path.with_name(path.name + e).exists():', '            return path.with_name(path.name + e)',
       '    return path.with_name(path.name + extensions[0])', '',
-      pdf ? 'INPUT_PATH  = Path(' + py(n.inPath) + ')   # one PDF, or a folder of PDFs' : 'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], j.on ? ['LOOKUP_PATH = with_extension(Path(' + py(j.path.trim() || 'lookup' + ext(j.kind)) + '), ' + pyList(K.EXTS[j.kind]) + ')'] : [], ['',
+      pdf ? 'INPUT_PATH  = Path(' + py(n.inPath) + ')   # one PDF, or a folder of PDFs' : 'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], looks.map(t => (K.lookupVar(cfg, t) + ' = ').padEnd(14) + 'with_extension(Path(' + py(t.path.trim() || 'lookup' + ext(t.fileKind)) + '), ' + pyList(K.EXTS[t.fileKind]) + ')'), ['',
       ], pdf ? K.pdfSettings(pd0) : [], noCols ? ['', '# No columns chosen yet: every column read from the PDFs is kept as text. Paste the sample this writes into the page to choose.', 'COLUMNS = None'] : ['', '# Column in the file -> name in the output. Only these columns are kept.', 'COLUMNS = {'].concat(on.map(c => '    ' + (py(c.src) + ':').padEnd(pad + 1) + ' ' + py(c.name) + ','), ['}']),
       keys.length ? ['KEY_COLS = ' + pyList(keys) + '   # identify one row'] : [], ['',
       'issues = []   # one entry per problem found; shown as you go and written out at the end', '', 'def note(check, rows, detail=""):', '    """Record a problem and show it."""',
@@ -440,125 +404,13 @@
       '    if UNIFY_CAPITALS:', '        swap = {v: g[0] for g in groups for v in g[1:]}', '        changed = int(df[col].isin(list(swap)).sum())', '        df[col] = df[col].replace(swap)',
       '        print(f"{col}: {changed:,} value(s) now use the most common spelling ({shown})")', '    else:', '        rows = int(df[col].isin([v for g in groups for v in g[1:]]).sum())',
       '        note(f"{col}: same text in different capitals", rows, shown)']);
-    /* across rows (owner, Nov 2026): row numbers, fill a missing value from matching rows, values that differ within a group */
-    const rowCol = K.rowCol(cfg), fills = (cfg.fills || []).filter(f => f.col && K.fillPasses(f).length), cf = cfg.conflicts || {};
-    const cfOn = !!(cf.on && cf.group && cf.cols && cf.cols.length);
-    if (rowCol) add('Row numbers', (cfg.rowNo.from === 'clean' ? 'Numbers the rows 1, 2, 3... after cleaning.' : 'The row each line came from in the file' + (/^(excel|csv)$/.test(cfg.input.kind) ? ', as Excel or a text editor shows it (the header is row ' + (Number(cfg.input.skip || 0) + 1) + ')' : '') + ', so any row can be found in the source.') + ' Later steps use it to say which row a value came from.', [
-      'ROW_COL = ' + py(rowCol),
-      cfg.rowNo.from === 'clean' ? 'df.insert(0, ROW_COL, pd.array(range(1, len(df) + 1), dtype="Int64"))' : 'df.insert(0, ROW_COL, ROW_NUMBERS.reindex(df.index).astype("Int64"))   # rows dropped by cleaning keep their gaps']);
     if (aiCols.length) add('Added columns', 'Written with Copilot and checked on the page. Read each one.', aiCols.map(c => 'df[' + py(c.name) + '] = ' + c.expr));
 
-    /* lookup */
-    if (j.on) {
-      const want = j.cols.split(',').map(s => s.trim()).filter(Boolean), L = ['RIGHT_KEY = ' + py(j.rightKey.trim()), 'LEFT_KEY  = ' + py(j.leftKey), 'LOOKUP_COLS = ' + (want.length ? pyList(want) : 'None') + '   # None = every column', '',
-        'lookup = ' + reader(j.kind, 'LOOKUP_PATH', j, true), 'lookup.columns = [str(c).strip() for c in lookup.columns]', 'if LOOKUP_COLS is None:', '    LOOKUP_COLS = [c for c in lookup.columns if c != RIGHT_KEY]',
-        'missing = [c for c in [RIGHT_KEY] + LOOKUP_COLS if c not in lookup.columns]', 'if missing:', '    raise ValueError(f"The lookup file is missing column(s): {missing}. It has: {list(lookup.columns)}")',
-        'clash = [c for c in LOOKUP_COLS if c in df.columns]', 'if clash:', '    raise ValueError(f"The lookup would add column(s) that already exist: {clash}. Set LOOKUP_COLS or rename them.")', '',
-        '# Keys are matched as trimmed text, so 00123 and 123 are different', 'lookup = lookup[[RIGHT_KEY] + LOOKUP_COLS].copy()', 'lookup["_key"] = lookup[RIGHT_KEY].astype("string").str.strip()', 'lookup = lookup[lookup["_key"].notna()]',
-        'if lookup["_key"].duplicated().any():', '    dupes = lookup.loc[lookup["_key"].duplicated(), "_key"].unique()[:5].tolist()', '    raise ValueError(f"The lookup file has more than one row for some keys, which would multiply your rows. For example: {dupes}")', '',
-        'df["_key"] = df[LEFT_KEY].astype("string").str.strip()', 'df = df.merge(lookup.drop(columns=[RIGHT_KEY]), how="left", on="_key", indicator=True)', 'unmatched = (df["_merge"] == "left_only") & df[LEFT_KEY].notna()', 'if unmatched.any():',
-        '    examples = ", ".join(df.loc[unmatched, "_key"].astype(str).unique()[:3])', '    note(f"{LEFT_KEY}: no match in the lookup file", unmatched.sum(), f"for example: {examples}")'];
-      if (j.how === 'inner') L.push('df = df[df["_merge"] == "both"]   # keep only the rows that matched');
-      L.push('df = df.drop(columns=["_key", "_merge"])');
-      add('Look up columns from a second file', 'Adds columns by matching ' + j.leftKey + ' to ' + (j.rightKey.trim() || 'the key') + '. The row count can’t grow: a lookup file with repeated keys stops the script.', L);
-    }
+    /* Common tasks (Step 3), in the order the user put them */
+    const state = {};
+    K.taskSections(cfg, ai, { keys, xl, reader, aiFilter, state }).forEach(sec => add(sec.title, sec.md, sec.code));
+    const keepOut = !!state.keepOut, dd = !!state.dd, cfOn = !!state.cfOn;
 
-    /* filter */
-    const FL = K.activeFilters(cfg).map((x, i) => ({ name: String(x.label || '').trim() || x.when.trim(), test: 'df.eval(' + py(x.when.trim()) + ', engine="python")', join: i ? (x.join === 'or' ? 'or' : 'and') : '' }));
-    if (aiFilter) FL.push({ name: 'Copilot filter', test: '(' + aiFilter.expr + ')', join: FL.length ? 'and' : '' });
-    const keepOut = !!cfg.keepRemoved && FL.length > 0;
-    if (FL.length) {
-      const fp = Math.max.apply(null, FL.map(f => py(f.name).length));
-      const F = ['# True for the rows each filter keeps. A missing value never passes a filter.', 'PASSES = {'].concat(FL.map(f => '    ' + (py(f.name) + ':').padEnd(fp + 1) + ' ' + f.test + ','), ['}',
-        'PASSES = {name: pd.Series(p, index=df.index).fillna(False).astype(bool) for name, p in PASSES.items()}', '']);
-      if (FL.length > 1) F.push('# Combined left to right: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])));
-      FL.forEach((f, i) => F.push(i === 0 ? 'keep = PASSES[' + py(f.name) + ']' : 'keep = keep ' + (f.join === 'or' ? '|' : '&') + ' PASSES[' + py(f.name) + ']   # ' + f.join));
-      if (keepOut) F.push('', '# Every row before filtering, and the rows the filters take out with the filters each one failed', 'original = df.copy()', 'filtered_out = df[~keep].copy()',
-        'filtered_out["failed_filters"] = [", ".join(n for n, p in PASSES.items() if not p.loc[i]) for i in filtered_out.index]');
-      F.push('', 'before = len(df)', 'df = df[keep]', 'rows_filtered = before - len(df)', 'print(f"Filters removed {rows_filtered:,} row(s)")');
-      if (keepOut) F.push('assert len(original) == len(df) + len(filtered_out), "Rows kept + rows filtered out must equal the rows before filtering"');
-      add('Keep only the rows you want', (FL.length > 1 ? 'Rows are kept when they pass: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])) + '. ' : '') + (keepOut ? 'All rows before filtering and the rows taken out are kept for the output.' : 'Rows that don’t pass are removed and counted.'), F);
-    }
-
-    /* dedupe */
-    let dd = false;
-    if (cfg.dedupe.on && keys.length) {
-      dd = true; const D = ['before = len(df)'];
-      if (cfg.dedupe.order) D.push('# Latest row per key: sort by ' + cfg.dedupe.order + ', keep the last, then put the rows back in file order', 'df = (df.sort_values(' + py(cfg.dedupe.order) + ', kind="stable", na_position="first")', '        .drop_duplicates(subset=KEY_COLS, keep="last")', '        .sort_index())');
-      else D.push('df = df.drop_duplicates(subset=KEY_COLS, keep=' + py(cfg.dedupe.keep === 'first' ? 'first' : 'last') + ')');
-      D.push('rows_deduped = before - len(df)', 'print(f"Removed {rows_deduped:,} duplicate row(s) on {KEY_COLS}")');
-      add('Remove duplicates', 'One row per key' + (cfg.dedupe.order ? ', keeping the one with the latest ' + cfg.dedupe.order : ', keeping the ' + (cfg.dedupe.keep === 'first' ? 'first' : 'last') + ' in the file') + '.', D);
-    }
-
-    const keyHelper = ['def match_key(frame, cols):', '    """The columns as trimmed, lower-case text joined with |. A row with any of them missing gets no key."""', '    parts = []', '    for c in cols:', '        s = frame[c]',
-      '        s = s.dt.strftime("%Y-%m-%d") if pd.api.types.is_datetime64_any_dtype(s) else s.astype("string")', '        parts.append(s.astype("string").str.strip().str.casefold().str.replace(r"\\s+", " ", regex=True))',
-      '    key = parts[0]', '    for p in parts[1:]:', '        key = key + "|" + p', '    return key.where(~key.isin(["", "nan"]))', ''];
-    if (fills.length) {
-      const F = ['# Each fill: the column, then the matches to try in order. A match is used only when it points to ONE value.', 'FILLS = ['];
-      fills.forEach(f => F.push('    {"fill": ' + py(f.col) + ', "passes": [' + K.fillPasses(f).map(pyList).join(', ') + '], "swap": ' + (f.swapA && f.swapB ? pyList([f.swapA, f.swapB]) : 'None') + '},'));
-      F.push(']', '');
-      keyHelper.forEach(l => F.push(l));
-      F.push('for spec in FILLS:',
-        '    col = spec["fill"]',
-        '    from_col, note_col = f"{col}_filled_from_row", f"{col}_fill_note"',
-        '    df[from_col] = pd.Series(pd.NA, index=df.index, dtype="Int64")',
-        '    df[note_col] = pd.Series(pd.NA, index=df.index, dtype="string")',
-        '    donors = df[df[col].notna()]                       # only rows that had the value in the file give it',
-        '    was_missing = int(df[col].isna().sum())',
-        '    for cols in spec["passes"]:',
-        '        tries = [(cols, " + ".join(cols))]',
-        '        if spec["swap"] and all(c in cols for c in spec["swap"]):',
-        '            a, b = spec["swap"]',
-        '            tries.append(([b if c == a else a if c == b else c for c in cols], " + ".join(cols) + f" with {a} and {b} swapped"))',
-        '        for row_cols, label in tries:',
-        '            need = df[col].isna() & df[note_col].isna()',
-        '            if not need.any():',
-        '                break',
-        '            table = pd.DataFrame({"key": match_key(donors, cols), "value": donors[col], "row": donors[ROW_COL]}).dropna(subset=["key"]).sort_values("row")',
-        '            grouped = table.groupby("key")',
-        '            n_values = grouped["value"].nunique()',
-        '            first_value, first_row = grouped["value"].first(), grouped["row"].first()',
-        '            listed = grouped["value"].agg(lambda s: "; ".join(dict.fromkeys(s.astype(str))))',
-        '            key = match_key(df.loc[need], row_cols)',
-        '            n = key.map(n_values)',
-        '            one = key[n.eq(1).fillna(False).astype(bool)]',
-        '            many = key[n.gt(1).fillna(False).astype(bool)]',
-        '            df.loc[one.index, col] = one.map(first_value).astype(df[col].dtype)',
-        '            df.loc[one.index, from_col] = one.map(first_row).astype("Int64")',
-        '            df.loc[one.index, note_col] = "matched on " + label',
-        '            df.loc[many.index, note_col] = ("not filled: " + label + " matches " + many.map(listed)).astype("string")',
-        '            print(f"{col}: {len(one):,} filled by {label}" + (f", {len(many):,} with more than one match" if len(many) else ""))',
-        '    df.loc[df[col].isna() & df[note_col].isna(), note_col] = "not filled: no match"',
-        '    filled = int(df[from_col].notna().sum())',
-        '    print(f"{col}: {filled:,} of {was_missing:,} missing value(s) filled")',
-        '    still = df[col].isna()',
-        '    if still.any():',
-        '        note(f"{col} still missing after matching", still.sum(), "see " + note_col)');
-      add('Fill missing values from matching rows', 'A row missing ' + fills.map(f => f.col).join(', ') + ' takes the value from another row that matches it, trying each match in order. A match counts only when every matching row has the same value; when they disagree the row is left empty and the note lists the candidates. Only rows that had the value in the file give it. The value, the row it came from and how it matched are written in new columns.', F);
-    }
-    if (cfOn) {
-      const C = ['CONFLICT_GROUP = ' + py(cf.group) + '   # rows with the same value here are one person or thing', 'CONFLICT_COLUMNS = ' + pyList(cf.cols), 'COUNT_MISSING = ' + (cf.missing ? 'True' : 'False') + '   # True: a missing value counts as a different value', 'SEP = "; "', '',
-        'def as_text(s):', '    return s.dt.strftime("%Y-%m-%d") if pd.api.types.is_datetime64_any_dtype(s) else s.astype("string")', '',
-        'conflict_list = []', 'in_group = df[df[CONFLICT_GROUP].notna()]', 'differs = pd.Series("", index=df.index, dtype="object")',
-        'for c in CONFLICT_COLUMNS:',
-        '    t = pd.DataFrame({"group": in_group[CONFLICT_GROUP], "value": as_text(in_group[c]), "row": in_group[ROW_COL]})',
-        '    t["value"] = t["value"].fillna("(missing)") if COUNT_MISSING else t["value"]',
-        '    t = t.dropna(subset=["value"]).sort_values("row")',
-        '    agg = t.groupby("group").agg(n=("value", "nunique"), rows=("row", lambda s: SEP.join(str(x) for x in s)), values=("value", lambda s: SEP.join(dict.fromkeys(s))))',
-        '    agg = agg[agg["n"] > 1]',
-        '    df[f"{c}_conflict_rows"] = df[CONFLICT_GROUP].map(agg["rows"]).astype("string")',
-        '    df[f"{c}_conflict_values"] = df[CONFLICT_GROUP].map(agg["values"]).astype("string")',
-        '    hit = df[CONFLICT_GROUP].isin(agg.index) & df[CONFLICT_GROUP].notna()',
-        '    differs[hit] = differs[hit] + c + SEP',
-        '    if len(agg):',
-        '        note(f"{c} differs within {CONFLICT_GROUP}", hit.sum(), f"in {len(agg):,} group(s)")',
-        '        conflict_list.append(agg.reset_index().assign(column=c)[["group", "column", "rows", "values"]])',
-        'df["conflict_columns"] = differs.str.rstrip(SEP).replace("", pd.NA).astype("string")',
-        'conflicts = pd.concat(conflict_list, ignore_index=True) if conflict_list else pd.DataFrame(columns=["group", "column", "rows", "values"])',
-        'conflicts = conflicts.rename(columns={"group": CONFLICT_GROUP})',
-        'print(f"{len(conflicts):,} value(s) differ within a " + CONFLICT_GROUP + "; " + f"{int(df[\'conflict_columns\'].notna().sum()):,} row(s) affected")'];
-      add('Values that differ within a ' + cf.group, 'Rows with the same ' + cf.group + ' should agree on ' + cf.cols.join(', ') + '. For each column that has more than one value in a group, every row of the group gets the rows involved (<column>_conflict_rows) and the distinct values (<column>_conflict_values), and conflict_columns lists the columns that differ. ' + (cf.missing ? 'A missing value counts as a different value.' : 'Missing values are ignored.') + ' The full list is written to a Conflicts ' + (xl ? 'sheet.' : 'file.'), C);
-    }
     /* Copilot steps: code across rows, checked on the page, run as written */
     ((ai && ai.ok) || []).filter(i => i.kind === 'STEP').forEach(st => {
       const fn = 'step_' + st.name;
@@ -635,5 +487,5 @@
   K.CHECKLIST = ['Rows read matches the row count of the source file', 'Rows written + rows rejected + duplicates removed + rows filtered out = rows read', 'Every line starting with ! was read and explained', 'A few rows were compared by hand with the source file', 'Dates came through the right way round (day and month)', 'Leading zeros in codes (ZIP, account numbers) are still there', 'Running the script twice gives the same output', 'The output folder isn’t the folder a report reads from until this has been checked'];
 
   root.PSG = K;
-  if (typeof module !== 'undefined') module.exports = K;
+  if (typeof module !== 'undefined') { module.exports = K; require('./ps_tasks.js'); }
 })(typeof window !== 'undefined' ? window : globalThis);

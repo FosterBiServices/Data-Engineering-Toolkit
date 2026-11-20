@@ -90,23 +90,25 @@ ok('the prompt explains STEP and what the page already does', /@@@ STEP @@@/.tes
 // 4. setup problems
 const p4 = cfgFor({ fills: [{ col: 'person_id', passes: 'person_id, nope', swapA: 'first_name', swapB: '' }], conflicts: { on: true, group: '', cols: [], missing: false } });
 const msgs = K.problems(p4, null).filter(p => p.sev === 'err').map(p => p.msg).join(' | ');
-ok('setup problems named', /uses the column it fills/.test(msgs) && /nope isn’t a kept column/.test(msgs) && /two different columns to swap/.test(msgs) && /choose the column that identifies/.test(msgs), msgs);
+ok('setup problems named', /uses the column it fills/.test(msgs) && /nope isn’t a column at this point/.test(msgs) && /two different columns to swap/.test(msgs) && /choose the column that identifies one person or thing/.test(msgs), msgs);
 
 // 5. the page
 (async () => {
   const { open } = require('./lib');
   const { browser, page, errors } = await open('python-script-generator.html');
   await page.click('#startOwn'); await page.click('#sampleIn'); await page.keyboard.insertText(csv);
-  await page.click('#addFill');
-  await page.selectOption('#fillList [data-i="0"] [data-f=col]', 'person_id');
-  await page.fill('#fillList [data-i="0"] [data-f=passes]', 'first_name, last_name');
-  await page.check('[data-k="conflicts.on"]'); await page.selectOption('#cfGroup', 'person_id'); await page.click('[data-cfcol="gender"]');
+  await page.selectOption('#taskAdd', 'fillmatch');
+  await page.selectOption('.task[data-i="0"] [data-f=col]', 'person_id');
+  await page.fill('.task[data-i="0"] [data-f=passes]', 'first_name, last_name');
+  await page.selectOption('#taskAdd', 'conflicts');
+  await page.selectOption('.task[data-i="1"] [data-f=group]', 'person_id'); await page.click('.task[data-i="1"] [data-tchip=cols][data-v=gender]');
   await page.waitForTimeout(200);
-  ok('page: row numbers added for the fill', /Added because/.test(await page.textContent('#rowNoNote')));
   const code = await page.evaluate(() => window.PSG.build(JSON.parse(localStorage.getItem('des.cfg')), null).py);
-  ok('page: script has both sections', /FILLS = \[/.test(code) && /CONFLICT_COLUMNS = \["gender"\]/.test(code));
+  ok('page: row numbers added for the fill', /ROW_COL = "row_number"/.test(code) && /ROW_NUMBERS = /.test(code));
+  ok('page: script has both sections', /FILL = \{"fill": "person_id"/.test(code) && /CONFLICT_COLUMNS = \["gender"\]/.test(code));
   await page.reload();
-  ok('page: kept after reload', (await page.inputValue('#fillList [data-i="0"] [data-f=passes]')) === 'first_name, last_name' && (await page.$$eval('#cfChips [aria-pressed=true]', r => r.length)) === 1);
+  await page.click('.task[data-i="0"] [data-tfold]');
+  ok('page: kept after reload', (await page.inputValue('.task[data-i="0"] [data-f=passes]')) === 'first_name, last_name' && /gender per person_id/.test(await page.textContent('.task[data-i="1"] .tsum')));
   await page.fill('[data-k=aiReq]', 'total hours per person'); await page.fill('[data-k=aiReply]', reply); await page.waitForTimeout(200);
   ok('page: the step and its code are shown', /def step\(df\)/.test(await page.textContent('#aiBody')));
   await page.setViewportSize({ width: 390, height: 800 });

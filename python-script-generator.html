@@ -479,6 +479,29 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
 .tablewrap{max-width:100%;overflow-x:auto}
 .maptable td.nm{overflow-wrap:anywhere;min-width:110px;max-width:260px}
 .chips .chip{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
+
+/* script page: Common tasks */
+.taskadd select { max-width: 100%; }
+.tasks { display: flex; flex-direction: column; gap: 8px; }
+.task { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.task.bad { border-color: var(--err); }
+.taskhead { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 4px; }
+.taskfold { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; border: 0; background: none; color: var(--ink); text-align: left; padding: 6px 6px; border-radius: 8px; cursor: pointer; font: inherit; }
+.taskfold:hover { background: var(--accent-soft); }
+.taskfold .tnum { flex: 0 0 auto; min-width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
+.taskfold .tlab { flex: 0 0 auto; font-weight: 600; }
+.taskfold .tsum { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task.open .taskfold .tsum { display: none; }
+.taskhead .tb { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 6px 7px; border-radius: 6px; }
+.taskhead .tb:hover:not(:disabled) { color: var(--ink); background: var(--accent-soft); }
+.taskhead .tb:disabled { opacity: .3; }
+.taskhead .tb.x:hover { color: var(--err); }
+.taskbody { padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.taskbody .thint { margin: 0; }
+.taskbody .qgrid { margin: 0; }
+.taskbody textarea { min-height: 64px; font-family: var(--mono); font-size: 13px; width: 100%; }
+@media (max-width: 560px) { .taskfold { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; } .taskfold .tsum { grid-column: 2; white-space: normal; } .taskfold .tlab { min-width: 0; } }
+.taskbody .picker-head h3 { font-size: 13px; } .taskbody .picker-head .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
 </style>
 </head>
 <body>
@@ -576,58 +599,15 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     <div class="step-body">
       <div class="step-head">
         <h2 id="s3">Shape and check it</h2>
-        <p>Everything here is optional. The script does them in this order and prints how many rows each one changed.</p>
+        <p>Everything here is optional. The script does each task in order and prints how many rows it changed.</p>
       </div>
 
       <div class="sub">
-        <div class="details-head"><h3>Keep only rows where</h3><button type="button" class="btn" id="addFilter">Add a filter</button></div>
-        <p class="note small">Optional. Each filter is a pandas condition with your new column names, for example <span class="mono">amount &gt; 0</span>, <span class="mono">status != "TEST"</span> or <span class="mono">order_date &gt;= "2026-06-01"</span>. From the second one on, choose AND (both must pass) or OR (either can pass). A row with a missing value never passes that filter.</p>
-        <div id="filterList" class="rlist"></div>
-        <p class="note small" id="filterLogic"></p>
-        <label class="chk"><input type="checkbox" data-k="keepRemoved"> <span>Keep what the filters remove: a &ldquo;Filtered out&rdquo; sheet with the filters each row failed, and an &ldquo;Original&rdquo; sheet with every row before filtering (separate files for CSV or Parquet)</span></label>
-      </div>
-
-      <div class="sub">
-        <label class="chk"><input type="checkbox" data-k="dedupe.on"> <b>Remove duplicates</b>&nbsp;on the key</label>
-        <div class="qgrid" id="dedupeBox">
-          <label class="lab">Which row to keep<select id="dedupeOrder" data-k="dedupe.order"></select></label>
-          <label class="lab" id="keepBox">In file order, keep<select data-k="dedupe.keep"><option value="last">The last one</option><option value="first">The first one</option></select></label>
-        </div>
-      </div>
-
-      <div class="sub">
-        <label class="chk"><input type="checkbox" data-k="join.on"> <b>Look up columns</b>&nbsp;from a second file</label>
-        <div class="qgrid" id="joinBox">
-          <label class="lab">Lookup file type<select data-k="join.kind"><option value="csv">CSV (comma)</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option></select></label>
-          <label class="lab wide">Path to the lookup file<input type="text" data-k="join.path" spellcheck="false" autocomplete="off" placeholder="C:\Data\regions.csv"></label>
-          <label class="lab" id="joinSheet">Sheet name <span class="hint">empty = the first</span><input type="text" class="plain" data-k="join.sheet" spellcheck="false" autocomplete="off"></label>
-          <label class="lab">Match your column<select id="joinLeft" data-k="join.leftKey"></select></label>
-          <label class="lab">To this header in the lookup file<input type="text" class="plain" data-k="join.rightKey" spellcheck="false" autocomplete="off" placeholder="Region"></label>
-          <label class="lab">Columns to bring in <span class="hint">headers, comma-separated; empty = all</span><input type="text" class="plain" data-k="join.cols" spellcheck="false" autocomplete="off" placeholder="Manager, Target"></label>
-          <label class="lab">Rows with no match<select data-k="join.how"><option value="left">Keep them (new columns empty)</option><option value="inner">Remove them</option></select></label>
-        </div>
-        <p class="note small" id="joinNote">Your row count can&rsquo;t grow: if the lookup file has two rows for one key, the script stops and says so. Rows with no match are reported.</p>
-      </div>
-
-      <div class="sub">
-        <h3>Across rows</h3>
-        <p class="note small" style="margin-top:-8px">For work that compares rows with other rows. It runs after the cleaning, filters, duplicate removal and lookup above, and before the checks.</p>
-        <label class="chk"><input type="checkbox" data-k="rowNo.on"> <b>Row numbers</b>&nbsp;so any row can be found again</label>
-        <div class="qgrid" id="rowNoBox">
-          <label class="lab">Column name<input type="text" class="plain" data-k="rowNo.name" spellcheck="false" autocomplete="off" placeholder="row_number"></label>
-          <label class="lab">Number each row by<select data-k="rowNo.from"><option value="file">Its row in the file (as Excel shows it)</option><option value="clean">1, 2, 3&hellip; after cleaning</option></select></label>
-          <p class="note small" id="rowNoNote" style="align-self:end"></p>
-        </div>
-        <div class="details-head"><b>Fill a missing value from matching rows</b><button type="button" class="btn" id="addFill">Add a fill</button></div>
-        <p class="note small" style="margin-top:-8px">A row missing the value takes it from another row that matches it, trying each line in order. Matching ignores capitals and extra spaces. A match is used only when every matching row has the same value; otherwise the row stays empty and a note lists the candidates. New columns say which row it came from and how it matched.</p>
-        <div id="fillList" class="rlist"></div>
-        <label class="chk"><input type="checkbox" data-k="conflicts.on"> <b>Find values that differ</b>&nbsp;for the same person or thing</label>
-        <div id="conflictBox" style="display:flex;flex-direction:column;gap:12px">
-          <label class="lab" style="max-width:460px">Rows that belong together share<select id="cfGroup" data-k="conflicts.group"></select></label>
-          <div class="picker"><div class="picker-head"><h3>Compare</h3></div><div class="chips" id="cfChips"></div></div>
-          <label class="chk"><input type="checkbox" data-k="conflicts.missing"> <span>Count a missing value as a different value</span></label>
-          <p class="note small">For each compared column that has more than one value in a group, every row of the group gets the rows involved and the distinct values, and a Conflicts sheet lists them all.</p>
-        </div>
+        <div class="details-head"><h3>Common tasks</h3>
+          <label class="taskadd"><span class="sr">Add a task</span><select id="taskAdd" aria-label="Add a task"></select></label></div>
+        <p class="note small" style="margin-top:-8px">Choose a task and fill it in. Tasks run in this order, top to bottom; move them with the arrows. Click a task to fold or open it.</p>
+        <div id="taskList" class="tasks"></div>
+        <p class="note small" id="taskEmpty">No tasks yet. Filters, duplicates, lookups, splitting and combining columns, bands, ranks, running totals, filling blanks and finding problems are all in the list.</p>
       </div>
 
       <div class="sub">
@@ -824,7 +804,9 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       $l.disabled = !a.length; if (document.activeElement !== $n) $n.value = c;
       S.$('jobDel').hidden = !a.some(j => j.name === c);
     };
-    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); return j ? JSON.stringify(j.cfg) !== now : !!now && !get('st', {}).example; };
+    /* o.compare: the page's own view of "the same" (the script page ignores folded cards and settings it moved into tasks) */
+    const same = (a, b) => { if (!o.compare) return JSON.stringify(a) === JSON.stringify(b); try { return o.compare(a) === o.compare(b); } catch (e) { return false; } };
+    const changed = () => { const c = cur(), j = list().find(x => x.name === c), now = localStorage.getItem(P + 'cfg'); if (!j) return !!now && !get('st', {}).example; let v = null; try { v = JSON.parse(now); } catch (e) { return true; } return !same(j.cfg, v); };
     const store = (name, cfg) => {
       const a = list().filter(j => j.name !== name); a.push({ name, saved: new Date().toISOString(), cfg });
       if (a.length > S.JOB_MAX) { say('err', 'You have ' + S.JOB_MAX + ' saved. Delete one first.'); return false; }
@@ -1018,21 +1000,12 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     name: '',
     input: { kind: 'csv', path: '', sheet: '', sep: ',', encoding: 'utf-8', skip: 0, pdf: K.pdfBlank() },
     cols: [], opts: { trim: true, emptyNa: true, dropBlank: true, dropDupRows: true, sameCase: true, dayFirst: false },
-    filters: [], keepRemoved: false, dedupe: { on: false, order: '', keep: 'last' },
-    join: { on: false, kind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' },
+    filters: [], keepRemoved: false,
+    tasks: [],          // Common tasks, run in this order (ps_tasks.js): [{ kind, open, ...fields }]
     summary: { on: false, group: [], metrics: [] },
-    rules: [], bad: 'report', output: { kind: 'csv', path: '' }, aiReq: '', aiReply: '',
-    /* across rows (owner, Nov 2026: fill a missing id from matching rows, then compare values within each id) */
-    rowNo: { on: false, name: 'row_number', from: 'file' },
-    fills: [],          // [{ col, passes: 'first_name, last_name, date_of_birth\nfirst_name, last_name', swapA, swapB }]
-    conflicts: { on: false, group: '', cols: [], missing: false }
+    rules: [], bad: 'report', output: { kind: 'csv', path: '' }, aiReq: '', aiReply: ''
   });
-  K.rowNumberLines = cfg => !K.rowCol(cfg) || cfg.rowNo.from === 'clean' ? [] : /^(excel|csv)$/.test(cfg.input.kind)
-    ? ['ROW_NUMBERS = pd.Series(raw.index + ' + (Number(cfg.input.skip || 0) + 2) + ', index=raw.index)   # each row as Excel or a text editor numbers it (the header is row ' + (Number(cfg.input.skip || 0) + 1) + ')']
-    : ['ROW_NUMBERS = pd.Series(raw.index + 1, index=raw.index)   # 1 = the first row read'];
-  K.fillBlank = () => ({ col: '', passes: '', swapA: '', swapB: '' });
   K.fillPasses = f => String(f.passes || '').split('\n').map(l => l.split(/[,+]/).map(x => x.trim()).filter(Boolean)).filter(a => a.length);
-  K.rowCol = cfg => (cfg.rowNo && (cfg.rowNo.on || (cfg.fills || []).some(f => f.col) || (cfg.conflicts && cfg.conflicts.on)) ? (snake(cfg.rowNo.name || '') || 'row_number') : '');
 
   /* ---------- reading a pasted sample: the header row and a few rows ---------- */
   const splitLine = function (line, d) {
@@ -1108,21 +1081,18 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     return { script: base, inPath, outPath };
   };
   /* column names available after each stage */
-  K.known = function (cfg, ai) {
-    const base = cfg.cols.filter(c => c.on).map(c => c.name);
-    const extra = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN').map(i => i.name);
-    const look = cfg.join.on ? cfg.join.cols.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const rc = K.rowCol(cfg), cross = rc ? [rc] : [];
-    (cfg.fills || []).filter(f => f.col).forEach(f => cross.push(f.col + '_filled_from_row', f.col + '_fill_note'));
-    if (cfg.conflicts && cfg.conflicts.on && cfg.conflicts.group) { cfg.conflicts.cols.forEach(c => cross.push(c + '_conflict_rows', c + '_conflict_values')); cross.push('conflict_columns'); }
+  K.known = function (cfg0, ai) {
+    const fl = K.taskFlow(cfg0, ai), cfg = fl.cfg;
+    const base = cfg.cols.filter(c => c.on).map(c => c.name), all = fl.cols.map(c => c.name);
     const steps = ((ai && ai.ok) || []).filter(i => i.kind === 'STEP');
-    return { base, cross, all: Array.from(new Set(base.concat(extra, look, cross))), open: (cfg.join.on && !look.length) || steps.length > 0 };
+    const extra = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN').map(i => i.name);
+    return { base, cross: all.filter(n => base.indexOf(n) < 0 && extra.indexOf(n) < 0), all, types: fl.cols, open: fl.open || steps.length > 0 };
   };
-  const typeOf = (cfg, name) => (cfg.cols.find(c => c.on && c.name === name) || {}).type || '';
+  const typeOf = (cfg, name) => { const c = cfg.cols.find(x => x.on && x.name === name); if (c) return c.type; const t = K.taskFlow(cfg, null).cols.find(x => x.name === name); return t ? t.type : ''; };
 
   /* ---------- checks on the setup ---------- */
-  K.problems = function (cfg, ai) {
-    const R = [], add = (sev, msg) => R.push({ sev, msg });
+  K.problems = function (cfg0, ai) {
+    const cfg = K.norm(cfg0), R = [], add = (sev, msg) => R.push({ sev, msg });
     const on = cfg.cols.filter(c => c.on), names = on.map(c => c.name), kn = K.known(cfg, ai), has = n => kn.open || kn.all.indexOf(n) >= 0;
     const isPdf = cfg.input.kind === 'pdf', pp = Object.assign(K.pdfBlank(), cfg.input.pdf || {});
     if (isPdf) {
@@ -1138,19 +1108,11 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     names.filter((n, i) => names.indexOf(n) !== i).forEach(n => add('err', 'Two columns are both named ' + n + '. Rename one.'));
     on.filter(c => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.name)).forEach(c => add('err', 'The name “' + c.name + '” needs to be letters, digits and underscores, starting with a letter. That keeps filters and formulas simple.'));
     const keys = on.filter(c => c.key).map(c => c.name);
-    if (cfg.dedupe.on && !keys.length) add('err', 'Removing duplicates needs a key. Tick Key for the column or columns that identify one row.');
-    if (cfg.dedupe.on && cfg.dedupe.order && names.indexOf(cfg.dedupe.order) < 0) add('err', 'The column to pick the latest row by, ' + cfg.dedupe.order + ', isn’t a kept column.');
     K.activeFilters(cfg).forEach((x, i) => { const f = x.when.trim(), n = 'Filter ' + (i + 1);
       if (/@|__|`|;|\bimport\b/.test(f)) add('err', n + ' can only compare columns with values, for example amount > 0 and status != "TEST".');
       if (/(^|[^=!<>])=([^=]|$)/.test(f.replace(/"[^"]*"|'[^']*'/g, '""'))) add('err', n + ': write == to compare (a single = doesn’t work in pandas).'); });
     if (cfg.keepRemoved && !K.activeFilters(cfg).length && !(ai && ai.ok && ai.ok.some(i => i.kind === 'FILTER'))) add('info', 'Keeping what the filters remove does nothing until there is a filter.');
-    if (cfg.join.on) {
-      const j = cfg.join;
-      if (!j.path.trim()) add('warn', 'No lookup file path: set LOOKUP_PATH in the script.');
-      if (names.indexOf(j.leftKey) < 0) add('err', 'Lookup: choose the column in your data to match on.');
-      if (!j.rightKey.trim()) add('err', 'Lookup: give the header of the matching column in the lookup file.');
-      j.cols.split(',').map(s => s.trim()).filter(Boolean).forEach(c => { if (names.indexOf(c) >= 0) add('err', 'Lookup: the column ' + c + ' already exists in your data. Rename one of them.'); });
-    }
+    K.taskProblems(cfg, ai, add);
     cfg.rules.forEach((r, i) => {
       if (!r.col) add('err', 'Check ' + (i + 1) + ' has no column.'); else if (!has(r.col)) add('err', 'Check ' + (i + 1) + ' uses ' + r.col + ', which isn’t a column at that point.');
       if (/^(min|max|inlist|regex)$/.test(r.kind) && !String(r.val || '').trim()) add('err', 'Check ' + (i + 1) + ' needs a value.');
@@ -1173,29 +1135,12 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     }
     const n = K.names(cfg), oe = (n.outPath.match(/\.[^.\\/]+$/) || [''])[0].toLowerCase();
     if (cfg.output.path.trim() && oe && { csv: ['.csv', '.txt', '.tsv'], excel: ['.xlsx'], parquet: ['.parquet', '.pq'] }[cfg.output.kind].indexOf(oe) < 0) add('warn', 'The output path ends in ' + oe + ' but the format is ' + cfg.output.kind + '.');
-    [['input', isPdf ? '' : cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].concat(cfg.join.on ? [['lookup', cfg.join.path, cfg.join.kind]] : []).forEach(([w, p, k]) => {
+    [['input', isPdf ? '' : cfg.input.path, cfg.input.kind], ['output', cfg.output.path, cfg.output.kind]].forEach(([w, p, k]) => {
       if (String(p || '').trim() && !K.hasExt(p)) add('info', 'The ' + w + ' path has no file extension. ' + (w === 'output' ? 'The script adds ' + K.EXTS[k][0] + '.' : 'If no file has exactly that name, the script uses the one ending in ' + K.EXTS[k].join(', ') + '.')); });
     if (K.withExt(n.outPath, cfg.output.kind).toLowerCase() === K.withExt(n.inPath, cfg.input.kind).toLowerCase()) add('err', 'The output path is the same as the input. The script never overwrites its source: choose another name.');
-    if (keys.length && !cfg.dedupe.on) add('info', 'A key is ticked and duplicates aren’t removed, so the script checks that the key is unique and reports rows that share one.');
-    /* across rows */
-    const rc = K.rowCol(cfg);
-    if (rc && names.indexOf(rc) >= 0) add('err', 'The row number column ' + rc + ' has the same name as a column. Change the name under Row numbers.');
-    (cfg.fills || []).forEach((f, i) => { const w = 'Fill ' + (i + 1);
-      if (!f.col) { add('err', w + ': choose the column to fill.'); return; }
-      if (names.indexOf(f.col) < 0) add('err', w + ': ' + f.col + ' isn’t a kept column.');
-      const ps = K.fillPasses(f);
-      if (!ps.length) add('err', w + ': give at least one set of columns to match on.');
-      ps.forEach((p, j) => { p.filter(c => names.indexOf(c) < 0).forEach(c => add('err', w + ', match ' + (j + 1) + ': ' + c + ' isn’t a kept column.')); if (p.indexOf(f.col) >= 0) add('err', w + ', match ' + (j + 1) + ' uses the column it fills.'); });
-      if ((f.swapA || f.swapB) && (!f.swapA || !f.swapB || f.swapA === f.swapB)) add('err', w + ': choose two different columns to swap, or neither.');
-      if (f.swapA && f.swapB && !ps.some(p => p.indexOf(f.swapA) >= 0 && p.indexOf(f.swapB) >= 0)) add('warn', w + ': no match uses both ' + f.swapA + ' and ' + f.swapB + ', so the swapped try never runs.');
-    });
-    if (cfg.conflicts && cfg.conflicts.on) { const c = cfg.conflicts;
-      if (names.indexOf(c.group) < 0) add('err', 'Values that differ: choose the column that identifies one person or thing.');
-      if (!c.cols.length) add('err', 'Values that differ: choose the columns to compare.');
-      if (c.cols.indexOf(c.group) >= 0) add('err', 'Values that differ: ' + c.group + ' is the group, so it can’t be compared.');
-      if (c.group && !(cfg.fills || []).some(f => f.col === c.group) && !(cfg.cols.find(x => x.name === c.group) || {}).req) add('info', 'Values that differ: rows with no ' + c.group + ' aren’t compared with anything.');
-    }
-    if (ai && ai.ok && ai.ok.some(i => i.kind === 'STEP')) add('info', 'Copilot steps run as written after the options above. Read each one in Step 4 before you run the script.');
+    const dedupeOnKeys = cfg.tasks.some(t => t.kind === 'dedupe' && (!t.cols.length || (t.cols.length === keys.length && t.cols.every(c => keys.indexOf(c) >= 0))));
+    if (keys.length && !dedupeOnKeys) add('info', 'A key is ticked and duplicates aren’t removed, so the script checks that the key is unique and reports rows that share one.');
+    if (ai && ai.ok && ai.ok.some(i => i.kind === 'STEP')) add('info', 'Copilot steps run as written after the tasks in Step 3. Read each one in Step 4 before you run the script.');
     return R;
   };
 
@@ -1234,20 +1179,19 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     const unknown = Array.from(used).filter(c => !known.has(c) && !made.has(c) && /^[a-z_][a-z0-9_]*$/.test(c));
     return { problems: f, made: Array.from(made), unknown };
   };
-  K.aiPrompt = function (cfg) {
-    const T = [], on = cfg.cols.filter(c => c.on), label = t => (K.TYPES.find(x => x[0] === t) || ['', t])[1].toLowerCase();
+  K.aiPrompt = function (cfg0) {
+    const cfg = K.norm(cfg0), T = [], on = cfg.cols.filter(c => c.on), label = t => (K.TYPES.find(x => x[0] === t) || ['', t])[1].toLowerCase();
     T.push('You are writing pandas expressions for a data-preparation script. You cannot see the data: use only the columns listed under CONTEXT.');
     T.push('', 'TASK (the user’s request: all the expressions have to do)', (cfg.aiReq || '(not given)').trim());
     T.push('', 'CONTEXT', 'A pandas DataFrame named df, already read from the file, renamed, trimmed and converted to these types:');
     on.forEach(c => T.push('- ' + c.name + ' | ' + label(c.type)));
-    const rc = K.rowCol(cfg), kn = K.known(cfg, null);
-    kn.cross.forEach(c => T.push('- ' + c + ' | ' + (c === rc ? 'whole number: the row in the file, use it to say which row a value came from' : /_filled_from_row$/.test(c) ? 'whole number: the row a filled value came from' : 'text, made by the page')));
+    const rc = K.rowCol(cfg), kn = K.known(cfg, null), label2 = t => (t ? label(t) : 'text');
+    if (kn.cross.length) { T.push('Made by the page’s tasks (Step 3). They exist only for STEP blocks, which run after the tasks:');
+      kn.cross.forEach(c => { const ty = (kn.types.find(x => x.name === c) || {}).type; T.push('- ' + c + ' | ' + (c === rc ? 'whole number: the row in the file, use it to say which row a value came from' : /_filled_from_row$/.test(c) ? 'whole number: the row a filled value came from' : label2(ty))); }); }
     T.push('Text columns use the pandas string dtype; whole numbers are Int64 (missing values allowed); dates are datetime64; true/false is the boolean dtype. Missing values are pd.NA or NaT.');
-    const done = [];
-    (cfg.fills || []).filter(f => f.col).forEach(f => done.push('- Fills a missing ' + f.col + ' from rows that match on ' + K.fillPasses(f).map(p => p.join(' + ')).join(', then ') + (f.swapA && f.swapB ? ' (each also with ' + f.swapA + ' and ' + f.swapB + ' swapped)' : '') + '. It writes ' + f.col + '_filled_from_row and ' + f.col + '_fill_note.'));
-    if (cfg.conflicts && cfg.conflicts.on && cfg.conflicts.group) done.push('- Finds rows with the same ' + cfg.conflicts.group + ' whose ' + cfg.conflicts.cols.join(', ') + ' differ, and writes <column>_conflict_rows, <column>_conflict_values and conflict_columns.');
-    if (done.length) T.push('', 'ALREADY DONE BY THE PAGE (don’t repeat these; you can use their columns):', ...done);
-    T.push('', 'STARTING POINT', 'The script already cleans and types the columns above and applies the checks set on the page. You add COLUMN and FILTER blocks, and STEP blocks for logic that needs more than one row at a time.');
+    const fl = K.taskFlow(cfg, null), done = fl.steps.filter(x => !(x.t.kind === 'filter' && !K.activeFilters(cfg).length)).map(x => '- ' + K.TASK_DEFS[x.t.kind].label + ': ' + K.taskSummary(x.t, { cfg, keys: cfg.cols.filter(c => c.on && c.key).map(c => c.name) }));
+    if (done.length) T.push('', 'ALREADY DONE BY THE PAGE, in this order (don’t repeat these; STEP blocks can use their columns):', ...done);
+    T.push('', 'STARTING POINT', 'The script already cleans and types the columns above and applies the checks set on the page. You add COLUMN and FILTER blocks, and STEP blocks for logic that needs more than one row at a time. COLUMN blocks run before the page’s tasks and see only the columns in the first list; STEP blocks run after the tasks.');
     T.push('', 'RULES',
       '- Write columns as df["name"] with the exact names listed. Use only df, pd (pandas) and np (numpy).',
       '- One expression per EXPR or KEEP_WHEN line: no assignments, no semicolons, no line breaks, no lambda, no apply with Python functions, no imports, no reading or writing files.',
@@ -1264,10 +1208,11 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       '@@@ STEP @@@', 'NAME: step_name', 'WHAT: one line on what it does', 'CODE:', 'def step(df):', '    # pandas code', '    return df', '@@@ SKIPPED @@@', 'what could not be done and why', '@@@ NOTES @@@', 'assumptions to confirm, one per line');
     return T.join('\n');
   };
-  K.aiParse = function (reply, cfg, parseBlocks, fields) {
+  K.aiParse = function (reply, cfg0, parseBlocks, fields) {
+    const cfg = K.norm(cfg0);
     const res = { items: [], notes: [], skipped: [], any: false };
     const blocks = parseBlocks(reply); if (!blocks.length) { res.ok = []; return res; }
-    const base = cfg.cols.filter(c => c.on).map(c => c.name), known = new Set(base.concat(K.rowCol(cfg) ? [K.rowCol(cfg)] : [])), cross = K.known(cfg, null).cross, keys = new Set(cfg.cols.filter(c => c.on && c.key).map(c => c.name));
+    const base = cfg.cols.filter(c => c.on).map(c => c.name), known = new Set(base), cross = K.known(cfg, null).cross, keys = new Set(cfg.cols.filter(c => c.on && c.key).map(c => c.name));
     const one = s => (s || '').replace(/\s*\n\s*/g, ' ').trim(); let filters = 0; const taken = new Set();
     blocks.forEach(b => {
       if (b.tag === 'NOTES') { b.body.split('\n').map(s => s.replace(/^[-*]\s*/, '').trim()).filter(s => s && !/^assumptions to confirm/i.test(s)).forEach(s => res.notes.push(s)); if (res.notes.length) res.any = true; return; }
@@ -1340,15 +1285,16 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     return [tag('in_future'), c + ' > pd.Timestamp.now()'];
   };
 
-  K.build = function (cfg, ai) {
+  K.build = function (cfg0, ai) {
+    const cfg = K.norm(cfg0), looks = cfg.tasks.filter(t => t.kind === 'lookup');
     const n = K.names(cfg), on = cfg.cols.filter(c => c.on), keys = on.filter(c => c.key).map(c => c.name);
     const aiCols = ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN'), aiFilter = ((ai && ai.ok) || []).find(i => i.kind === 'FILTER');
     const S = [], add = (title, md, code) => S.push({ title, md, code: code.join('\n') });
-    const j = cfg.join, sm = cfg.summary, xl = cfg.output.kind === 'excel', needs = ['pandas'];
+    const sm = cfg.summary, xl = cfg.output.kind === 'excel', needs = ['pandas'];
     const pdf = cfg.input.kind === 'pdf', pd0 = Object.assign(K.pdfBlank(), cfg.input.pdf || {}), noCols = pdf && !on.length;
     if (pdf) needs.push('pdfplumber');
-    if (cfg.input.kind === 'excel' || xl || (j.on && j.kind === 'excel')) needs.push('openpyxl');
-    if (cfg.input.kind === 'parquet' || cfg.output.kind === 'parquet' || (j.on && j.kind === 'parquet')) needs.push('pyarrow');
+    if (cfg.input.kind === 'excel' || xl || looks.some(t => t.fileKind === 'excel')) needs.push('openpyxl');
+    if (cfg.input.kind === 'parquet' || cfg.output.kind === 'parquet' || looks.some(t => t.fileKind === 'parquet')) needs.push('pyarrow');
     const usesNp = aiCols.concat(aiFilter ? [aiFilter] : []).some(i => /\bnp\./.test(i.expr)) || ((ai && ai.ok) || []).some(i => i.kind === 'STEP' && /\bnp\./.test(i.code));
 
     /* 1 settings */
@@ -1357,7 +1303,7 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       'def with_extension(path, extensions):', '    """A path typed without its extension: use the file that has one (for the output, add the first)."""',
       '    if path.suffix.lower() in extensions or path.exists():', '        return path', '    for e in extensions:', '        if path.with_name(path.name + e).exists():', '            return path.with_name(path.name + e)',
       '    return path.with_name(path.name + extensions[0])', '',
-      pdf ? 'INPUT_PATH  = Path(' + py(n.inPath) + ')   # one PDF, or a folder of PDFs' : 'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], j.on ? ['LOOKUP_PATH = with_extension(Path(' + py(j.path.trim() || 'lookup' + ext(j.kind)) + '), ' + pyList(K.EXTS[j.kind]) + ')'] : [], ['',
+      pdf ? 'INPUT_PATH  = Path(' + py(n.inPath) + ')   # one PDF, or a folder of PDFs' : 'INPUT_PATH  = with_extension(Path(' + py(n.inPath) + '), ' + pyList(K.EXTS[cfg.input.kind]) + ')', 'OUTPUT_PATH = with_extension(Path(' + py(n.outPath) + '), ' + pyList(K.EXTS[cfg.output.kind]) + ')'], looks.map(t => (K.lookupVar(cfg, t) + ' = ').padEnd(14) + 'with_extension(Path(' + py(t.path.trim() || 'lookup' + ext(t.fileKind)) + '), ' + pyList(K.EXTS[t.fileKind]) + ')'), ['',
       ], pdf ? K.pdfSettings(pd0) : [], noCols ? ['', '# No columns chosen yet: every column read from the PDFs is kept as text. Paste the sample this writes into the page to choose.', 'COLUMNS = None'] : ['', '# Column in the file -> name in the output. Only these columns are kept.', 'COLUMNS = {'].concat(on.map(c => '    ' + (py(c.src) + ':').padEnd(pad + 1) + ' ' + py(c.name) + ','), ['}']),
       keys.length ? ['KEY_COLS = ' + pyList(keys) + '   # identify one row'] : [], ['',
       'issues = []   # one entry per problem found; shown as you go and written out at the end', '', 'def note(check, rows, detail=""):', '    """Record a problem and show it."""',
@@ -1426,125 +1372,13 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       '    if UNIFY_CAPITALS:', '        swap = {v: g[0] for g in groups for v in g[1:]}', '        changed = int(df[col].isin(list(swap)).sum())', '        df[col] = df[col].replace(swap)',
       '        print(f"{col}: {changed:,} value(s) now use the most common spelling ({shown})")', '    else:', '        rows = int(df[col].isin([v for g in groups for v in g[1:]]).sum())',
       '        note(f"{col}: same text in different capitals", rows, shown)']);
-    /* across rows (owner, Nov 2026): row numbers, fill a missing value from matching rows, values that differ within a group */
-    const rowCol = K.rowCol(cfg), fills = (cfg.fills || []).filter(f => f.col && K.fillPasses(f).length), cf = cfg.conflicts || {};
-    const cfOn = !!(cf.on && cf.group && cf.cols && cf.cols.length);
-    if (rowCol) add('Row numbers', (cfg.rowNo.from === 'clean' ? 'Numbers the rows 1, 2, 3... after cleaning.' : 'The row each line came from in the file' + (/^(excel|csv)$/.test(cfg.input.kind) ? ', as Excel or a text editor shows it (the header is row ' + (Number(cfg.input.skip || 0) + 1) + ')' : '') + ', so any row can be found in the source.') + ' Later steps use it to say which row a value came from.', [
-      'ROW_COL = ' + py(rowCol),
-      cfg.rowNo.from === 'clean' ? 'df.insert(0, ROW_COL, pd.array(range(1, len(df) + 1), dtype="Int64"))' : 'df.insert(0, ROW_COL, ROW_NUMBERS.reindex(df.index).astype("Int64"))   # rows dropped by cleaning keep their gaps']);
     if (aiCols.length) add('Added columns', 'Written with Copilot and checked on the page. Read each one.', aiCols.map(c => 'df[' + py(c.name) + '] = ' + c.expr));
 
-    /* lookup */
-    if (j.on) {
-      const want = j.cols.split(',').map(s => s.trim()).filter(Boolean), L = ['RIGHT_KEY = ' + py(j.rightKey.trim()), 'LEFT_KEY  = ' + py(j.leftKey), 'LOOKUP_COLS = ' + (want.length ? pyList(want) : 'None') + '   # None = every column', '',
-        'lookup = ' + reader(j.kind, 'LOOKUP_PATH', j, true), 'lookup.columns = [str(c).strip() for c in lookup.columns]', 'if LOOKUP_COLS is None:', '    LOOKUP_COLS = [c for c in lookup.columns if c != RIGHT_KEY]',
-        'missing = [c for c in [RIGHT_KEY] + LOOKUP_COLS if c not in lookup.columns]', 'if missing:', '    raise ValueError(f"The lookup file is missing column(s): {missing}. It has: {list(lookup.columns)}")',
-        'clash = [c for c in LOOKUP_COLS if c in df.columns]', 'if clash:', '    raise ValueError(f"The lookup would add column(s) that already exist: {clash}. Set LOOKUP_COLS or rename them.")', '',
-        '# Keys are matched as trimmed text, so 00123 and 123 are different', 'lookup = lookup[[RIGHT_KEY] + LOOKUP_COLS].copy()', 'lookup["_key"] = lookup[RIGHT_KEY].astype("string").str.strip()', 'lookup = lookup[lookup["_key"].notna()]',
-        'if lookup["_key"].duplicated().any():', '    dupes = lookup.loc[lookup["_key"].duplicated(), "_key"].unique()[:5].tolist()', '    raise ValueError(f"The lookup file has more than one row for some keys, which would multiply your rows. For example: {dupes}")', '',
-        'df["_key"] = df[LEFT_KEY].astype("string").str.strip()', 'df = df.merge(lookup.drop(columns=[RIGHT_KEY]), how="left", on="_key", indicator=True)', 'unmatched = (df["_merge"] == "left_only") & df[LEFT_KEY].notna()', 'if unmatched.any():',
-        '    examples = ", ".join(df.loc[unmatched, "_key"].astype(str).unique()[:3])', '    note(f"{LEFT_KEY}: no match in the lookup file", unmatched.sum(), f"for example: {examples}")'];
-      if (j.how === 'inner') L.push('df = df[df["_merge"] == "both"]   # keep only the rows that matched');
-      L.push('df = df.drop(columns=["_key", "_merge"])');
-      add('Look up columns from a second file', 'Adds columns by matching ' + j.leftKey + ' to ' + (j.rightKey.trim() || 'the key') + '. The row count can’t grow: a lookup file with repeated keys stops the script.', L);
-    }
+    /* Common tasks (Step 3), in the order the user put them */
+    const state = {};
+    K.taskSections(cfg, ai, { keys, xl, reader, aiFilter, state }).forEach(sec => add(sec.title, sec.md, sec.code));
+    const keepOut = !!state.keepOut, dd = !!state.dd, cfOn = !!state.cfOn;
 
-    /* filter */
-    const FL = K.activeFilters(cfg).map((x, i) => ({ name: String(x.label || '').trim() || x.when.trim(), test: 'df.eval(' + py(x.when.trim()) + ', engine="python")', join: i ? (x.join === 'or' ? 'or' : 'and') : '' }));
-    if (aiFilter) FL.push({ name: 'Copilot filter', test: '(' + aiFilter.expr + ')', join: FL.length ? 'and' : '' });
-    const keepOut = !!cfg.keepRemoved && FL.length > 0;
-    if (FL.length) {
-      const fp = Math.max.apply(null, FL.map(f => py(f.name).length));
-      const F = ['# True for the rows each filter keeps. A missing value never passes a filter.', 'PASSES = {'].concat(FL.map(f => '    ' + (py(f.name) + ':').padEnd(fp + 1) + ' ' + f.test + ','), ['}',
-        'PASSES = {name: pd.Series(p, index=df.index).fillna(False).astype(bool) for name, p in PASSES.items()}', '']);
-      if (FL.length > 1) F.push('# Combined left to right: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])));
-      FL.forEach((f, i) => F.push(i === 0 ? 'keep = PASSES[' + py(f.name) + ']' : 'keep = keep ' + (f.join === 'or' ? '|' : '&') + ' PASSES[' + py(f.name) + ']   # ' + f.join));
-      if (keepOut) F.push('', '# Every row before filtering, and the rows the filters take out with the filters each one failed', 'original = df.copy()', 'filtered_out = df[~keep].copy()',
-        'filtered_out["failed_filters"] = [", ".join(n for n, p in PASSES.items() if not p.loc[i]) for i in filtered_out.index]');
-      F.push('', 'before = len(df)', 'df = df[keep]', 'rows_filtered = before - len(df)', 'print(f"Filters removed {rows_filtered:,} row(s)")');
-      if (keepOut) F.push('assert len(original) == len(df) + len(filtered_out), "Rows kept + rows filtered out must equal the rows before filtering"');
-      add('Keep only the rows you want', (FL.length > 1 ? 'Rows are kept when they pass: ' + K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : [])) + '. ' : '') + (keepOut ? 'All rows before filtering and the rows taken out are kept for the output.' : 'Rows that don’t pass are removed and counted.'), F);
-    }
-
-    /* dedupe */
-    let dd = false;
-    if (cfg.dedupe.on && keys.length) {
-      dd = true; const D = ['before = len(df)'];
-      if (cfg.dedupe.order) D.push('# Latest row per key: sort by ' + cfg.dedupe.order + ', keep the last, then put the rows back in file order', 'df = (df.sort_values(' + py(cfg.dedupe.order) + ', kind="stable", na_position="first")', '        .drop_duplicates(subset=KEY_COLS, keep="last")', '        .sort_index())');
-      else D.push('df = df.drop_duplicates(subset=KEY_COLS, keep=' + py(cfg.dedupe.keep === 'first' ? 'first' : 'last') + ')');
-      D.push('rows_deduped = before - len(df)', 'print(f"Removed {rows_deduped:,} duplicate row(s) on {KEY_COLS}")');
-      add('Remove duplicates', 'One row per key' + (cfg.dedupe.order ? ', keeping the one with the latest ' + cfg.dedupe.order : ', keeping the ' + (cfg.dedupe.keep === 'first' ? 'first' : 'last') + ' in the file') + '.', D);
-    }
-
-    const keyHelper = ['def match_key(frame, cols):', '    """The columns as trimmed, lower-case text joined with |. A row with any of them missing gets no key."""', '    parts = []', '    for c in cols:', '        s = frame[c]',
-      '        s = s.dt.strftime("%Y-%m-%d") if pd.api.types.is_datetime64_any_dtype(s) else s.astype("string")', '        parts.append(s.astype("string").str.strip().str.casefold().str.replace(r"\\s+", " ", regex=True))',
-      '    key = parts[0]', '    for p in parts[1:]:', '        key = key + "|" + p', '    return key.where(~key.isin(["", "nan"]))', ''];
-    if (fills.length) {
-      const F = ['# Each fill: the column, then the matches to try in order. A match is used only when it points to ONE value.', 'FILLS = ['];
-      fills.forEach(f => F.push('    {"fill": ' + py(f.col) + ', "passes": [' + K.fillPasses(f).map(pyList).join(', ') + '], "swap": ' + (f.swapA && f.swapB ? pyList([f.swapA, f.swapB]) : 'None') + '},'));
-      F.push(']', '');
-      keyHelper.forEach(l => F.push(l));
-      F.push('for spec in FILLS:',
-        '    col = spec["fill"]',
-        '    from_col, note_col = f"{col}_filled_from_row", f"{col}_fill_note"',
-        '    df[from_col] = pd.Series(pd.NA, index=df.index, dtype="Int64")',
-        '    df[note_col] = pd.Series(pd.NA, index=df.index, dtype="string")',
-        '    donors = df[df[col].notna()]                       # only rows that had the value in the file give it',
-        '    was_missing = int(df[col].isna().sum())',
-        '    for cols in spec["passes"]:',
-        '        tries = [(cols, " + ".join(cols))]',
-        '        if spec["swap"] and all(c in cols for c in spec["swap"]):',
-        '            a, b = spec["swap"]',
-        '            tries.append(([b if c == a else a if c == b else c for c in cols], " + ".join(cols) + f" with {a} and {b} swapped"))',
-        '        for row_cols, label in tries:',
-        '            need = df[col].isna() & df[note_col].isna()',
-        '            if not need.any():',
-        '                break',
-        '            table = pd.DataFrame({"key": match_key(donors, cols), "value": donors[col], "row": donors[ROW_COL]}).dropna(subset=["key"]).sort_values("row")',
-        '            grouped = table.groupby("key")',
-        '            n_values = grouped["value"].nunique()',
-        '            first_value, first_row = grouped["value"].first(), grouped["row"].first()',
-        '            listed = grouped["value"].agg(lambda s: "; ".join(dict.fromkeys(s.astype(str))))',
-        '            key = match_key(df.loc[need], row_cols)',
-        '            n = key.map(n_values)',
-        '            one = key[n.eq(1).fillna(False).astype(bool)]',
-        '            many = key[n.gt(1).fillna(False).astype(bool)]',
-        '            df.loc[one.index, col] = one.map(first_value).astype(df[col].dtype)',
-        '            df.loc[one.index, from_col] = one.map(first_row).astype("Int64")',
-        '            df.loc[one.index, note_col] = "matched on " + label',
-        '            df.loc[many.index, note_col] = ("not filled: " + label + " matches " + many.map(listed)).astype("string")',
-        '            print(f"{col}: {len(one):,} filled by {label}" + (f", {len(many):,} with more than one match" if len(many) else ""))',
-        '    df.loc[df[col].isna() & df[note_col].isna(), note_col] = "not filled: no match"',
-        '    filled = int(df[from_col].notna().sum())',
-        '    print(f"{col}: {filled:,} of {was_missing:,} missing value(s) filled")',
-        '    still = df[col].isna()',
-        '    if still.any():',
-        '        note(f"{col} still missing after matching", still.sum(), "see " + note_col)');
-      add('Fill missing values from matching rows', 'A row missing ' + fills.map(f => f.col).join(', ') + ' takes the value from another row that matches it, trying each match in order. A match counts only when every matching row has the same value; when they disagree the row is left empty and the note lists the candidates. Only rows that had the value in the file give it. The value, the row it came from and how it matched are written in new columns.', F);
-    }
-    if (cfOn) {
-      const C = ['CONFLICT_GROUP = ' + py(cf.group) + '   # rows with the same value here are one person or thing', 'CONFLICT_COLUMNS = ' + pyList(cf.cols), 'COUNT_MISSING = ' + (cf.missing ? 'True' : 'False') + '   # True: a missing value counts as a different value', 'SEP = "; "', '',
-        'def as_text(s):', '    return s.dt.strftime("%Y-%m-%d") if pd.api.types.is_datetime64_any_dtype(s) else s.astype("string")', '',
-        'conflict_list = []', 'in_group = df[df[CONFLICT_GROUP].notna()]', 'differs = pd.Series("", index=df.index, dtype="object")',
-        'for c in CONFLICT_COLUMNS:',
-        '    t = pd.DataFrame({"group": in_group[CONFLICT_GROUP], "value": as_text(in_group[c]), "row": in_group[ROW_COL]})',
-        '    t["value"] = t["value"].fillna("(missing)") if COUNT_MISSING else t["value"]',
-        '    t = t.dropna(subset=["value"]).sort_values("row")',
-        '    agg = t.groupby("group").agg(n=("value", "nunique"), rows=("row", lambda s: SEP.join(str(x) for x in s)), values=("value", lambda s: SEP.join(dict.fromkeys(s))))',
-        '    agg = agg[agg["n"] > 1]',
-        '    df[f"{c}_conflict_rows"] = df[CONFLICT_GROUP].map(agg["rows"]).astype("string")',
-        '    df[f"{c}_conflict_values"] = df[CONFLICT_GROUP].map(agg["values"]).astype("string")',
-        '    hit = df[CONFLICT_GROUP].isin(agg.index) & df[CONFLICT_GROUP].notna()',
-        '    differs[hit] = differs[hit] + c + SEP',
-        '    if len(agg):',
-        '        note(f"{c} differs within {CONFLICT_GROUP}", hit.sum(), f"in {len(agg):,} group(s)")',
-        '        conflict_list.append(agg.reset_index().assign(column=c)[["group", "column", "rows", "values"]])',
-        'df["conflict_columns"] = differs.str.rstrip(SEP).replace("", pd.NA).astype("string")',
-        'conflicts = pd.concat(conflict_list, ignore_index=True) if conflict_list else pd.DataFrame(columns=["group", "column", "rows", "values"])',
-        'conflicts = conflicts.rename(columns={"group": CONFLICT_GROUP})',
-        'print(f"{len(conflicts):,} value(s) differ within a " + CONFLICT_GROUP + "; " + f"{int(df[\'conflict_columns\'].notna().sum()):,} row(s) affected")'];
-      add('Values that differ within a ' + cf.group, 'Rows with the same ' + cf.group + ' should agree on ' + cf.cols.join(', ') + '. For each column that has more than one value in a group, every row of the group gets the rows involved (<column>_conflict_rows) and the distinct values (<column>_conflict_values), and conflict_columns lists the columns that differ. ' + (cf.missing ? 'A missing value counts as a different value.' : 'Missing values are ignored.') + ' The full list is written to a Conflicts ' + (xl ? 'sheet.' : 'file.'), C);
-    }
     /* Copilot steps: code across rows, checked on the page, run as written */
     ((ai && ai.ok) || []).filter(i => i.kind === 'STEP').forEach(st => {
       const fn = 'step_' + st.name;
@@ -1621,7 +1455,574 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
   K.CHECKLIST = ['Rows read matches the row count of the source file', 'Rows written + rows rejected + duplicates removed + rows filtered out = rows read', 'Every line starting with ! was read and explained', 'A few rows were compared by hand with the source file', 'Dates came through the right way round (day and month)', 'Leading zeros in codes (ZIP, account numbers) are still there', 'Running the script twice gives the same output', 'The output folder isn’t the folder a report reads from until this has been checked'];
 
   root.PSG = K;
-  if (typeof module !== 'undefined') module.exports = K;
+  if (typeof module !== 'undefined') { module.exports = K; require('./ps_tasks.js'); }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Python Script Generator: Common tasks (owner, Nov 2026: "common scenarios that many data engineers and data analysts
+   would use... the user can choose one and then the form expands"). Each task is { kind, open, ...fields } in cfg.tasks,
+   run in list order after the Copilot columns. A task kind says its fields (the page draws them), how it reads in one
+   line when folded, what it checks, which columns it leaves behind, and the code it writes. No DOM in this file. */
+(function (root) {
+  'use strict';
+  const K = root.PSG;
+  const py = s => JSON.stringify(String(s));
+  const pyList = a => '[' + a.map(py).join(', ') + ']';
+  const snake = K.snake;
+  const isNum = t => /^(whole|decimal)$/.test(t), isDate = t => /^date/.test(t);
+  const ident = s => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s || '');
+  const words = s => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
+  const nameOr = (t, d) => String(t.name || '').trim() || d;
+  const list = a => (a.length > 3 ? a.slice(0, 3).join(', ') + ' and ' + (a.length - 3) + ' more' : a.join(', '));
+  const fmt = n => Number(n).toLocaleString('en-US');
+
+  K.TASK_GROUPS = [['fix', 'Fix values'], ['reshape', 'Reshape'], ['add', 'Add columns'], ['find', 'Find problems'], ['rows', 'Rows']];
+  K.DATE_PARTS = [['year', 'Year'], ['quarter', 'Quarter'], ['month', 'Month number'], ['month_name', 'Month name'], ['week', 'Week of year'], ['weekday', 'Day name'], ['day', 'Day of month']];
+  const RUN_CALCS = [['cumsum', 'Running total'], ['prev', 'Previous value'], ['change', 'Change from previous'], ['pct', '% change from previous']];
+  const RUN_SUFFIX = { cumsum: 'running_total', prev: 'previous', change: 'change', pct: 'pct_change' };
+  /* "old => new" or old<TAB>new (two cells pasted from Excel), one per line */
+  K.replacePairs = t => String(t.pairs || '').split('\n').map(l => { const m = /^(.*?)(?:\s*=>\s*|\t)(.*)$/.exec(l); return m ? [m[1].trim(), m[2].trim()] : null; }).filter(p => p && p[0] !== '');
+  K.bandEdges = t => words(t.edges).map(Number);
+  K.bandLabels = function (t) {
+    const e = K.bandEdges(t), given = words(t.labels);
+    if (given.length) return given;
+    return e.map((x, i) => (i === 0 ? 'under ' + fmt(x) : fmt(e[i - 1]) + ' to under ' + fmt(x))).concat(e.length ? [fmt(e[e.length - 1]) + ' and over'] : []);
+  };
+
+  /* field types: col (one column), cols (chips, several), pick (chips from a fixed list), text, textarea, select, check, filter */
+  const D = {};
+  D.filter = {
+    label: 'Filter rows', group: 'rows', once: true, title: () => 'Keep only the rows you want',
+    hint: 'Each filter is a pandas condition with your column names, for example amount > 0, status != "TEST" or order_date >= "2026-06-01". From the second one on, choose AND (both must pass) or OR (either can pass). A row with a missing value never passes that filter.',
+    blank: () => ({}), fields: [{ type: 'filter' }],
+    summary: (t, x) => { const a = K.activeFilters(x.cfg); return a.length ? 'Keep if ' + K.filterLogic(a) : 'No filter yet'; }
+  };
+  D.dedupe = {
+    label: 'Remove duplicates', group: 'rows', title: () => 'Remove duplicates',
+    hint: 'One row per value of the chosen columns. With no columns chosen, the Key columns from Step 2 are used.',
+    blank: () => ({ cols: [], order: '', keep: 'last' }),
+    fields: [{ k: 'cols', type: 'cols', label: 'Rows are duplicates when these match', hint: 'none chosen = the Key columns' },
+      { k: 'order', type: 'col', label: 'Which row to keep', types: ['number', 'date'], empty: 'By position in the file', optLabel: c => 'The one with the latest ' + c },
+      { k: 'keep', type: 'select', label: 'In file order, keep', opts: [['last', 'The last one'], ['first', 'The first one']], show: t => !t.order }],
+    summary: (t, x) => 'One row per ' + (t.cols.length ? list(t.cols) : x.keys.length ? list(x.keys) : 'key (none ticked)') + (t.order ? ', latest ' + t.order : ', ' + t.keep + ' in the file'),
+    problems: (t, x, add) => { if (!t.cols.length && !x.keys.length) add('err', 'choose the columns that make rows duplicates, or tick Key in Step 2.'); }
+  };
+  D.lookup = {
+    label: 'Look up columns from a second file', group: 'add', title: () => 'Look up columns from a second file',
+    hint: 'Adds columns by matching a column of yours to a column in another file. Your row count can’t grow: if the lookup file has two rows for one key, the script stops and says so. Rows with no match are reported.',
+    blank: () => ({ fileKind: 'csv', path: '', sheet: '', leftKey: '', rightKey: '', cols: '', how: 'left' }),
+    fields: [{ k: 'fileKind', type: 'select', label: 'Lookup file type', opts: [['csv', 'CSV (comma)'], ['excel', 'Excel workbook'], ['parquet', 'Parquet']] },
+      { k: 'path', type: 'text', label: 'Path to the lookup file', ph: 'C:\\Data\\regions.csv', wide: true },
+      { k: 'sheet', type: 'text', label: 'Sheet name', hint: 'empty = the first', show: t => t.fileKind === 'excel' },
+      { k: 'leftKey', type: 'col', label: 'Match your column', req: true, need: 'the column of yours to match' },
+      { k: 'rightKey', type: 'text', label: 'To this header in the lookup file', ph: 'Region' },
+      { k: 'cols', type: 'text', label: 'Columns to bring in', hint: 'headers, comma-separated; empty = all', ph: 'Manager, Target' },
+      { k: 'how', type: 'select', label: 'Rows with no match', opts: [['left', 'Keep them (new columns empty)'], ['inner', 'Remove them']] }],
+    summary: t => (t.leftKey || '?') + ' → ' + (t.rightKey || '?') + ' in ' + (String(t.path).split(/[\\/]/).pop() || 'the lookup file') + (words(t.cols).length ? ': ' + list(words(t.cols)) : ': every column'),
+    problems: (t, x, add) => {
+      if (!t.path.trim()) add('warn', 'no file path: set ' + x.lookupVar + ' in the script.');
+      if (!t.rightKey.trim()) add('err', 'give the header of the matching column in the lookup file.');
+      words(t.cols).forEach(c => { if (x.has(c)) add('err', 'the column ' + c + ' already exists. Rename one of them.'); });
+      if (t.path.trim() && !K.hasExt(t.path)) add('info', 'the path has no file extension. If no file has exactly that name, the script uses the one ending in ' + K.EXTS[t.fileKind].join(', ') + '.');
+    },
+    opens: t => !words(t.cols).length,
+    flow: (t, cols) => cols.concat(words(t.cols).map(n => ({ name: n, type: 'text' })))
+  };
+  D.rownum = {
+    label: 'Number the rows', group: 'rows', once: true, title: () => 'Row numbers',
+    hint: 'A column with the row each line came from, so any row can be found in the source. Fills, duplicate flags and comparisons use it to say which row a value came from.',
+    blank: () => ({ name: 'row_number', from: 'file' }),
+    fields: [{ k: 'name', type: 'text', label: 'Column name', ph: 'row_number' },
+      { k: 'from', type: 'select', label: 'Number each row by', opts: [['file', 'Its row in the file (as Excel shows it)'], ['clean', '1, 2, 3… at this point']] }],
+    summary: t => (snake(t.name) || 'row_number') + (t.from === 'clean' ? ': 1, 2, 3…' : ': the row in the file'),
+    problems: (t, x, add) => {
+      const n = snake(t.name) || 'row_number';
+      if (x.has(n)) add('err', n + ' is already a column. Choose another name.');
+      if (t.from === 'file' && x.reshaped) add('err', 'rows were turned into new rows by an earlier task, so they no longer match the file. Move this task up, or number 1, 2, 3.');
+    },
+    flow: (t, cols) => [{ name: snake(t.name) || 'row_number', type: 'whole' }].concat(cols)
+  };
+  D.filldown = {
+    label: 'Fill blanks from the row above', group: 'fix', title: t => 'Fill blanks in ' + list(t.cols) + ' from the row above',
+    hint: 'For files where a value is written once and the rows below it are left empty (a report export, a merged cell). Each blank takes the last value above it.',
+    blank: () => ({ cols: [], within: '' }),
+    fields: [{ k: 'cols', type: 'cols', label: 'Columns to fill', req: true, need: 'the columns to fill' },
+      { k: 'within', type: 'col', label: 'Only within the same', empty: 'Whole file', hint: 'optional: never carry a value into another group' }],
+    summary: t => (t.cols.length ? list(t.cols) : 'no columns yet') + (t.within ? ', within each ' + t.within : '')
+  };
+  D.fillmatch = {
+    label: 'Fill a missing value from matching rows', group: 'fix', needsRow: true, title: t => 'Fill a missing ' + (t.col || 'value') + ' from matching rows',
+    hint: 'A row missing the value takes it from another row that matches it, trying each line in order. Matching ignores capitals and extra spaces. A match is used only when every matching row has the same value; otherwise the row stays empty and a note lists the candidates. New columns say which row it came from and how it matched.',
+    blank: () => ({ col: '', passes: '', swapA: '', swapB: '' }),
+    fields: [{ k: 'col', type: 'col', label: 'Column to fill', req: true, need: 'the column to fill' },
+      { k: 'passes', type: 'textarea', label: 'Match on, one try per line', hint: 'columns separated by commas; tried in order, first line first', ph: 'first_name, last_name, date_of_birth\nfirst_name, last_name', wide: true },
+      { k: 'swapA', type: 'col', label: 'Also try with these swapped', hint: 'optional: names entered the wrong way round', empty: '—' },
+      { k: 'swapB', type: 'col', label: 'and', empty: '—' }],
+    summary: t => (t.col || '?') + ' from rows matching ' + (K.fillPasses(t).map(p => p.join(' + ')).join(', then ') || '?') + (t.swapA && t.swapB ? ' (also ' + t.swapA + '/' + t.swapB + ' swapped)' : ''),
+    problems: (t, x, add) => {
+      const ps = K.fillPasses(t);
+      if (!ps.length) add('err', 'give at least one set of columns to match on.');
+      ps.forEach((p, j) => { p.filter(c => !x.has(c)).forEach(c => add('err', 'match ' + (j + 1) + ': ' + c + ' isn’t a column at this point.')); if (p.indexOf(t.col) >= 0) add('err', 'match ' + (j + 1) + ' uses the column it fills.'); });
+      if ((t.swapA || t.swapB) && (!t.swapA || !t.swapB || t.swapA === t.swapB)) add('err', 'choose two different columns to swap, or neither.');
+      if (t.swapA && t.swapB && !ps.some(p => p.indexOf(t.swapA) >= 0 && p.indexOf(t.swapB) >= 0)) add('warn', 'no match uses both ' + t.swapA + ' and ' + t.swapB + ', so the swapped try never runs.');
+      [t.col + '_filled_from_row', t.col + '_fill_note'].forEach(c => { if (t.col && x.has(c)) add('err', c + ' already exists: is this column filled twice?'); });
+    },
+    flow: (t, cols) => cols.concat([{ name: t.col + '_filled_from_row', type: 'whole' }, { name: t.col + '_fill_note', type: 'text' }])
+  };
+  D.replace = {
+    label: 'Replace values', group: 'fix', title: t => 'Replace values in ' + list(t.cols),
+    hint: 'One replacement per line: old => new. Leave the new value empty to make it missing (whole values) or to delete the text (part of the text). Two columns copied from Excel work too.',
+    blank: () => ({ cols: [], pairs: '', part: false, caseSens: false }),
+    fields: [{ k: 'cols', type: 'cols', label: 'In these columns', req: true, types: ['text'], need: 'the columns to replace values in' },
+      { k: 'pairs', type: 'textarea', label: 'Replacements, one per line', ph: 'N/A =>\nCalif. => CA\nUnited States => US', wide: true },
+      { k: 'part', type: 'check', label: 'Replace part of the text (otherwise only the whole value)' },
+      { k: 'caseSens', type: 'check', label: 'Capitals must match' }],
+    summary: t => { const p = K.replacePairs(t); return (p.length ? p.length + ' replacement' + (p.length > 1 ? 's' : '') + ' (' + p.slice(0, 2).map(x => x[0] + ' → ' + (x[1] || (t.part ? '(removed)' : '(missing)'))).join(', ') + (p.length > 2 ? ', …' : '') + ')' : 'no replacements yet') + (t.cols.length ? ' in ' + list(t.cols) : ''); },
+    problems: (t, x, add) => { if (!K.replacePairs(t).length) add('err', 'write at least one replacement: old => new.'); }
+  };
+  D.split = {
+    label: 'Split a column', group: 'reshape', title: t => 'Split ' + (t.col || 'a column'),
+    hint: 'One text column into several at a separator: "Lee, Avery" into last and first name. When there are more pieces than names, the last column gets the rest.',
+    blank: () => ({ col: '', sep: ',', into: '', keep: false }),
+    fields: [{ k: 'col', type: 'col', label: 'Column to split', req: true, types: ['text'], need: 'the column to split' },
+      { k: 'sep', type: 'text', label: 'Split at', hint: 'the exact text, for example , or - or a space', ph: ',' },
+      { k: 'into', type: 'text', label: 'New column names', hint: 'comma-separated, in order', ph: 'last_name, first_name' },
+      { k: 'keep', type: 'check', label: 'Keep the original column' }],
+    summary: t => (t.col || '?') + ' at “' + (t.sep === ' ' ? 'a space' : t.sep) + '” into ' + (words(t.into).join(', ') || '?'),
+    problems: (t, x, add) => {
+      if (t.sep === '') add('err', 'give the text to split at.');
+      const into = words(t.into);
+      if (into.length < 2) add('err', 'give at least two new column names.');
+      into.forEach(n => { if (!ident(n)) add('err', '“' + n + '” needs to be letters, digits and underscores.'); else if (x.has(n) && !(n === t.col && !t.keep)) add('err', n + ' is already a column.'); });
+    },
+    flow: (t, cols) => { const i = cols.findIndex(c => c.name === t.col), add = words(t.into).map(n => ({ name: n, type: 'text' })); const out = cols.slice(); out.splice(i < 0 ? out.length : i + 1, 0, ...add); return t.keep ? out : out.filter((c, j) => !(c.name === t.col && j === i)); }
+  };
+  D.combine = {
+    label: 'Combine columns', group: 'reshape', title: t => 'Combine ' + list(t.cols) + ' into ' + (t.name || 'one column'),
+    hint: 'Joins columns into one, in the order you click them. Missing values are skipped, so no doubled separators.',
+    blank: () => ({ cols: [], sep: ' ', name: '' }),
+    fields: [{ k: 'cols', type: 'cols', label: 'Columns, in order', ordered: true },
+      { k: 'sep', type: 'text', label: 'Put between them', hint: 'a space, ", " or nothing', ph: ' ' },
+      { k: 'name', type: 'text', label: 'New column name', ph: 'full_name' }],
+    summary: t => (t.cols.join(' + ') || '?') + ' → ' + (t.name || '?'),
+    problems: (t, x, add) => {
+      if (t.cols.length < 2) add('err', 'choose at least two columns.');
+      if (!ident(t.name)) add('err', 'give the new column a name (letters, digits, underscores).'); else if (x.has(t.name)) add('err', t.name + ' is already a column.');
+    },
+    flow: (t, cols) => cols.concat([{ name: t.name, type: 'text' }])
+  };
+  D.unpivot = {
+    label: 'Columns to rows (unpivot)', group: 'reshape', reshapes: true, title: () => 'Columns to rows',
+    hint: 'A wide table (one column per month or per question) becomes a long one: one row per original row and column, with the column’s header in one new column and its value in another.',
+    blank: () => ({ vals: [], ids: [], nameCol: 'attribute', valueCol: 'value', dropEmpty: true }),
+    fields: [{ k: 'vals', type: 'cols', label: 'Columns to turn into rows', req: true, need: 'the columns to turn into rows' },
+      { k: 'ids', type: 'cols', label: 'Columns to keep on every row', hint: 'none chosen = every other column' },
+      { k: 'nameCol', type: 'text', label: 'Column for the old header', ph: 'month' },
+      { k: 'valueCol', type: 'text', label: 'Column for the value', ph: 'amount' },
+      { k: 'dropEmpty', type: 'check', label: 'Leave out rows where the value is missing' }],
+    summary: t => (t.vals.length ? list(t.vals) : '?') + ' → ' + (t.nameCol || '?') + ' / ' + (t.valueCol || '?'),
+    problems: (t, x, add) => {
+      [['nameCol', 'the old header'], ['valueCol', 'the value']].forEach(([k, w]) => { if (!ident(t[k])) add('err', 'give the column for ' + w + ' a name (letters, digits, underscores).'); });
+      if (t.nameCol && t.nameCol === t.valueCol) add('err', 'the two new columns need different names.');
+      const keep = t.ids.length ? t.ids : x.avail.map(c => c.name).filter(n => t.vals.indexOf(n) < 0);
+      [t.nameCol, t.valueCol].forEach(n => { if (n && keep.indexOf(n) >= 0) add('err', n + ' is already a column kept on every row.'); });
+      t.ids.filter(c => t.vals.indexOf(c) >= 0).forEach(c => add('err', c + ' is chosen both to keep and to turn into rows.'));
+      const ty = new Set(t.vals.map(v => x.typeOf(v))); if (ty.size > 1) add('info', 'the columns turned into rows have different types, so ' + (t.valueCol || 'the value') + ' is text.');
+    },
+    flow: (t, cols, x) => {
+      const ids = t.ids.length ? cols.filter(c => t.ids.indexOf(c.name) >= 0 || c.name === x.rowCol) : cols.filter(c => t.vals.indexOf(c.name) < 0);
+      const ty = Array.from(new Set(t.vals.map(v => (cols.find(c => c.name === v) || {}).type || '')));
+      return ids.concat([{ name: t.nameCol, type: 'text' }, { name: t.valueCol, type: ty.length === 1 ? ty[0] : 'text' }]);
+    }
+  };
+  D.bands = {
+    label: 'Group numbers into bands', group: 'add', title: t => 'Bands of ' + (t.col || 'a number'),
+    hint: 'Puts each number in a band: with edges 100, 1000 the bands are under 100, 100 to under 1,000, and 1,000 and over. Name the bands yourself, or leave the names empty.',
+    blank: () => ({ col: '', edges: '', labels: '', name: '' }),
+    fields: [{ k: 'col', type: 'col', label: 'Number column', req: true, types: ['number'], need: 'the number column' },
+      { k: 'edges', type: 'text', label: 'Band edges', hint: 'numbers, smallest first', ph: '100, 1000' },
+      { k: 'labels', type: 'text', label: 'Band names', hint: 'optional: one more than the edges', ph: 'Small, Medium, Large' },
+      { k: 'name', type: 'text', label: 'New column name', hint: 'empty = <column>_band', ph: 'amount_band' }],
+    summary: t => (t.col || '?') + ': ' + (K.bandEdges(t).length && K.bandEdges(t).every(n => !isNaN(n)) ? K.bandLabels(t).join(' | ') : 'no edges yet') + ' → ' + nameOr(t, (t.col || 'column') + '_band'),
+    problems: (t, x, add) => {
+      const e = K.bandEdges(t);
+      if (!e.length) add('err', 'give at least one edge, for example 100, 1000.');
+      else if (e.some(isNaN)) add('err', 'the edges have to be numbers, for example 100, 1000.');
+      else if (e.some((v, i) => i && v <= e[i - 1])) add('err', 'the edges have to go up, smallest first.');
+      if (words(t.labels).length && words(t.labels).length !== e.length + 1) add('err', e.length + ' edge' + (e.length === 1 ? '' : 's') + ' make ' + (e.length + 1) + ' bands, so give ' + (e.length + 1) + ' names (or none).');
+      const n = nameOr(t, t.col + '_band'); if (!ident(n)) add('err', '“' + n + '” needs to be letters, digits and underscores.'); else if (t.col && x.has(n)) add('err', n + ' is already a column.');
+    },
+    flow: (t, cols) => cols.concat([{ name: nameOr(t, t.col + '_band'), type: 'text' }])
+  };
+  const daysName = t => nameOr(t, 'days_' + (t.until === 'today' ? 'to_today' : t.col + '_to_' + t.until));
+  D.dates = {
+    label: 'Date parts and days between', group: 'add', title: t => 'Date parts of ' + (t.col || 'a date'),
+    hint: 'Year, month, week and so on as their own columns, for grouping. Days between counts whole days from this date to another date column or to today.',
+    blank: () => ({ col: '', parts: [], until: '', name: '' }),
+    fields: [{ k: 'col', type: 'col', label: 'Date column', req: true, types: ['date'], need: 'the date column' },
+      { k: 'parts', type: 'pick', label: 'Add', opts: K.DATE_PARTS },
+      { k: 'until', type: 'col', label: 'Days from it until', types: ['date'], empty: 'No days between', extra: [['today', 'Today (when the script runs)']] },
+      { k: 'name', type: 'text', label: 'Name for the days', hint: 'empty = days_…', show: t => !!t.until }],
+    summary: t => (t.col || '?') + ': ' + ((t.parts.map(p => (K.DATE_PARTS.find(d => d[0] === p) || ['', p])[1].toLowerCase()).join(', ')) || 'no parts') + (t.until ? '; days until ' + t.until : ''),
+    problems: (t, x, add) => {
+      if (!t.parts.length && !t.until) add('err', 'choose the parts to add, or a date for days between.');
+      const made = t.parts.map(p => t.col + '_' + p).concat(t.until ? [daysName(t)] : []);
+      made.forEach(n => { if (t.col && x.has(n)) add('err', n + ' is already a column.'); });
+      if (t.until && !ident(daysName(t))) add('err', 'the name for the days needs to be letters, digits and underscores.');
+      if (t.until && t.until === t.col) add('err', 'days between needs a different date column.');
+    },
+    flow: (t, cols) => cols.concat(t.parts.map(p => ({ name: t.col + '_' + p, type: /name$/.test(p) ? 'text' : 'whole' })), t.until ? [{ name: daysName(t), type: 'whole' }] : [])
+  };
+  D.rank = {
+    label: 'Rank within a group', group: 'add', title: t => 'Rank by ' + (t.by || 'a column'),
+    hint: 'Numbers the rows 1, 2, 3 by a column, starting again in each group: the top 3 orders per customer, the latest visit per person.',
+    blank: () => ({ by: '', group: [], order: 'desc', ties: 'min', name: 'rank' }),
+    fields: [{ k: 'by', type: 'col', label: 'Rank by', req: true, need: 'the column to rank by' },
+      { k: 'order', type: 'select', label: 'Number 1 is', opts: [['desc', 'The highest or latest'], ['asc', 'The lowest or earliest']] },
+      { k: 'group', type: 'cols', label: 'Start again for each', hint: 'none chosen = rank the whole file' },
+      { k: 'ties', type: 'select', label: 'Equal values', opts: [['min', 'Share a rank: 1, 1, 3'], ['dense', 'Share a rank: 1, 1, 2'], ['first', 'Never share: 1, 2, 3 in file order']] },
+      { k: 'name', type: 'text', label: 'New column name', ph: 'rank' }],
+    summary: t => (nameOr(t, 'rank')) + ': ' + (t.order === 'asc' ? 'lowest ' : 'highest ') + (t.by || '?') + ' = 1' + (t.group.length ? ', per ' + list(t.group) : ''),
+    problems: (t, x, add) => {
+      const n = nameOr(t, 'rank'); if (!ident(n)) add('err', '“' + n + '” needs to be letters, digits and underscores.'); else if (x.has(n)) add('err', n + ' is already a column.');
+      if (t.group.indexOf(t.by) >= 0) add('err', t.by + ' can’t be both what to rank by and a group.');
+    },
+    flow: (t, cols) => cols.concat([{ name: nameOr(t, 'rank'), type: 'whole' }])
+  };
+  const runName = t => nameOr(t, (t.col || 'value') + '_' + RUN_SUFFIX[t.calc]);
+  D.running = {
+    label: 'Running total, previous value, change', group: 'add', title: t => (RUN_CALCS.find(c => c[0] === t.calc) || RUN_CALCS[0])[1] + ' of ' + (t.col || 'a column'),
+    hint: 'Each row against the rows before it: a running total, the value on the row before, or the change since then. Sort by a date first so “before” means earlier; start again for each group if you choose one.',
+    blank: () => ({ col: '', calc: 'cumsum', group: [], order: '', name: '' }),
+    fields: [{ k: 'calc', type: 'select', label: 'Work out', opts: RUN_CALCS },
+      { k: 'col', type: 'col', label: 'Of', req: true, need: 'the column to work it out from' },
+      { k: 'order', type: 'col', label: 'In the order of', empty: 'The file' },
+      { k: 'group', type: 'cols', label: 'Start again for each', hint: 'optional' },
+      { k: 'name', type: 'text', label: 'New column name', hint: 'empty = <column>_' + 'running_total…' }],
+    summary: t => runName(t) + ': ' + (RUN_CALCS.find(c => c[0] === t.calc) || RUN_CALCS[0])[1].toLowerCase() + ' of ' + (t.col || '?') + (t.order ? ' by ' + t.order : '') + (t.group.length ? ', per ' + list(t.group) : ''),
+    problems: (t, x, add) => {
+      if (t.calc !== 'prev' && t.col && x.typeOf(t.col) && !isNum(x.typeOf(t.col))) add('err', t.col + ' isn’t a number column. Set its type in Step 2, or choose Previous value.');
+      const n = runName(t); if (!ident(n)) add('err', '“' + n + '” needs to be letters, digits and underscores.'); else if (t.col && x.has(n)) add('err', n + ' is already a column.');
+    },
+    flow: (t, cols, x) => cols.concat([{ name: runName(t), type: t.calc === 'prev' ? x.typeOf(t.col) : 'decimal' }])
+  };
+  const dupName = t => snake(t.name) || 'possible_duplicate';
+  D.dupflag = {
+    label: 'Flag possible duplicates', group: 'find', needsRow: true, title: () => 'Flag possible duplicates',
+    hint: 'Rows that match on the chosen columns, ignoring capitals and extra spaces, are given the same group number and the list of their row numbers. Nothing is removed: you decide which to keep.',
+    blank: () => ({ cols: [], name: 'possible_duplicate' }),
+    fields: [{ k: 'cols', type: 'cols', label: 'Match on', req: true, need: 'the columns to match on' },
+      { k: 'name', type: 'text', label: 'Start of the new column names', hint: 'gives <name>_group and <name>_rows', ph: 'possible_duplicate' }],
+    summary: t => 'same ' + (t.cols.length ? t.cols.join(' + ') : '?') + ' → ' + dupName(t) + '_group, _rows',
+    problems: (t, x, add) => { [dupName(t) + '_group', dupName(t) + '_rows'].forEach(n => { if (x.has(n)) add('err', n + ' is already a column.'); }); },
+    flow: (t, cols) => cols.concat([{ name: dupName(t) + '_group', type: 'whole' }, { name: dupName(t) + '_rows', type: 'text' }])
+  };
+  D.conflicts = {
+    label: 'Find values that differ within a group', group: 'find', needsRow: true, once: true, title: t => 'Values that differ within a ' + (t.group || 'group'),
+    hint: 'Rows that belong together (one person, one order) should agree. For each compared column with more than one value in a group, every row of the group gets the rows involved and the distinct values, and a Conflicts sheet lists them all.',
+    blank: () => ({ group: '', cols: [], missing: false }),
+    fields: [{ k: 'group', type: 'col', label: 'Rows that belong together share', req: true, need: 'the column that identifies one person or thing' },
+      { k: 'cols', type: 'cols', label: 'Compare', req: true, not: 'group', need: 'the columns to compare' },
+      { k: 'missing', type: 'check', label: 'Count a missing value as a different value' }],
+    summary: t => (t.cols.length ? list(t.cols) : '?') + ' per ' + (t.group || '?'),
+    problems: (t, x, add) => {
+      if (t.cols.indexOf(t.group) >= 0) add('err', t.group + ' is the group, so it can’t be compared.');
+      if (t.group && !x.reqCols.has(t.group) && !x.filled.has(t.group)) add('info', 'rows with no ' + t.group + ' aren’t compared with anything.');
+    },
+    flow: (t, cols) => cols.concat(...t.cols.map(c => [{ name: c + '_conflict_rows', type: 'text' }, { name: c + '_conflict_values', type: 'text' }]), [{ name: 'conflict_columns', type: 'text' }])
+  };
+  K.TASK_DEFS = D;
+  K.taskBlank = kind => Object.assign({ kind, open: true }, D[kind].blank());
+
+  /* saved data can be anything: keep only the fields a task kind has, of the right type */
+  K.taskClean = function (s) {
+    if (!s || typeof s !== 'object' || !D[s.kind]) return null;
+    const t = K.taskBlank(s.kind); t.open = s.open === true;
+    Object.keys(t).forEach(k => {
+      if (k === 'kind' || k === 'open') return;
+      if (Array.isArray(t[k])) t[k] = (Array.isArray(s[k]) ? s[k] : []).filter(v => typeof v === 'string');
+      else if (typeof s[k] === typeof t[k]) t[k] = s[k];
+    });
+    (D[s.kind].fields || []).forEach(f => { if (f.type === 'select' && !f.opts.some(o => o[0] === t[f.k])) t[f.k] = f.opts[0][0]; });
+    return t;
+  };
+
+  /* settings saved before Common tasks (Nov 2026): lookup > filter > duplicates > fills > comparison, as they ran then */
+  const OLD = c => !Array.isArray(c.tasks) || (c.dedupe && c.dedupe.on) || (c.join && c.join.on) || (c.rowNo && c.rowNo.on) || (Array.isArray(c.fills) && c.fills.some(f => f && f.col)) || (c.conflicts && c.conflicts.on);
+  K.migrate = function (c) {
+    const T = Array.isArray(c.tasks) ? c.tasks : [], add = [], rn = c.rowNo || {}, fills = (Array.isArray(c.fills) ? c.fills : []).filter(f => f && f.col), cf = c.conflicts || {};
+    if (!T.some(t => t.kind === 'rownum') && (rn.on || fills.length || cf.on)) add.push({ kind: 'rownum', name: rn.name || 'row_number', from: rn.from === 'clean' ? 'clean' : 'file' });
+    if (c.join && c.join.on) { const j = c.join; add.push({ kind: 'lookup', fileKind: j.kind || 'csv', path: j.path || '', sheet: j.sheet || '', leftKey: j.leftKey || '', rightKey: j.rightKey || '', cols: j.cols || '', how: j.how === 'inner' ? 'inner' : 'left' }); }
+    if (K.activeFilters(c).length && !T.some(t => t.kind === 'filter')) add.push({ kind: 'filter' });
+    if (c.dedupe && c.dedupe.on) add.push({ kind: 'dedupe', cols: [], order: c.dedupe.order || '', keep: c.dedupe.keep === 'first' ? 'first' : 'last' });
+    fills.forEach(f => add.push({ kind: 'fillmatch', col: f.col, passes: f.passes || '', swapA: f.swapA || '', swapB: f.swapB || '' }));
+    if (cf.on && !T.some(t => t.kind === 'conflicts')) add.push({ kind: 'conflicts', group: cf.group || '', cols: (cf.cols || []).slice(), missing: !!cf.missing });
+    c.tasks = add.map(t => K.taskClean(t)).concat(T.map(t => K.taskClean(t)).filter(Boolean));
+    ['dedupe', 'join', 'rowNo', 'fills', 'conflicts'].forEach(k => { delete c[k]; });
+    return c;
+  };
+  K.norm = c => (OLD(c) ? K.migrate(JSON.parse(JSON.stringify(c))) : c);
+
+  /* the tasks as they run: a filter with no task of its own runs first, and row numbers are added first when a task needs them */
+  K.runList = function (cfg, ai) {
+    const T = cfg.tasks.slice(), aiF = ((ai && ai.ok) || []).some(i => i.kind === 'FILTER');
+    if (T.some(t => D[t.kind].needsRow) && !T.some(t => t.kind === 'rownum')) T.unshift({ kind: 'rownum', name: 'row_number', from: 'file', implicit: true });
+    if (!T.some(t => t.kind === 'filter') && (K.activeFilters(cfg).length || aiF)) T.unshift({ kind: 'filter', implicit: true });
+    return T;
+  };
+  K.rowTask = cfg => K.runList(K.norm(cfg), null).find(t => t.kind === 'rownum');
+  K.rowCol = cfg => { const t = K.rowTask(cfg); return t ? snake(t.name) || 'row_number' : ''; };
+  K.rowNumberLines = function (cfg) {
+    const t = K.rowTask(cfg);
+    if (!t || t.from === 'clean') return [];
+    return /^(excel|csv)$/.test(cfg.input.kind)
+      ? ['ROW_NUMBERS = pd.Series(raw.index + ' + (Number(cfg.input.skip || 0) + 2) + ', index=raw.index)   # each row as Excel or a text editor numbers it (the header is row ' + (Number(cfg.input.skip || 0) + 1) + ')']
+      : ['ROW_NUMBERS = pd.Series(raw.index + 1, index=raw.index)   # 1 = the first row read'];
+  };
+
+  /* which columns exist before and after each task */
+  K.taskFlow = function (cfg0, ai) {
+    const cfg = K.norm(cfg0), rowCol = K.rowCol(cfg);
+    let cols = cfg.cols.filter(c => c.on).map(c => ({ name: c.name, type: c.type }));
+    ((ai && ai.ok) || []).filter(i => i.kind === 'COLUMN').forEach(a => { if (!cols.some(c => c.name === a.name)) cols.push({ name: a.name, type: '' }); });
+    const steps = []; let open = false, reshaped = false;
+    K.runList(cfg, ai).forEach(t => {
+      const d = D[t.kind], typeOf = n => (cols.find(c => c.name === n) || {}).type || '';
+      const before = cols, after = d.flow ? d.flow(t, cols.slice(), { rowCol, typeOf }) : cols;
+      steps.push({ t, before, after, open, reshaped });
+      if (d.opens && d.opens(t)) open = true;
+      if (d.reshapes) reshaped = true;
+      cols = after;
+    });
+    return { steps, cols, open, rowCol, cfg };
+  };
+
+  /* checks on the tasks; names: "Task 2 (Split a column)" */
+  K.taskProblems = function (cfg0, ai, add) {
+    const fl = K.taskFlow(cfg0, ai), cfg = fl.cfg, keys = cfg.cols.filter(c => c.on && c.key).map(c => c.name);
+    const reqCols = new Set(cfg.cols.filter(c => c.on && (c.req || c.key)).map(c => c.name)), filled = new Set();
+    const seen = {};
+    fl.steps.forEach(s => {
+      const t = s.t, d = D[t.kind], at = cfg.tasks.indexOf(t);
+      const who = t.implicit ? (t.kind === 'rownum' ? 'Row numbers' : 'Filters') : 'Task ' + (at + 1) + ' (' + d.label + ')';
+      const say = (sev, msg) => add(sev, who + ': ' + msg);
+      const names = s.before.map(c => c.name), has = n => names.indexOf(n) >= 0, typeOf = n => (s.before.find(c => c.name === n) || {}).type || '';
+      const known = n => s.open || has(n);
+      if (d.once && !t.implicit) { if (seen[t.kind]) say('err', 'only one of these is used. Remove this one.'); seen[t.kind] = true; }
+      (d.fields || []).forEach(f => {
+        if (f.show && !f.show(t)) return;
+        const v = t[f.k], ok = ty => !ty || !f.types || f.types.some(w => (w === 'number' ? isNum(ty) : w === 'date' ? isDate(ty) : ty === w));
+        if (f.type === 'col') {
+          if (!v) { if (f.req) say('err', 'choose ' + (f.need || f.label.toLowerCase()) + '.'); return; }
+          if (f.extra && f.extra.some(e => e[0] === v)) return;
+          if (!known(v)) say('err', v + ' isn’t a column at this point.');
+          else if (!ok(typeOf(v))) say('err', v + ' isn’t a ' + f.types.join(' or ') + ' column. Set its type in Step 2.');
+        }
+        if (f.type === 'cols') {
+          if (f.req && !v.length) say('err', 'choose ' + (f.need || f.label.toLowerCase()) + '.');
+          v.filter(c => !known(c)).forEach(c => say('err', c + ' isn’t a column at this point.'));
+          v.filter(c => known(c) && !ok(typeOf(c))).forEach(c => say('err', c + ' isn’t a ' + f.types.join(' or ') + ' column.'));
+        }
+      });
+      if (d.problems) d.problems(t, { cfg, keys, has, typeOf, avail: s.before, open: s.open, reshaped: s.reshaped, reqCols, filled, lookupVar: lookupVar(cfg, t) }, say);
+      if (d.needsRow) { const r = fl.steps.findIndex(x => x.t.kind === 'rownum'), me = fl.steps.indexOf(s); if (r > me) say('err', 'it needs row numbers, so put Number the rows above it.'); }
+      if (t.kind === 'fillmatch' && t.col) filled.add(t.col);
+    });
+    return fl;
+  };
+  const lookupVar = (cfg, t) => { const i = cfg.tasks.filter(x => x.kind === 'lookup').indexOf(t); return 'LOOKUP_PATH' + (i > 0 ? '_' + (i + 1) : ''); };
+  K.lookupVar = lookupVar;
+  K.taskSummary = (t, x) => D[t.kind].summary(t, x);
+
+  /* ---------- the code each task writes ---------- */
+  const HELPERS = {
+    match_key: ['def match_key(frame, cols):', '    """The columns as trimmed, lower-case text joined with |. A row with any of them missing gets no key."""', '    parts = []', '    for c in cols:', '        s = frame[c]',
+      '        s = s.dt.strftime("%Y-%m-%d") if pd.api.types.is_datetime64_any_dtype(s) else s.astype("string")', '        parts.append(s.astype("string").str.strip().str.casefold().str.replace(r"\\s+", " ", regex=True))',
+      '    key = parts[0]', '    for p in parts[1:]:', '        key = key + "|" + p', '    return key.where(~key.isin(["", "nan"]))', ''],
+    as_text: ['def as_text(s):', '    """Values as text: dates as yyyy-mm-dd, 12.0 as 12."""', '    if pd.api.types.is_datetime64_any_dtype(s):', '        return s.dt.strftime("%Y-%m-%d").astype("string")',
+      '    t = s.astype("string")', '    if pd.api.types.is_numeric_dtype(s):', '        t = t.str.replace(r"\\.0$", "", regex=True)', '    return t', '']
+  };
+  const C = {};
+  C.rownum = (t, x) => ({ title: 'Row numbers', md: (t.from === 'clean' ? 'Numbers the rows 1, 2, 3... at this point.' : 'The row each line came from in the file' + (/^(excel|csv)$/.test(x.cfg.input.kind) ? ', as Excel or a text editor shows it (the header is row ' + (Number(x.cfg.input.skip || 0) + 1) + ')' : '') + ', so any row can be found in the source.') + ' Later steps use it to say which row a value came from.',
+    code: ['ROW_COL = ' + py(x.rowCol), t.from === 'clean' ? 'df.insert(0, ROW_COL, pd.array(range(1, len(df) + 1), dtype="Int64"))' : 'df.insert(0, ROW_COL, ROW_NUMBERS.reindex(df.index).astype("Int64"))   # rows dropped earlier keep their gaps'] });
+  C.lookup = function (t, x) {
+    const want = words(t.cols), v = lookupVar(x.cfg, t), L = ['RIGHT_KEY = ' + py(t.rightKey.trim()), 'LEFT_KEY  = ' + py(t.leftKey), 'LOOKUP_COLS = ' + (want.length ? pyList(want) : 'None') + '   # None = every column', '',
+      'lookup = ' + x.reader(t.fileKind, v, t, true), 'lookup.columns = [str(c).strip() for c in lookup.columns]', 'if LOOKUP_COLS is None:', '    LOOKUP_COLS = [c for c in lookup.columns if c != RIGHT_KEY]',
+      'missing = [c for c in [RIGHT_KEY] + LOOKUP_COLS if c not in lookup.columns]', 'if missing:', '    raise ValueError(f"The lookup file is missing column(s): {missing}. It has: {list(lookup.columns)}")',
+      'clash = [c for c in LOOKUP_COLS if c in df.columns]', 'if clash:', '    raise ValueError(f"The lookup would add column(s) that already exist: {clash}. Set LOOKUP_COLS or rename them.")', '',
+      '# Keys are matched as trimmed text, so 00123 and 123 are different', 'lookup = lookup[[RIGHT_KEY] + LOOKUP_COLS].copy()', 'lookup["_key"] = lookup[RIGHT_KEY].astype("string").str.strip()', 'lookup = lookup[lookup["_key"].notna()]',
+      'if lookup["_key"].duplicated().any():', '    dupes = lookup.loc[lookup["_key"].duplicated(), "_key"].unique()[:5].tolist()', '    raise ValueError(f"The lookup file has more than one row for some keys, which would multiply your rows. For example: {dupes}")', '',
+      'df["_key"] = df[LEFT_KEY].astype("string").str.strip()', 'merged = df.merge(lookup.drop(columns=[RIGHT_KEY]), how="left", on="_key", indicator=True)', 'merged.index = df.index   # same rows in the same order: keep their labels', 'df = merged',
+      'unmatched = (df["_merge"] == "left_only") & df[LEFT_KEY].notna()', 'if unmatched.any():',
+      '    examples = ", ".join(df.loc[unmatched, "_key"].astype(str).unique()[:3])', '    note(f"{LEFT_KEY}: no match in the lookup file", unmatched.sum(), f"for example: {examples}")'];
+    if (t.how === 'inner') L.push('df = df[df["_merge"] == "both"]   # keep only the rows that matched');
+    L.push('df = df.drop(columns=["_key", "_merge"])');
+    return { title: 'Look up columns from a second file', md: 'Adds columns by matching ' + t.leftKey + ' to ' + (t.rightKey.trim() || 'the key') + '. The row count can’t grow: a lookup file with repeated keys stops the script.', code: L };
+  };
+  C.filter = function (t, x) {
+    const cfg = x.cfg, aiFilter = x.aiFilter;
+    const FL = K.activeFilters(cfg).map((f, i) => ({ name: String(f.label || '').trim() || f.when.trim(), test: 'df.eval(' + py(f.when.trim()) + ', engine="python")', join: i ? (f.join === 'or' ? 'or' : 'and') : '' }));
+    if (aiFilter) FL.push({ name: 'Copilot filter', test: '(' + aiFilter.expr + ')', join: FL.length ? 'and' : '' });
+    if (!FL.length) return null;
+    const keepOut = x.state.keepOut = !!cfg.keepRemoved;
+    const logic = K.filterLogic(K.activeFilters(cfg).concat(aiFilter ? [{ when: 'Copilot filter', join: 'and' }] : []));
+    const fp = Math.max.apply(null, FL.map(f => py(f.name).length));
+    const F = ['# True for the rows each filter keeps. A missing value never passes a filter.', 'PASSES = {'].concat(FL.map(f => '    ' + (py(f.name) + ':').padEnd(fp + 1) + ' ' + f.test + ','), ['}',
+      'PASSES = {name: pd.Series(p, index=df.index).fillna(False).astype(bool) for name, p in PASSES.items()}', '']);
+    if (FL.length > 1) F.push('# Combined left to right: ' + logic);
+    FL.forEach((f, i) => F.push(i === 0 ? 'keep = PASSES[' + py(f.name) + ']' : 'keep = keep ' + (f.join === 'or' ? '|' : '&') + ' PASSES[' + py(f.name) + ']   # ' + f.join));
+    if (keepOut) F.push('', '# Every row before filtering, and the rows the filters take out with the filters each one failed', 'original = df.copy()', 'filtered_out = df[~keep].copy()',
+      'filtered_out["failed_filters"] = [", ".join(n for n, p in PASSES.items() if not p.loc[i]) for i in filtered_out.index]');
+    F.push('', 'before = len(df)', 'df = df[keep]', 'rows_filtered = before - len(df)', 'print(f"Filters removed {rows_filtered:,} row(s)")');
+    if (keepOut) F.push('assert len(original) == len(df) + len(filtered_out), "Rows kept + rows filtered out must equal the rows before filtering"');
+    return { title: 'Keep only the rows you want', md: (FL.length > 1 ? 'Rows are kept when they pass: ' + logic + '. ' : '') + (keepOut ? 'All rows before filtering and the rows taken out are kept for the output.' : 'Rows that don’t pass are removed and counted.'), code: F };
+  };
+  C.dedupe = function (t, x) {
+    const cols = t.cols.length ? t.cols : x.keys; if (!cols.length) return null;
+    const onKeys = !t.cols.length || (cols.length === x.keys.length && cols.every(c => x.keys.indexOf(c) >= 0));
+    if (onKeys) x.state.dd = true;
+    const v = onKeys && x.keys.length ? 'KEY_COLS' : 'DEDUPE_COLS', Dd = v === 'DEDUPE_COLS' ? ['DEDUPE_COLS = ' + pyList(cols), 'before = len(df)'] : ['before = len(df)'];
+    if (t.order) Dd.push('# Latest row per key: sort by ' + t.order + ', keep the last, then put the rows back in file order', 'df = (df.sort_values(' + py(t.order) + ', kind="stable", na_position="first")', '        .drop_duplicates(subset=' + v + ', keep="last")', '        .sort_index())');
+    else Dd.push('df = df.drop_duplicates(subset=' + v + ', keep=' + py(t.keep === 'first' ? 'first' : 'last') + ')');
+    Dd.push('rows_deduped = before - len(df)', 'print(f"Removed {rows_deduped:,} duplicate row(s) on {' + v + '}")');
+    return { title: 'Remove duplicates', md: 'One row per ' + cols.join(', ') + (t.order ? ', keeping the one with the latest ' + t.order : ', keeping the ' + (t.keep === 'first' ? 'first' : 'last') + ' in the file') + '.', code: Dd };
+  };
+  C.filldown = function (t) {
+    if (!t.cols.length) return null;
+    const L = ['FILL_DOWN = ' + pyList(t.cols), 'before = df[FILL_DOWN].isna().sum()'];
+    L.push(t.within ? 'df[FILL_DOWN] = df.groupby(' + py(t.within) + ', dropna=False)[FILL_DOWN].ffill()   # never across two ' + t.within + ' values' : 'df[FILL_DOWN] = df[FILL_DOWN].ffill()');
+    L.push('for col in FILL_DOWN:', '    print(f"{col}: {int(before[col] - df[col].isna().sum()):,} blank(s) filled from the row above")');
+    return { title: 'Fill blanks from the row above', md: 'A blank in ' + t.cols.join(', ') + ' takes the last value above it' + (t.within ? ', only within the same ' + t.within : '') + '. Blanks before the first value stay blank.', code: L };
+  };
+  C.fillmatch = function (t, x) {
+    const ps = K.fillPasses(t); if (!t.col || !ps.length) return null;
+    const F = ['# The column, then the matches to try in order. A match is used only when it points to ONE value.', 'FILL = {"fill": ' + py(t.col) + ', "passes": [' + ps.map(pyList).join(', ') + '], "swap": ' + (t.swapA && t.swapB ? pyList([t.swapA, t.swapB]) : 'None') + '}', ''].concat(x.helper('match_key'), [
+      'col = FILL["fill"]', 'from_col, note_col = f"{col}_filled_from_row", f"{col}_fill_note"', 'df[from_col] = pd.Series(pd.NA, index=df.index, dtype="Int64")', 'df[note_col] = pd.Series(pd.NA, index=df.index, dtype="string")',
+      'donors = df[df[col].notna()]                       # only rows that had the value give it', 'was_missing = int(df[col].isna().sum())', 'for cols in FILL["passes"]:', '    tries = [(cols, " + ".join(cols))]',
+      '    if FILL["swap"] and all(c in cols for c in FILL["swap"]):', '        a, b = FILL["swap"]', '        tries.append(([b if c == a else a if c == b else c for c in cols], " + ".join(cols) + f" with {a} and {b} swapped"))',
+      '    for row_cols, label in tries:', '        need = df[col].isna() & df[note_col].isna()', '        if not need.any():', '            break',
+      '        table = pd.DataFrame({"key": match_key(donors, cols), "value": donors[col], "row": donors[ROW_COL]}).dropna(subset=["key"]).sort_values("row")',
+      '        grouped = table.groupby("key")', '        n_values = grouped["value"].nunique()', '        first_value, first_row = grouped["value"].first(), grouped["row"].first()',
+      '        listed = grouped["value"].agg(lambda s: "; ".join(dict.fromkeys(s.astype(str))))', '        key = match_key(df.loc[need], row_cols)', '        n = key.map(n_values)',
+      '        one = key[n.eq(1).fillna(False).astype(bool)]', '        many = key[n.gt(1).fillna(False).astype(bool)]', '        df.loc[one.index, col] = one.map(first_value).astype(df[col].dtype)',
+      '        df.loc[one.index, from_col] = one.map(first_row).astype("Int64")', '        df.loc[one.index, note_col] = "matched on " + label',
+      '        df.loc[many.index, note_col] = ("not filled: " + label + " matches " + many.map(listed)).astype("string")',
+      '        print(f"{col}: {len(one):,} filled by {label}" + (f", {len(many):,} with more than one match" if len(many) else ""))',
+      'df.loc[df[col].isna() & df[note_col].isna(), note_col] = "not filled: no match"', 'filled = int(df[from_col].notna().sum())', 'print(f"{col}: {filled:,} of {was_missing:,} missing value(s) filled")',
+      'still = df[col].isna()', 'if still.any():', '    note(f"{col} still missing after matching", still.sum(), "see " + note_col)']);
+    return { title: 'Fill a missing ' + t.col + ' from matching rows', md: 'A row missing ' + t.col + ' takes the value from another row that matches it, trying each match in order. A match counts only when every matching row has the same value; when they disagree the row is left empty and the note lists the candidates. Only rows that had the value give it. The row it came from and how it matched are written in ' + t.col + '_filled_from_row and ' + t.col + '_fill_note.', code: F };
+  };
+  C.replace = function (t) {
+    const pairs = K.replacePairs(t); if (!t.cols.length || !pairs.length) return null;
+    const cs = t.caseSens ? 'True' : 'False', pp = Math.max.apply(null, pairs.map(p => py(p[0]).length));
+    const L = ['REPLACE_IN = ' + pyList(t.cols), 'REPLACEMENTS = {   # old: new' + (t.part ? '' : ' (None = missing)')].concat(pairs.map(p => '    ' + (py(p[0]) + ':').padEnd(pp + 1) + ' ' + (p[1] === '' && !t.part ? 'None' : py(p[1])) + ','), ['}', 'CAPITALS_MATTER = ' + cs, '']);
+    if (t.part) L.push('import re', '', 'for col in REPLACE_IN:', '    s = df[col].astype("string")', '    changed = pd.Series(False, index=df.index)', '    for old, new in REPLACEMENTS.items():',
+      '        changed |= s.str.contains(old, case=CAPITALS_MATTER, regex=False, na=False)', '        s = s.str.replace(re.escape(old), lambda m, new=new: new, regex=True, case=CAPITALS_MATTER)',
+      '    df[col] = s.str.strip().replace("", pd.NA)', '    print(f"{col}: {int(changed.sum()):,} value(s) changed")');
+    else L.push('for col in REPLACE_IN:', '    original = df[col].astype("string")', '    compare = original if CAPITALS_MATTER else original.str.casefold()', '    s = original.copy()', '    changed = pd.Series(False, index=df.index)',
+      '    for old, new in REPLACEMENTS.items():', '        hit = (compare == (old if CAPITALS_MATTER else old.casefold())).fillna(False).astype(bool)', '        s = s.mask(hit, pd.NA if new is None else new)', '        changed |= hit',
+      '    df[col] = s', '    print(f"{col}: {int(changed.sum()):,} value(s) replaced")');
+    return { title: 'Replace values', md: (t.part ? 'Replaces text inside ' : 'Replaces whole values of ') + t.cols.join(', ') + (t.caseSens ? ' (capitals must match)' : ', ignoring capitals') + '. Each column prints how many values changed.', code: L };
+  };
+  C.split = function (t) {
+    const into = words(t.into); if (!t.col || into.length < 2 || t.sep === '') return null;
+    const L = ['SPLIT_COL = ' + py(t.col), 'SEPARATOR = ' + py(t.sep), 'NEW_COLS = ' + pyList(into), '',
+      'parts = df[SPLIT_COL].astype("string").str.split(SEPARATOR, n=len(NEW_COLS) - 1, expand=True, regex=False)', 'parts = parts.reindex(columns=range(len(NEW_COLS)))',
+      'at = df.columns.get_loc(SPLIT_COL) + 1'];
+    if (!t.keep) L.push('original = df[SPLIT_COL]');
+    L.push('for i, name in enumerate(NEW_COLS):', '    df.insert(at + i, name, parts[i].astype("string").str.strip().replace("", pd.NA))');
+    if (!t.keep) L.push('df = df.drop(columns=[SPLIT_COL])' + (into.indexOf(t.col) >= 0 ? '   # never happens: a new column has the same name' : ''));
+    L.push('fewer = df[NEW_COLS[-1]].isna() & ' + (t.keep ? 'df[SPLIT_COL]' : 'original') + '.notna()', 'if fewer.any():', '    note(f"{SPLIT_COL}: fewer pieces than columns", fewer.sum(), "the last column(s) are empty")');
+    return { title: 'Split ' + t.col, md: 'Splits ' + t.col + ' at “' + t.sep + '” into ' + into.join(', ') + '. Spaces around each piece are trimmed. Rows with fewer pieces are listed.' + (t.keep ? '' : ' The original column is removed.'), code: L };
+  };
+  C.combine = function (t, x) {
+    if (t.cols.length < 2 || !t.name) return null;
+    return { title: 'Combine into ' + t.name, md: 'Joins ' + t.cols.join(', ') + ' into ' + t.name + ' with “' + t.sep + '” between them. A missing value is skipped.', code: x.helper('as_text').concat([
+      'COMBINE = ' + pyList(t.cols), 'SEPARATOR = ' + py(t.sep), '', 'combined = pd.Series(pd.NA, index=df.index, dtype="string")', 'for c in COMBINE:', '    t = as_text(df[c]).str.strip().replace("", pd.NA)',
+      '    combined = (combined + SEPARATOR + t).fillna(combined).fillna(t)   # skip a missing piece', 'df[' + py(t.name) + '] = combined']) };
+  };
+  C.unpivot = function (t, x) {
+    if (!t.vals.length || !t.nameCol || !t.valueCol) return null;
+    const ids = t.ids.length ? (x.rowCol && t.ids.indexOf(x.rowCol) < 0 && x.has(x.rowCol) ? [x.rowCol].concat(t.ids) : t.ids) : null;
+    const mixed = new Set(t.vals.map(v => x.typeOf(v))).size !== 1;
+    const L = ['VALUE_COLS = ' + pyList(t.vals), 'ID_COLS = ' + (ids ? pyList(ids) : '[c for c in df.columns if c not in VALUE_COLS]   # every other column'), '', 'before = len(df)',
+      'df = (df.reset_index(names="_row")', '        .melt(id_vars=["_row"] + ID_COLS, value_vars=VALUE_COLS, var_name=' + py(t.nameCol) + ', value_name=' + py(t.valueCol) + ')',
+      '        .sort_values("_row", kind="stable")   # each original row\'s values together, in column order', '        .drop(columns="_row")', '        .reset_index(drop=True))'];
+    if (mixed) L.push('df[' + py(t.valueCol) + '] = df[' + py(t.valueCol) + '].astype("string")   # the columns had different types');
+    if (t.dropEmpty) L.push('df = df[df[' + py(t.valueCol) + '].notna()].reset_index(drop=True)');
+    L.push('print(f"Columns to rows: {before:,} row(s) became {len(df):,}")');
+    return { title: 'Columns to rows', md: 'Turns ' + t.vals.join(', ') + ' into rows: the header goes in ' + t.nameCol + ' and the value in ' + t.valueCol + '.' + (t.dropEmpty ? ' Rows with no value are left out.' : ''), code: L };
+  };
+  C.bands = function (t) {
+    const e = K.bandEdges(t); if (!t.col || !e.length || e.some(isNaN)) return null;
+    const name = nameOr(t, t.col + '_band');
+    return { title: 'Bands of ' + t.col, md: K.bandLabels(t).join(', ') + '. Each band includes its lower edge. A missing number gives a missing band.', code: [
+      'EDGES = [' + e.join(', ') + ']', 'BANDS = ' + pyList(K.bandLabels(t)), 'numbers = pd.to_numeric(df[' + py(t.col) + '], errors="coerce").astype("Float64").to_numpy(dtype="float64", na_value=float("nan"))',
+      'df[' + py(name) + '] = pd.Series(pd.cut(numbers, bins=[float("-inf")] + EDGES + [float("inf")], labels=BANDS, right=False), index=df.index).astype("string")',
+      'print(df[' + py(name) + '].value_counts(dropna=False).to_string())'] };
+  };
+  C.dates = function (t) {
+    if (!t.col) return null;
+    const P = { year: 'd.dt.year.astype("Int64")', quarter: 'd.dt.quarter.astype("Int64")', month: 'd.dt.month.astype("Int64")', month_name: 'd.dt.month_name().astype("string")', week: 'd.dt.isocalendar().week.astype("Int64")', weekday: 'd.dt.day_name().astype("string")', day: 'd.dt.day.astype("Int64")' };
+    const L = ['d = pd.to_datetime(df[' + py(t.col) + '], errors="coerce")'];
+    t.parts.forEach(p => L.push('df[' + py(t.col + '_' + p) + '] = ' + P[p]));
+    if (t.until) L.push('df[' + py(daysName(t)) + '] = ((' + (t.until === 'today' ? 'pd.Timestamp.today().normalize()' : 'pd.to_datetime(df[' + py(t.until) + '], errors="coerce").dt.normalize()') + ' - d.dt.normalize()).dt.days).astype("Int64")   # whole days; negative = before ' + t.col);
+    return { title: 'Date parts of ' + t.col, md: 'New columns from ' + t.col + '. A missing date gives missing parts.' + (t.until === 'today' ? ' Days to today change each day the script runs.' : ''), code: L };
+  };
+  C.rank = function (t) {
+    if (!t.by) return null;
+    const name = nameOr(t, 'rank'), how = 'rank(method=' + py(t.ties) + ', ascending=' + (t.order === 'asc' ? 'True' : 'False') + ')';
+    return { title: 'Rank by ' + t.by, md: '1 = the ' + (t.order === 'asc' ? 'lowest' : 'highest') + ' ' + t.by + (t.group.length ? ' within each ' + t.group.join(' and ') : '') + '. A missing ' + t.by + ' gets no rank.', code: [
+      'df[' + py(name) + '] = ' + (t.group.length ? 'df.groupby(' + pyList(t.group) + ', dropna=False)[' + py(t.by) + '].' + how : 'df[' + py(t.by) + '].' + how) + '.astype("Int64")'] };
+  };
+  C.running = function (t) {
+    if (!t.col) return null;
+    const name = runName(t), L = [t.order ? 'ordered = df.sort_values(' + py(t.order) + ', kind="stable", na_position="first")' : 'ordered = df'];
+    L.push(t.calc === 'prev' ? 'values = ordered[' + py(t.col) + ']' : 'values = pd.to_numeric(ordered[' + py(t.col) + '], errors="coerce").astype("Float64")');
+    const g = t.group.length ? 'values.groupby([' + t.group.map(c => 'ordered[' + py(c) + ']').join(', ') + '], dropna=False)' : 'values';
+    if (t.calc === 'cumsum') L.push('result = ' + g + '.cumsum()   # a missing value adds nothing');
+    else L.push('previous = ' + g + '.shift(1)', t.calc === 'prev' ? 'result = previous' : t.calc === 'change' ? 'result = values - previous' : 'result = ((values - previous) / previous.where(previous != 0)).round(4)   # 0.25 = up 25%');
+    L.push('df[' + py(name) + '] = result.reindex(df.index)');
+    return { title: (RUN_CALCS.find(c => c[0] === t.calc) || RUN_CALCS[0])[1] + ' of ' + t.col, md: 'Rows are taken in the order of ' + (t.order || 'the file') + (t.group.length ? ', starting again for each ' + t.group.join(' and ') : '') + '. The rows stay in file order.' + (t.calc === 'cumsum' ? '' : ' The first row has no previous value.'), code: L };
+  };
+  C.dupflag = function (t, x) {
+    if (!t.cols.length) return null;
+    const n = dupName(t);
+    return { title: 'Flag possible duplicates', md: 'Rows with the same ' + t.cols.join(' + ') + ' (ignoring capitals and extra spaces) get the same ' + n + '_group, and ' + n + '_rows lists their row numbers. A row with any of these missing isn’t matched. Nothing is removed.', code: x.helper('match_key').concat([
+      'DUP_COLS = ' + pyList(t.cols), 'key = match_key(df, DUP_COLS)', 'hit = key.map(key.value_counts()).gt(1).fillna(False).astype(bool)', 'group_no = {k: i + 1 for i, k in enumerate(pd.unique(key[hit]))}',
+      'df[' + py(n + '_group') + '] = key.where(hit).map(group_no).astype("Int64")', 'rows = df.loc[hit, ROW_COL].groupby(key[hit]).agg(lambda s: "; ".join(str(v) for v in s))',
+      'df[' + py(n + '_rows') + '] = key.where(hit).map(rows).astype("string")', 'if hit.any():', '    note("possible duplicates on " + " + ".join(DUP_COLS), hit.sum(), f"in {len(group_no):,} group(s), see ' + n + '_group")', 'else:', '    print("No possible duplicates on " + " + ".join(DUP_COLS))']) };
+  };
+  C.conflicts = function (t, x) {
+    if (!t.group || !t.cols.length) return null;
+    x.state.cfOn = true;
+    return { title: 'Values that differ within a ' + t.group, md: 'Rows with the same ' + t.group + ' should agree on ' + t.cols.join(', ') + '. For each column that has more than one value in a group, every row of the group gets the rows involved (<column>_conflict_rows) and the distinct values (<column>_conflict_values), and conflict_columns lists the columns that differ. ' + (t.missing ? 'A missing value counts as a different value.' : 'Missing values are ignored.') + ' The full list is written to a Conflicts ' + (x.xl ? 'sheet.' : 'file.'),
+      code: x.helper('as_text').concat(['CONFLICT_GROUP = ' + py(t.group) + '   # rows with the same value here are one person or thing', 'CONFLICT_COLUMNS = ' + pyList(t.cols), 'COUNT_MISSING = ' + (t.missing ? 'True' : 'False') + '   # True: a missing value counts as a different value', 'SEP = "; "', '',
+        'conflict_list = []', 'in_group = df[df[CONFLICT_GROUP].notna()]', 'differs = pd.Series("", index=df.index, dtype="object")', 'for c in CONFLICT_COLUMNS:',
+        '    t = pd.DataFrame({"group": in_group[CONFLICT_GROUP], "value": as_text(in_group[c]), "row": in_group[ROW_COL]})', '    t["value"] = t["value"].fillna("(missing)") if COUNT_MISSING else t["value"]',
+        '    t = t.dropna(subset=["value"]).sort_values("row")', '    agg = t.groupby("group").agg(n=("value", "nunique"), rows=("row", lambda s: SEP.join(str(x) for x in s)), values=("value", lambda s: SEP.join(dict.fromkeys(s))))',
+        '    agg = agg[agg["n"] > 1]', '    df[f"{c}_conflict_rows"] = df[CONFLICT_GROUP].map(agg["rows"]).astype("string")', '    df[f"{c}_conflict_values"] = df[CONFLICT_GROUP].map(agg["values"]).astype("string")',
+        '    hit = df[CONFLICT_GROUP].isin(agg.index) & df[CONFLICT_GROUP].notna()', '    differs[hit] = differs[hit] + c + SEP', '    if len(agg):', '        note(f"{c} differs within {CONFLICT_GROUP}", hit.sum(), f"in {len(agg):,} group(s)")',
+        '        conflict_list.append(agg.reset_index().assign(column=c)[["group", "column", "rows", "values"]])', 'df["conflict_columns"] = differs.str.rstrip(SEP).replace("", pd.NA).astype("string")',
+        'conflicts = pd.concat(conflict_list, ignore_index=True) if conflict_list else pd.DataFrame(columns=["group", "column", "rows", "values"])', 'conflicts = conflicts.rename(columns={"group": CONFLICT_GROUP})',
+        'print(f"{len(conflicts):,} value(s) differ within a " + CONFLICT_GROUP + "; " + f"{int(df[\'conflict_columns\'].notna().sum()):,} row(s) affected")']) };
+  };
+  K.TASK_CODE = C;
+
+  /* the sections every task writes, in order; state collects what the write step needs (filtered-out rows, conflicts) */
+  K.taskSections = function (cfg0, ai, x) {
+    const fl = K.taskFlow(cfg0, ai), cfg = fl.cfg, done = new Set(), out = [];
+    x.state = x.state || {};
+    fl.steps.forEach(s => {
+      const names = s.before.map(c => c.name);
+      const ctx = Object.assign({}, x, { cfg, rowCol: fl.rowCol, has: n => names.indexOf(n) >= 0, typeOf: n => (s.before.find(c => c.name === n) || {}).type || '',
+        helper: h => (done.has(h) ? [] : (done.add(h), HELPERS[h].slice())) });
+      const sec = C[s.t.kind](s.t, ctx);
+      if (sec) out.push(sec);
+    });
+    return out;
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -1636,8 +2037,8 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     c.input.path = 'orders.csv';
     c.cols = K.mapCols(K.parseSample(SAMPLE), []);
     c.cols.forEach(x => { if (x.name === 'order_id') { x.key = true; x.req = true; } if (x.name === 'order_date' || x.name === 'amount') x.req = true; });
-    c.dedupe = { on: true, order: 'order_date', keep: 'last' };
     c.filters = [{ when: 'status != "TEST"', label: '', join: 'and' }];
+    c.tasks = [Object.assign(K.taskBlank('filter'), { open: false }), Object.assign(K.taskBlank('dedupe'), { order: 'order_date', open: false })];
     c.rules = [{ kind: 'min', col: 'amount', val: '0' }, { kind: 'inlist', col: 'status', val: 'OPEN, SHIPPED, CANCELLED' }];
     c.bad = 'split';
     c.summary = { on: true, group: ['sales_region'], metrics: [{ name: 'orders', agg: 'size', col: '' }, { name: 'total_amount', agg: 'sum', col: 'amount' }] };
@@ -1679,15 +2080,12 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     pd0.sections = arr(sp.sections).map(x => ({ name: str(x.name), label: str(x.label) })).filter(x => x.name || x.label);
     copy(c.opts, s.opts, ['trim', 'emptyNa', 'dropBlank', 'dropDupRows', 'sameCase', 'dayFirst']);
     c.cols = arr(s.cols).filter(x => str(x.src)).map(x => ({ src: str(x.src), name: str(x.name), type: oneOf(K.TYPES.map(t => t[0]), x.type, 'text'), on: x.on !== false, key: !!x.key, req: !!x.req }));
-    copy(c.dedupe, s.dedupe, ['on', 'order']); c.dedupe.keep = oneOf(['first', 'last'], obj(s.dedupe).keep, 'last');
-    copy(c.join, s.join, ['on', 'path', 'sheet', 'leftKey', 'rightKey', 'cols']); c.join.kind = oneOf(kinds, obj(s.join).kind, 'csv'); c.join.how = oneOf(['left', 'inner'], obj(s.join).how, 'left');
     c.summary.on = obj(s.summary).on === true; c.summary.group = (Array.isArray(obj(s.summary).group) ? s.summary.group : []).filter(x => typeof x === 'string');
     c.summary.metrics = arr(obj(s.summary).metrics).map(x => ({ name: str(x.name), agg: oneOf(K.AGGS.map(a => a[0]), x.agg, 'sum'), col: str(x.col) }));
     c.rules = arr(s.rules).map(x => ({ kind: oneOf(K.RULES.map(r => r[0]), x.kind, 'min'), col: str(x.col), val: str(x.val) }));
     copy(c.output, s.output, ['path']); c.output.kind = oneOf(kinds, obj(s.output).kind, 'csv');
-    const rn = obj(s.rowNo); c.rowNo = { on: rn.on === true, name: str(rn.name) || 'row_number', from: rn.from === 'clean' ? 'clean' : 'file' };
-    c.fills = arr(s.fills).map(x => ({ col: str(x.col), passes: str(x.passes), swapA: str(x.swapA), swapB: str(x.swapB) }));
-    const cf = obj(s.conflicts); c.conflicts = { on: cf.on === true, group: str(cf.group), cols: (Array.isArray(cf.cols) ? cf.cols : []).filter(x => typeof x === 'string'), missing: cf.missing === true };
+    /* tasks; settings saved before Common tasks (duplicates, lookup, row numbers, fills, comparison) become tasks */
+    c.tasks = K.migrate({ tasks: arr(s.tasks), filters: c.filters, dedupe: obj(s.dedupe), join: obj(s.join), rowNo: obj(s.rowNo), fills: arr(s.fills), conflicts: obj(s.conflicts) }).tasks;
     return c;
   }
   function load() {
@@ -1708,10 +2106,6 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
   /* drop choices that point at columns that are gone */
   function prune() {
     const n = names(), all = K.known(cfg, null);
-    if (n.indexOf(cfg.dedupe.order) < 0) cfg.dedupe.order = '';
-    if (n.indexOf(cfg.join.leftKey) < 0) cfg.join.leftKey = '';
-    if (n.indexOf(cfg.conflicts.group) < 0) cfg.conflicts.group = '';
-    cfg.conflicts.cols = cfg.conflicts.cols.filter(c => n.indexOf(c) >= 0);
     if (!all.open) cfg.summary.group = cfg.summary.group.filter(g => all.all.indexOf(g) >= 0 || (ai && ai.ok.some(i => i.name === g)));
   }
 
@@ -1730,41 +2124,69 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       + '<td><input type="text" data-f="name" value="' + esc(c.name) + '" spellcheck="false" aria-label="New name for ' + esc(c.src) + '"></td><td><select data-f="type" aria-label="Type">' + opts(K.TYPES, c.type) + '</select></td>'
       + '<td class="ck"><input type="checkbox" data-f="key"' + (c.key ? ' checked' : '') + ' aria-label="Key"></td><td class="ck"><input type="checkbox" data-f="req"' + (c.req || c.key ? ' checked' : '') + (c.key ? ' disabled' : '') + ' aria-label="Required"></td></tr>').join('')
       || '<tr><td colspan="6" class="muted">Paste the header row and a few rows in Step 1 and the columns appear here.</td></tr>';
-    const n = names(), on = cfg.cols.filter(c => c.on);
-    $('dedupeBox').hidden = !cfg.dedupe.on; $('joinBox').hidden = !cfg.join.on; $('joinNote').hidden = !cfg.join.on; $('sumBox').hidden = !cfg.summary.on;
-    $('dedupeOrder').innerHTML = opts(on.filter(c => /^(date|datetime|whole|decimal)$/.test(c.type)).map(c => [c.name, 'The one with the latest ' + c.name]), cfg.dedupe.order, 'By position in the file');
-    $('keepBox').hidden = !!cfg.dedupe.order; $('joinSheet').hidden = cfg.join.kind !== 'excel';
-    $('joinLeft').innerHTML = opts(n, cfg.join.leftKey, 'Choose a column');
+    $('sumBox').hidden = !cfg.summary.on;
     $('badSel').innerHTML = opts(K.BAD, cfg.bad);
     const all = K.known(cfg, ai).all;
-    $('filterList').innerHTML = cfg.filters.map((f, i) => '<div class="rrow filt" data-list="filters" data-i="' + i + '">'
-      + (i ? '<select data-f="join" aria-label="Combine with the filters before"><option value="and"' + (f.join !== 'or' ? ' selected' : '') + '>AND</option><option value="or"' + (f.join === 'or' ? ' selected' : '') + '>OR</option></select>' : '<span class="muted small" style="align-self:center">Keep if</span>')
-      + '<input type="text" data-f="when" value="' + esc(f.when) + '" placeholder=\'order_date >= "2026-06-01"\' spellcheck="false" aria-label="Condition">'
-      + '<input type="text" data-f="label" value="' + esc(f.label) + '" placeholder="name (optional)" spellcheck="false" aria-label="Name shown in Filtered out">'
-      + '<button type="button" class="x" data-del aria-label="Remove filter">&times;</button></div>').join('');
+    renderTasks();
     filterPreview();
     $('ruleList').innerHTML = cfg.rules.map((r, i) => '<div class="rrow" data-list="rules" data-i="' + i + '"><select data-f="col" aria-label="Column">' + opts(all, r.col, 'Column') + '</select><select data-f="kind" aria-label="Check">' + opts(K.RULES.map(x => [x[0], x[1]]), r.kind) + '</select>'
       + (r.kind === 'notfuture' ? '<span></span><span></span>' : '<input type="text" data-f="val" value="' + esc(r.val) + '" placeholder="' + esc((K.RULES.find(x => x[0] === r.kind) || [])[2] || '') + '" spellcheck="false" aria-label="Value" style="grid-column:span 2">') + '<button type="button" class="x" data-del aria-label="Remove check">&times;</button></div>').join('');
     $('groupChips').innerHTML = all.length ? all.map(c => '<button type="button" class="chip" data-group="' + esc(c) + '" aria-pressed="' + (cfg.summary.group.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
     $('metricList').innerHTML = cfg.summary.metrics.map((m, i) => '<div class="rrow" data-list="metrics" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(m.name) + '" placeholder="total_amount" spellcheck="false" aria-label="Measure name"><select data-f="agg" aria-label="How">' + opts(K.AGGS, m.agg) + '</select>'
       + (m.agg === 'size' ? '<span style="grid-column:span 2"></span>' : '<select data-f="col" aria-label="Column" style="grid-column:span 2">' + opts(all, m.col, 'Column') + '</select>') + '<button type="button" class="x" data-del aria-label="Remove measure">&times;</button></div>').join('');
-    /* across rows */
-    const rc = K.rowCol(cfg), cf = cfg.conflicts;
-    $('rowNoBox').hidden = !rc;
-    $('rowNoNote').textContent = rc && !cfg.rowNo.on ? 'Added because a fill or a comparison below uses row numbers.' : '';
-    $('fillList').innerHTML = cfg.fills.map((f, i) => '<div class="fillcard" data-list="fills" data-i="' + i + '">'
-      + '<label class="lab">Column to fill<select data-f="col" aria-label="Column to fill">' + opts(n, f.col, 'Choose a column') + '</select></label>'
-      + '<label class="lab">Also try with these swapped <span class="hint">optional: names entered the wrong way round</span><span class="pair"><select data-f="swapA" aria-label="First column to swap">' + opts(n, f.swapA, '—') + '</select><select data-f="swapB" aria-label="Second column to swap">' + opts(n, f.swapB, '—') + '</select></span></label>'
-      + '<label class="lab full">Match on, one try per line <span class="hint">columns separated by commas; tried in order, first line first</span><textarea data-f="passes" spellcheck="false" aria-label="Columns to match on" placeholder="first_name, last_name, date_of_birth&#10;first_name, last_name">' + esc(f.passes) + '</textarea></label>'
-      + '<button type="button" class="x" data-del aria-label="Remove fill">&times;</button></div>').join('');
-    $('conflictBox').hidden = !cf.on;
-    $('cfGroup').innerHTML = opts(n, cf.group, 'Choose a column');
-    $('cfChips').innerHTML = n.length ? n.filter(c => c !== cf.group).map(c => '<button type="button" class="chip" data-cfcol="' + esc(c) + '" aria-pressed="' + (cf.cols.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
     $('checklist').innerHTML = K.CHECKLIST.map((t, i) => '<li><label><input type="checkbox" data-done="' + i + '"' + (st.done.indexOf(String(i)) >= 0 ? ' checked' : '') + '> <span>' + esc(t) + '</span></label></li>').join('');
     renderOut();
   }
 
+  /* Common tasks: a picker grouped by purpose, then one card per task in run order; a card folds to one line */
+  const TD = K.TASK_DEFS;
+  function filterRows() {
+    return '<div id="filterList" class="rlist">' + cfg.filters.map((f, i) => '<div class="rrow filt" data-list="filters" data-i="' + i + '">'
+      + (i ? '<select data-f="join" aria-label="Combine with the filters before"><option value="and"' + (f.join !== 'or' ? ' selected' : '') + '>AND</option><option value="or"' + (f.join === 'or' ? ' selected' : '') + '>OR</option></select>' : '<span class="muted small" style="align-self:center">Keep if</span>')
+      + '<input type="text" data-f="when" value="' + esc(f.when) + '" placeholder=\'order_date >= "2026-06-01"\' spellcheck="false" aria-label="Condition">'
+      + '<input type="text" data-f="label" value="' + esc(f.label) + '" placeholder="name (optional)" spellcheck="false" aria-label="Name shown in Filtered out">'
+      + '<button type="button" class="x" data-del aria-label="Remove filter">&times;</button></div>').join('') + '</div>'
+      + '<div><button type="button" class="btn" data-addfilter>Add a filter</button></div><p class="note small" id="filterLogic"></p>'
+      + '<label class="chk"><input type="checkbox" data-k="keepRemoved"' + (cfg.keepRemoved ? ' checked' : '') + '> <span>Keep what the filters remove: a &ldquo;Filtered out&rdquo; sheet with the filters each row failed, and an &ldquo;Original&rdquo; sheet with every row before filtering (separate files for CSV or Parquet)</span></label>';
+  }
+  function fieldHtml(t, f, before) {
+    const full = ' style="grid-column:1/-1"', hint = f.hint ? ' <span class="hint">' + esc(f.hint) + '</span>' : '';
+    const fits = c => !f.types || !c.type || f.types.some(w => (w === 'number' ? /^(whole|decimal)$/.test(c.type) : w === 'date' ? /^date/.test(c.type) : c.type === w));
+    if (f.type === 'filter') return '<div class="rlist"' + full + '>' + filterRows() + '</div>';
+    if (f.type === 'col') {
+      const v = t[f.k], list = before.filter(fits).map(c => [c.name, f.optLabel ? f.optLabel(c.name) : c.name]);
+      const extra = (f.extra || []).concat(v && !list.some(o => o[0] === v) && !(f.extra || []).some(o => o[0] === v) ? [[v, v + ' (not a column here)']] : []);
+      return '<label class="lab">' + esc(f.label) + hint + '<select data-f="' + f.k + '" aria-label="' + esc(f.label) + '">' + opts(extra.concat(list), v, f.empty || 'Choose a column') + '</select></label>';
+    }
+    if (f.type === 'cols' || f.type === 'pick') {
+      const v = t[f.k], skip = f.not ? t[f.not] : null;
+      let list = f.type === 'pick' ? f.opts : before.filter(c => fits(c) && c.name !== skip).map(c => [c.name, c.name]);
+      v.filter(x => !list.some(o => o[0] === x)).forEach(x => { list = list.concat([[x, x + ' (not a column here)']]); });
+      return '<div class="picker"' + full + '><div class="picker-head"><h3>' + esc(f.label) + '</h3>' + (f.hint ? '<span class="hint">' + esc(f.hint) + '</span>' : '') + '</div><div class="chips">'
+        + (list.length ? list.map(o => { const at = v.indexOf(o[0]); return '<button type="button" class="chip" data-tchip="' + f.k + '" data-v="' + esc(o[0]) + '" aria-pressed="' + (at >= 0 ? 'true' : 'false') + '">' + esc(o[1]) + (f.ordered && at >= 0 ? '<small>' + (at + 1) + '</small>' : '') + '</button>'; }).join('') : '<span class="note small">Paste the sample in Step 1 first.</span>') + '</div></div>';
+    }
+    if (f.type === 'select') return '<label class="lab">' + esc(f.label) + hint + '<select data-f="' + f.k + '" aria-label="' + esc(f.label) + '">' + opts(f.opts, t[f.k]) + '</select></label>';
+    if (f.type === 'check') return '<label class="chk"' + full + '><input type="checkbox" data-f="' + f.k + '"' + (t[f.k] ? ' checked' : '') + '> <span>' + esc(f.label) + '</span></label>';
+    if (f.type === 'textarea') return '<label class="lab"' + full + '>' + esc(f.label) + hint + '<textarea data-f="' + f.k + '" spellcheck="false" aria-label="' + esc(f.label) + '" placeholder="' + esc(f.ph || '') + '">' + esc(t[f.k]) + '</textarea></label>';
+    return '<label class="lab"' + (f.wide ? ' style="grid-column:span 2"' : '') + '>' + esc(f.label) + hint + '<input type="text" class="plain" data-f="' + f.k + '" value="' + esc(t[f.k]) + '" placeholder="' + esc(f.ph || '') + '" spellcheck="false" autocomplete="off" aria-label="' + esc(f.label) + '"></label>';
+  }
+  function renderTasks() {
+    const fl = K.taskFlow(cfg, ai), keys = cfg.cols.filter(c => c.on && c.key).map(c => c.name), probs = K.problems(cfg, ai);
+    $('taskAdd').innerHTML = '<option value="">Add a task&hellip;</option>' + K.TASK_GROUPS.map(g => '<optgroup label="' + esc(g[1]) + '">' + Object.keys(TD).filter(k => TD[k].group === g[0]).map(k => '<option value="' + k + '"' + (TD[k].once && cfg.tasks.some(t => t.kind === k) ? ' disabled' : '') + '>' + esc(TD[k].label) + '</option>').join('') + '</optgroup>').join('');
+    $('taskEmpty').hidden = cfg.tasks.length > 0;
+    $('taskList').innerHTML = cfg.tasks.map((t, i) => {
+      const d = TD[t.kind], step = fl.steps.find(x => x.t === t) || { before: [] }, tag = 'Task ' + (i + 1) + ' (';
+      const bad = probs.some(p => p.sev === 'err' && p.msg.indexOf(tag) === 0);
+      const body = !t.open ? '' : '<div class="taskbody"><p class="note small thint">' + esc(d.hint) + '</p><div class="qgrid">'
+        + d.fields.filter(f => !f.show || f.show(t)).map(f => fieldHtml(t, f, step.before)).join('') + '</div></div>';
+      return '<div class="task' + (t.open ? ' open' : '') + (bad ? ' bad' : '') + '" data-list="tasks" data-i="' + i + '"><div class="taskhead">'
+        + '<button type="button" class="taskfold" data-tfold aria-expanded="' + (t.open ? 'true' : 'false') + '"><span class="tnum">' + (i + 1) + '</span><span class="tlab">' + esc(d.label) + '</span><span class="tsum">' + esc(K.taskSummary(t, { cfg, keys })) + '</span></button>'
+        + '<button type="button" class="tb" data-tmove="-1" aria-label="Move up"' + (i ? '' : ' disabled') + '>&uarr;</button><button type="button" class="tb" data-tmove="1" aria-label="Move down"' + (i < cfg.tasks.length - 1 ? '' : ' disabled') + '>&darr;</button>'
+        + '<button type="button" class="tb x" data-del aria-label="Remove task">&times;</button></div>' + body + '</div>';
+    }).join('');
+  }
   function filterPreview() {
+    if (!$('filterLogic')) return;
     const act = K.activeFilters(cfg); $('filterLogic').textContent = act.length > 1 ? 'Rows are kept when: ' + K.filterLogic(act) + (act.some((f, i) => i && f.join === 'or') && act.some((f, i) => i && f.join !== 'or') && act.length > 2 ? '. Read left to right: each AND or OR applies to everything before it.' : '.') : '';
   }
   function renderOut() {
@@ -1806,10 +2228,10 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
     prune(); fill($('sampleIn'));
   }
   function toBlank(keep) { cfg = K.blank(); st.example = false; ai = null; $('sampleMsg').innerHTML = ''; fill(keep); renderForm(); }
-  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : row.dataset.list === 'fills' ? cfg.fills : cfg.cols);
+  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : row.dataset.list === 'tasks' ? cfg.tasks : cfg.cols);
 
   function init() {
-    load(); S.jobs({ prefix: 'des.', what: 'script', tool: 'python-script-generator', place: document.querySelector('.step') }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
+    load(); S.jobs({ prefix: 'des.', what: 'script', tool: 'python-script-generator', place: document.querySelector('.step'), compare: c => JSON.stringify(Object.assign({}, restore(c), { tasks: restore(c).tasks.map(t => Object.assign({}, t, { open: false })) })) }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
     document.addEventListener('input', e => {
       if (e.target.id === 'pdfSections') { cfg.input.pdf.sections = e.target.value.split('\n').map(l => { const k = l.indexOf('='); return k < 0 ? { name: l.trim(), label: '' } : { name: l.slice(0, k).trim(), label: l.slice(k + 1).trim() }; }).filter(x => x.name || x.label); renderOut(); return; }
       const el = e.target;
@@ -1820,11 +2242,11 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
         const was = it[el.dataset.f]; it[el.dataset.f] = el.value;
         if (!row.dataset.list && el.dataset.f === 'name' && was && el.value) {     // a renamed column takes its uses with it
           const sw = v => (v === was ? el.value : v);
-          cfg.dedupe.order = sw(cfg.dedupe.order); cfg.join.leftKey = sw(cfg.join.leftKey); cfg.summary.group = cfg.summary.group.map(sw);
+          cfg.summary.group = cfg.summary.group.map(sw);
           cfg.summary.metrics.forEach(m => { m.col = sw(m.col); }); cfg.rules.forEach(r => { r.col = sw(r.col); });
-          cfg.conflicts.group = sw(cfg.conflicts.group); cfg.conflicts.cols = cfg.conflicts.cols.map(sw);
           const word0 = new RegExp('(^|[^\\w])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?!\\w)', 'g');
-          cfg.fills.forEach(f => { f.col = sw(f.col); f.swapA = sw(f.swapA); f.swapB = sw(f.swapB); f.passes = f.passes.replace(word0, (m0, p) => p + el.value); });
+          cfg.tasks.forEach(t => { TD[t.kind].fields.forEach(f => { if (f.type === 'col') t[f.k] = sw(t[f.k]); if (f.type === 'cols') t[f.k] = t[f.k].map(sw); });
+            if (t.kind === 'fillmatch') t.passes = t.passes.replace(word0, (m0, p) => p + el.value); });
           const word = new RegExp('(^|[^\\w"\'])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w"\'])', 'g');
           cfg.filters.forEach(f => { f.when = f.when.replace(word, (m0, p) => p + el.value); });
           document.querySelectorAll('#filterList [data-i]').forEach(r => { const f = cfg.filters[Number(r.dataset.i)], b = r.querySelector('[data-f="when"]'); if (f && b && b.value !== f.when) b.value = f.when; });
@@ -1846,15 +2268,29 @@ pre.stepcode{margin:0;padding:8px 10px;max-height:260px;overflow:auto;background
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'checkbox')) { set(cfg, el.dataset.k, el.type === 'checkbox' ? el.checked : el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
-      const del = e.target.closest('[data-del]'), g = e.target.closest('[data-group]'), cc = e.target.closest('[data-cfcol]');
-      if (cc) { const a = cfg.conflicts.cols, i = a.indexOf(cc.dataset.cfcol); if (i >= 0) a.splice(i, 1); else a.push(cc.dataset.cfcol); renderForm(); return; }
-      if (del) { const row = del.closest('[data-i]'); listOf(row).splice(Number(row.dataset.i), 1); renderForm(); }
+      const del = e.target.closest('[data-del]'), g = e.target.closest('[data-group]'), card = e.target.closest('.task[data-i]'), at = card ? Number(card.dataset.i) : -1;
+      const chip = e.target.closest('[data-tchip]'), fold = e.target.closest('[data-tfold]'), move = e.target.closest('[data-tmove]');
+      if (e.target.closest('[data-addfilter]')) { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); return; }
+      if (chip && card) { const a = cfg.tasks[at][chip.dataset.tchip], i = a.indexOf(chip.dataset.v); if (i >= 0) a.splice(i, 1); else a.push(chip.dataset.v); renderForm(); return; }
+      if (fold && card) { cfg.tasks[at].open = !cfg.tasks[at].open; renderForm(); const b = document.querySelector('.task[data-i="' + at + '"] [data-tfold]'); if (b) b.focus(); return; }
+      if (move && card) { const to = at + Number(move.dataset.tmove); if (to < 0 || to >= cfg.tasks.length) return; const t = cfg.tasks.splice(at, 1)[0]; cfg.tasks.splice(to, 0, t); renderForm();
+        const b = document.querySelector('.task[data-i="' + to + '"] [data-tmove="' + move.dataset.tmove + '"]'); if (b && !b.disabled) b.focus(); return; }
+      if (del) { const row = del.closest('[data-i]');
+        if (row.dataset.list === 'tasks' && cfg.tasks[Number(row.dataset.i)].kind === 'filter') { cfg.filters = []; cfg.keepRemoved = false; }   // the filters live with their task
+        listOf(row).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (g) { const a = cfg.summary.group, i = a.indexOf(g.dataset.group); if (i >= 0) a.splice(i, 1); else a.push(g.dataset.group); renderForm(); }
     });
     $('addRule').addEventListener('click', () => { cfg.rules.push({ kind: 'min', col: '', val: '' }); renderForm(); });
-    $('addFilter').addEventListener('click', () => { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); });
+    $('taskAdd').addEventListener('change', e => {
+      const k = e.target.value; e.target.value = ''; if (!TD[k]) return;
+      cfg.tasks.forEach(t => { t.open = false; });
+      cfg.tasks.push(K.taskBlank(k));
+      if (k === 'filter' && !cfg.filters.length) cfg.filters.push({ when: '', label: '', join: 'and' });
+      renderForm();
+      const card = document.querySelector('.task[data-i="' + (cfg.tasks.length - 1) + '"]');
+      if (card) { card.scrollIntoView({ block: 'nearest' }); const f = card.querySelector('.taskbody input, .taskbody select, .taskbody textarea, .taskbody .chip'); if (f) f.focus(); }
+    });
     $('addMetric').addEventListener('click', () => { cfg.summary.metrics.push({ name: '', agg: 'sum', col: '' }); renderForm(); });
-    $('addFill').addEventListener('click', () => { cfg.fills.push(K.fillBlank()); renderForm(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });
     S.clearSetup({ onClear: () => { store.clear(); store.set('blank', true); st = { example: false, done: [] }; cfg = K.blank(); $('sampleMsg').innerHTML = ''; fill(); renderForm(); } });

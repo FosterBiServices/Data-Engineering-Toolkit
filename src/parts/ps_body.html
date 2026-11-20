@@ -92,58 +92,15 @@
     <div class="step-body">
       <div class="step-head">
         <h2 id="s3">Shape and check it</h2>
-        <p>Everything here is optional. The script does them in this order and prints how many rows each one changed.</p>
+        <p>Everything here is optional. The script does each task in order and prints how many rows it changed.</p>
       </div>
 
       <div class="sub">
-        <div class="details-head"><h3>Keep only rows where</h3><button type="button" class="btn" id="addFilter">Add a filter</button></div>
-        <p class="note small">Optional. Each filter is a pandas condition with your new column names, for example <span class="mono">amount &gt; 0</span>, <span class="mono">status != "TEST"</span> or <span class="mono">order_date &gt;= "2026-06-01"</span>. From the second one on, choose AND (both must pass) or OR (either can pass). A row with a missing value never passes that filter.</p>
-        <div id="filterList" class="rlist"></div>
-        <p class="note small" id="filterLogic"></p>
-        <label class="chk"><input type="checkbox" data-k="keepRemoved"> <span>Keep what the filters remove: a &ldquo;Filtered out&rdquo; sheet with the filters each row failed, and an &ldquo;Original&rdquo; sheet with every row before filtering (separate files for CSV or Parquet)</span></label>
-      </div>
-
-      <div class="sub">
-        <label class="chk"><input type="checkbox" data-k="dedupe.on"> <b>Remove duplicates</b>&nbsp;on the key</label>
-        <div class="qgrid" id="dedupeBox">
-          <label class="lab">Which row to keep<select id="dedupeOrder" data-k="dedupe.order"></select></label>
-          <label class="lab" id="keepBox">In file order, keep<select data-k="dedupe.keep"><option value="last">The last one</option><option value="first">The first one</option></select></label>
-        </div>
-      </div>
-
-      <div class="sub">
-        <label class="chk"><input type="checkbox" data-k="join.on"> <b>Look up columns</b>&nbsp;from a second file</label>
-        <div class="qgrid" id="joinBox">
-          <label class="lab">Lookup file type<select data-k="join.kind"><option value="csv">CSV (comma)</option><option value="excel">Excel workbook</option><option value="parquet">Parquet</option></select></label>
-          <label class="lab wide">Path to the lookup file<input type="text" data-k="join.path" spellcheck="false" autocomplete="off" placeholder="C:\Data\regions.csv"></label>
-          <label class="lab" id="joinSheet">Sheet name <span class="hint">empty = the first</span><input type="text" class="plain" data-k="join.sheet" spellcheck="false" autocomplete="off"></label>
-          <label class="lab">Match your column<select id="joinLeft" data-k="join.leftKey"></select></label>
-          <label class="lab">To this header in the lookup file<input type="text" class="plain" data-k="join.rightKey" spellcheck="false" autocomplete="off" placeholder="Region"></label>
-          <label class="lab">Columns to bring in <span class="hint">headers, comma-separated; empty = all</span><input type="text" class="plain" data-k="join.cols" spellcheck="false" autocomplete="off" placeholder="Manager, Target"></label>
-          <label class="lab">Rows with no match<select data-k="join.how"><option value="left">Keep them (new columns empty)</option><option value="inner">Remove them</option></select></label>
-        </div>
-        <p class="note small" id="joinNote">Your row count can&rsquo;t grow: if the lookup file has two rows for one key, the script stops and says so. Rows with no match are reported.</p>
-      </div>
-
-      <div class="sub">
-        <h3>Across rows</h3>
-        <p class="note small" style="margin-top:-8px">For work that compares rows with other rows. It runs after the cleaning, filters, duplicate removal and lookup above, and before the checks.</p>
-        <label class="chk"><input type="checkbox" data-k="rowNo.on"> <b>Row numbers</b>&nbsp;so any row can be found again</label>
-        <div class="qgrid" id="rowNoBox">
-          <label class="lab">Column name<input type="text" class="plain" data-k="rowNo.name" spellcheck="false" autocomplete="off" placeholder="row_number"></label>
-          <label class="lab">Number each row by<select data-k="rowNo.from"><option value="file">Its row in the file (as Excel shows it)</option><option value="clean">1, 2, 3&hellip; after cleaning</option></select></label>
-          <p class="note small" id="rowNoNote" style="align-self:end"></p>
-        </div>
-        <div class="details-head"><b>Fill a missing value from matching rows</b><button type="button" class="btn" id="addFill">Add a fill</button></div>
-        <p class="note small" style="margin-top:-8px">A row missing the value takes it from another row that matches it, trying each line in order. Matching ignores capitals and extra spaces. A match is used only when every matching row has the same value; otherwise the row stays empty and a note lists the candidates. New columns say which row it came from and how it matched.</p>
-        <div id="fillList" class="rlist"></div>
-        <label class="chk"><input type="checkbox" data-k="conflicts.on"> <b>Find values that differ</b>&nbsp;for the same person or thing</label>
-        <div id="conflictBox" style="display:flex;flex-direction:column;gap:12px">
-          <label class="lab" style="max-width:460px">Rows that belong together share<select id="cfGroup" data-k="conflicts.group"></select></label>
-          <div class="picker"><div class="picker-head"><h3>Compare</h3></div><div class="chips" id="cfChips"></div></div>
-          <label class="chk"><input type="checkbox" data-k="conflicts.missing"> <span>Count a missing value as a different value</span></label>
-          <p class="note small">For each compared column that has more than one value in a group, every row of the group gets the rows involved and the distinct values, and a Conflicts sheet lists them all.</p>
-        </div>
+        <div class="details-head"><h3>Common tasks</h3>
+          <label class="taskadd"><span class="sr">Add a task</span><select id="taskAdd" aria-label="Add a task"></select></label></div>
+        <p class="note small" style="margin-top:-8px">Choose a task and fill it in. Tasks run in this order, top to bottom; move them with the arrows. Click a task to fold or open it.</p>
+        <div id="taskList" class="tasks"></div>
+        <p class="note small" id="taskEmpty">No tasks yet. Filters, duplicates, lookups, splitting and combining columns, bands, ranks, running totals, filling blanks and finding problems are all in the list.</p>
       </div>
 
       <div class="sub">
