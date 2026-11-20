@@ -100,8 +100,8 @@
     $('rowNoNote').textContent = rc && !cfg.rowNo.on ? 'Added because a fill or a comparison below uses row numbers.' : '';
     $('fillList').innerHTML = cfg.fills.map((f, i) => '<div class="fillcard" data-list="fills" data-i="' + i + '">'
       + '<label class="lab">Column to fill<select data-f="col" aria-label="Column to fill">' + opts(n, f.col, 'Choose a column') + '</select></label>'
-      + '<label class="lab wide">Match on, one try per line <span class="hint">columns separated by commas; tried in order</span><textarea class="short" data-f="passes" spellcheck="false" aria-label="Columns to match on" placeholder="first_name, last_name, date_of_birth&#10;first_name, last_name">' + esc(f.passes) + '</textarea></label>'
-      + '<label class="lab">Also try with these swapped <span class="hint">optional, for names entered the wrong way round</span><span class="pair"><select data-f="swapA" aria-label="First column to swap">' + opts(n, f.swapA, '—') + '</select><select data-f="swapB" aria-label="Second column to swap">' + opts(n, f.swapB, '—') + '</select></span></label>'
+      + '<label class="lab">Also try with these swapped <span class="hint">optional: names entered the wrong way round</span><span class="pair"><select data-f="swapA" aria-label="First column to swap">' + opts(n, f.swapA, '—') + '</select><select data-f="swapB" aria-label="Second column to swap">' + opts(n, f.swapB, '—') + '</select></span></label>'
+      + '<label class="lab full">Match on, one try per line <span class="hint">columns separated by commas; tried in order, first line first</span><textarea data-f="passes" spellcheck="false" aria-label="Columns to match on" placeholder="first_name, last_name, date_of_birth&#10;first_name, last_name">' + esc(f.passes) + '</textarea></label>'
       + '<button type="button" class="x" data-del aria-label="Remove fill">&times;</button></div>').join('');
     $('conflictBox').hidden = !cf.on;
     $('cfGroup').innerHTML = opts(n, cf.group, 'Choose a column');
