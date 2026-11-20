@@ -286,6 +286,21 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   First run with no columns keeps everything and writes `<output>_sample.csv`; the user pastes that into Step 1 to choose
   columns and types. Check: `pspdftest.js` makes generic PDFs (`pdf_make.py`, reportlab) and runs the scripts. Not run on
   his real exports; scanned PDFs give no rows (said on the page).
+- **Across rows** (owner, Nov 2026: a Copilot request to fill a missing id from rows matching on names and birth date, names
+  maybe swapped, then list differing demographics per id; Copilot rightly SKIPPED it under the one-expression rules). Step 3
+  "Across rows", run after dedupe and lookup, before the checks: `cfg.rowNo` (`from: 'file'` = the row as Excel shows it,
+  `ROW_NUMBERS` taken right after reading so cleaning keeps the gaps; `'clean'` = 1..n), forced on by a fill or comparison
+  (`K.rowCol`). `cfg.fills` [{col, passes (one match per line), swapA, swapB}]: donors are only rows that had the value in the
+  file; keys are trimmed, case-folded text (dates as yyyy-mm-dd); a key used only when every donor agrees, else the note lists
+  the candidates and later passes skip the row; writes `<col>_filled_from_row`, `<col>_fill_note`. `cfg.conflicts` {group,
+  cols, missing}: per column `<c>_conflict_rows` / `<c>_conflict_values` on every row of the group, `conflict_columns`, and a
+  Conflicts sheet (or `_conflicts` file).
+- Copilot **STEP** blocks (`NAME`, `WHAT`, `CODE: def step(df): ... return df`) for logic across rows, run in order after the
+  options above as `step_<name>`; `K.vetStep` refuses imports, file/network/system names, dunders, class/global/with, tabs,
+  no return; columns it reads that nobody makes are shown, not refused. The prompt lists what the page already does
+  (fills, comparisons, row numbers) so Copilot doesn't repeat it. A step makes later column lists open (`K.known().open`).
+  Check: `pscrosstest.js` (runs the scripts). Also fixed: the saved "Rows that fail a check" choice was never restored (it
+  sat inside a comment), and long source column names made the column table push the page sideways at 390px.
 - Not checked: pandas 1.x / 2.x, opening the `.ipynb` in Jupyter itself, real Copilot replies.
 
 ## Not yet run in a real factory or workspace

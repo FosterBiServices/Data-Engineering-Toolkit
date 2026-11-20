@@ -126,6 +126,27 @@
       </div>
 
       <div class="sub">
+        <h3>Across rows</h3>
+        <p class="note small" style="margin-top:-8px">For work that compares rows with other rows. It runs after the cleaning, filters, duplicate removal and lookup above, and before the checks.</p>
+        <label class="chk"><input type="checkbox" data-k="rowNo.on"> <b>Row numbers</b>&nbsp;so any row can be found again</label>
+        <div class="qgrid" id="rowNoBox">
+          <label class="lab">Column name<input type="text" class="plain" data-k="rowNo.name" spellcheck="false" autocomplete="off" placeholder="row_number"></label>
+          <label class="lab">Number each row by<select data-k="rowNo.from"><option value="file">Its row in the file (as Excel shows it)</option><option value="clean">1, 2, 3&hellip; after cleaning</option></select></label>
+          <p class="note small" id="rowNoNote" style="align-self:end"></p>
+        </div>
+        <div class="details-head"><b>Fill a missing value from matching rows</b><button type="button" class="btn" id="addFill">Add a fill</button></div>
+        <p class="note small" style="margin-top:-8px">A row missing the value takes it from another row that matches it, trying each line in order. Matching ignores capitals and extra spaces. A match is used only when every matching row has the same value; otherwise the row stays empty and a note lists the candidates. New columns say which row it came from and how it matched.</p>
+        <div id="fillList" class="rlist"></div>
+        <label class="chk"><input type="checkbox" data-k="conflicts.on"> <b>Find values that differ</b>&nbsp;for the same person or thing</label>
+        <div id="conflictBox" style="display:flex;flex-direction:column;gap:12px">
+          <label class="lab" style="max-width:460px">Rows that belong together share<select id="cfGroup" data-k="conflicts.group"></select></label>
+          <div class="picker"><div class="picker-head"><h3>Compare</h3></div><div class="chips" id="cfChips"></div></div>
+          <label class="chk"><input type="checkbox" data-k="conflicts.missing"> <span>Count a missing value as a different value</span></label>
+          <p class="note small">For each compared column that has more than one value in a group, every row of the group gets the rows involved and the distinct values, and a Conflicts sheet lists them all.</p>
+        </div>
+      </div>
+
+      <div class="sub">
         <div class="details-head"><h3>Checks</h3><button type="button" class="btn" id="addRule">Add a check</button></div>
         <p class="note small" style="margin-top:-8px"><b>Required</b> and a unique <b>Key</b> are checked already. Add value checks here.</p>
         <div class="rowlist" id="ruleList"></div>
@@ -158,7 +179,7 @@
     <div class="step-body">
       <div class="step-head">
         <h2 id="s4">Logic in plain words <span class="muted" style="font-weight:400">(optional, with Copilot)</span></h2>
-        <p>For new columns or a row filter the boxes above can&rsquo;t express. Copilot writes the pandas expressions; the page checks them against your columns before using them.</p>
+        <p>For anything the boxes above can&rsquo;t express: new columns, a row filter, or steps that work across rows. Copilot writes the pandas code; the page checks it against your columns, and refuses imports, files and system access, before using it.</p>
       </div>
       <textarea class="req" data-k="aiReq" data-own aria-label="Logic in plain words" placeholder="Add a column order_size: Small when the amount is under 100, Medium under 1000, otherwise Large.&#10;Keep only orders from the last 90 days."></textarea>
       <div id="aiBox" style="display:flex;flex-direction:column;gap:14px" hidden>

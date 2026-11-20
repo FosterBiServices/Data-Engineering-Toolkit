@@ -17,7 +17,8 @@
     const kinds = K.KINDS.map(k => k[0]);
     copy(c, s, ['name', 'aiReq', 'aiReply']); c.keepRemoved = s.keepRemoved === true;
     c.filters = arr(s.filters).map(x => ({ when: str(x.when), label: str(x.label), join: x.join === 'or' ? 'or' : 'and' }));
-    if (!c.filters.length && str(s.filter).trim()) c.filters = [{ when: str(s.filter), label: '', join: 'and' }];   // saved before filters became a list c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
+    if (!c.filters.length && str(s.filter).trim()) c.filters = [{ when: str(s.filter), label: '', join: 'and' }];   // saved before filters became a list
+    c.bad = oneOf(K.BAD.map(b => b[0]), s.bad, 'report');
     copy(c.input, s.input, ['path', 'sheet', 'encoding']); c.input.kind = oneOf(kinds, obj(s.input).kind, 'csv'); c.input.sep = oneOf([',', ';', 'tab', '|'], obj(s.input).sep, ','); c.input.skip = Math.max(0, parseInt(obj(s.input).skip, 10) || 0);
     const sp = obj(obj(s.input).pdf), pd0 = c.input.pdf;
     copy(pd0, sp, ['pattern', 'pages', 'headerStarts', 'names', 'skip', 'month', 'header', 'source']); pd0.method = oneOf(K.PDF_METHODS.map(m => m[0]), sp.method, 'table'); pd0.values = Math.max(0, parseInt(sp.values, 10) || 0);
@@ -30,6 +31,9 @@
     c.summary.metrics = arr(obj(s.summary).metrics).map(x => ({ name: str(x.name), agg: oneOf(K.AGGS.map(a => a[0]), x.agg, 'sum'), col: str(x.col) }));
     c.rules = arr(s.rules).map(x => ({ kind: oneOf(K.RULES.map(r => r[0]), x.kind, 'min'), col: str(x.col), val: str(x.val) }));
     copy(c.output, s.output, ['path']); c.output.kind = oneOf(kinds, obj(s.output).kind, 'csv');
+    const rn = obj(s.rowNo); c.rowNo = { on: rn.on === true, name: str(rn.name) || 'row_number', from: rn.from === 'clean' ? 'clean' : 'file' };
+    c.fills = arr(s.fills).map(x => ({ col: str(x.col), passes: str(x.passes), swapA: str(x.swapA), swapB: str(x.swapB) }));
+    const cf = obj(s.conflicts); c.conflicts = { on: cf.on === true, group: str(cf.group), cols: (Array.isArray(cf.cols) ? cf.cols : []).filter(x => typeof x === 'string'), missing: cf.missing === true };
     return c;
   }
   function load() {
@@ -52,6 +56,8 @@
     const n = names(), all = K.known(cfg, null);
     if (n.indexOf(cfg.dedupe.order) < 0) cfg.dedupe.order = '';
     if (n.indexOf(cfg.join.leftKey) < 0) cfg.join.leftKey = '';
+    if (n.indexOf(cfg.conflicts.group) < 0) cfg.conflicts.group = '';
+    cfg.conflicts.cols = cfg.conflicts.cols.filter(c => n.indexOf(c) >= 0);
     if (!all.open) cfg.summary.group = cfg.summary.group.filter(g => all.all.indexOf(g) >= 0 || (ai && ai.ok.some(i => i.name === g)));
   }
 
@@ -88,6 +94,18 @@
     $('groupChips').innerHTML = all.length ? all.map(c => '<button type="button" class="chip" data-group="' + esc(c) + '" aria-pressed="' + (cfg.summary.group.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
     $('metricList').innerHTML = cfg.summary.metrics.map((m, i) => '<div class="rrow" data-list="metrics" data-i="' + i + '"><input type="text" data-f="name" value="' + esc(m.name) + '" placeholder="total_amount" spellcheck="false" aria-label="Measure name"><select data-f="agg" aria-label="How">' + opts(K.AGGS, m.agg) + '</select>'
       + (m.agg === 'size' ? '<span style="grid-column:span 2"></span>' : '<select data-f="col" aria-label="Column" style="grid-column:span 2">' + opts(all, m.col, 'Column') + '</select>') + '<button type="button" class="x" data-del aria-label="Remove measure">&times;</button></div>').join('');
+    /* across rows */
+    const rc = K.rowCol(cfg), cf = cfg.conflicts;
+    $('rowNoBox').hidden = !rc;
+    $('rowNoNote').textContent = rc && !cfg.rowNo.on ? 'Added because a fill or a comparison below uses row numbers.' : '';
+    $('fillList').innerHTML = cfg.fills.map((f, i) => '<div class="fillcard" data-list="fills" data-i="' + i + '">'
+      + '<label class="lab">Column to fill<select data-f="col" aria-label="Column to fill">' + opts(n, f.col, 'Choose a column') + '</select></label>'
+      + '<label class="lab wide">Match on, one try per line <span class="hint">columns separated by commas; tried in order</span><textarea class="short" data-f="passes" spellcheck="false" aria-label="Columns to match on" placeholder="first_name, last_name, date_of_birth&#10;first_name, last_name">' + esc(f.passes) + '</textarea></label>'
+      + '<label class="lab">Also try with these swapped <span class="hint">optional, for names entered the wrong way round</span><span class="pair"><select data-f="swapA" aria-label="First column to swap">' + opts(n, f.swapA, '—') + '</select><select data-f="swapB" aria-label="Second column to swap">' + opts(n, f.swapB, '—') + '</select></span></label>'
+      + '<button type="button" class="x" data-del aria-label="Remove fill">&times;</button></div>').join('');
+    $('conflictBox').hidden = !cf.on;
+    $('cfGroup').innerHTML = opts(n, cf.group, 'Choose a column');
+    $('cfChips').innerHTML = n.length ? n.filter(c => c !== cf.group).map(c => '<button type="button" class="chip" data-cfcol="' + esc(c) + '" aria-pressed="' + (cf.cols.indexOf(c) >= 0 ? 'true' : 'false') + '">' + esc(c) + '</button>').join('') : '<span class="note small">Paste the sample in Step 1 first.</span>';
     $('checklist').innerHTML = K.CHECKLIST.map((t, i) => '<li><label><input type="checkbox" data-done="' + i + '"' + (st.done.indexOf(String(i)) >= 0 ? ' checked' : '') + '> <span>' + esc(t) + '</span></label></li>').join('');
     renderOut();
   }
@@ -108,7 +126,7 @@
         if (!ai.any) msgs.push(S.msg('err', 'No labelled blocks were found in the reply. Ask Copilot to answer in the reply format, inside one code block, and paste the whole reply.'));
         ai.skipped.forEach(s => msgs.push(S.msg('warn', '<b>Not written:</b> ' + esc(s))));
         if (ai.notes.length) msgs.push(S.msg('info', '<b>Confirm these assumptions:</b><ul>' + ai.notes.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>'));
-        $('aiBody').innerHTML = ai.items.map(c => '<tr><td class="nm">' + esc(c.name) + '</td><td>' + (c.problems.length ? S.pill('err', 'Not used') : S.pill(c.replaces ? 'replace' : 'ok', c.kind === 'FILTER' ? 'Used' : c.replaces ? 'Replaces' : 'Added')) + '</td><td><span class="mono" style="overflow-wrap:anywhere">' + esc(c.expr) + '</span>' + (c.problems.length ? '<ul>' + c.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : '') + '</td></tr>').join('');
+        $('aiBody').innerHTML = ai.items.map(c => '<tr><td class="nm">' + esc(c.name) + '</td><td>' + (c.problems.length ? S.pill('err', 'Not used') : S.pill(c.replaces ? 'replace' : 'ok', c.kind === 'FILTER' ? 'Used' : c.kind === 'STEP' ? 'Step' : c.replaces ? 'Replaces' : 'Added')) + '</td><td>' + (c.kind === 'STEP' ? (c.what ? '<p class="small" style="margin:0 0 6px">' + esc(c.what) + '</p>' : '') + '<pre class="stepcode">' + esc(c.code) + '</pre>' + (c.unknown && c.unknown.length ? '<p class="small muted" style="margin:6px 0 0">Uses ' + esc(c.unknown.join(', ')) + ', which the page doesn’t know: check the name, or that the step makes it.</p>' : '') : '<span class="mono" style="overflow-wrap:anywhere">' + esc(c.expr) + '</span>') + (c.problems.length ? '<ul>' + c.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : '') + '</td></tr>').join('');
         $('aiReview').hidden = !ai.items.length;
       } else $('aiReview').hidden = true;
     }
@@ -134,7 +152,7 @@
     prune(); fill($('sampleIn'));
   }
   function toBlank(keep) { cfg = K.blank(); st.example = false; ai = null; $('sampleMsg').innerHTML = ''; fill(keep); renderForm(); }
-  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : cfg.cols);
+  const listOf = row => (row.dataset.list === 'rules' ? cfg.rules : row.dataset.list === 'metrics' ? cfg.summary.metrics : row.dataset.list === 'filters' ? cfg.filters : row.dataset.list === 'fills' ? cfg.fills : cfg.cols);
 
   function init() {
     load(); S.jobs({ prefix: 'des.', what: 'script', tool: 'python-script-generator', place: document.querySelector('.step') }); S.nav(); fill(); S.tabs($('outTabs')); renderForm();
@@ -143,13 +161,16 @@
       const el = e.target;
       if (el.id === 'sampleIn') { onSample(el.value); renderForm(); return; }
       const row = el.closest('[data-i]');
-      if (row && el.dataset.f && el.tagName === 'INPUT' && el.type === 'text') {
+      if (row && el.dataset.f && ((el.tagName === 'INPUT' && el.type === 'text') || el.tagName === 'TEXTAREA')) {
         const it = listOf(row)[Number(row.dataset.i)]; if (!it) return;
         const was = it[el.dataset.f]; it[el.dataset.f] = el.value;
         if (!row.dataset.list && el.dataset.f === 'name' && was && el.value) {     // a renamed column takes its uses with it
           const sw = v => (v === was ? el.value : v);
           cfg.dedupe.order = sw(cfg.dedupe.order); cfg.join.leftKey = sw(cfg.join.leftKey); cfg.summary.group = cfg.summary.group.map(sw);
           cfg.summary.metrics.forEach(m => { m.col = sw(m.col); }); cfg.rules.forEach(r => { r.col = sw(r.col); });
+          cfg.conflicts.group = sw(cfg.conflicts.group); cfg.conflicts.cols = cfg.conflicts.cols.map(sw);
+          const word0 = new RegExp('(^|[^\\w])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?!\\w)', 'g');
+          cfg.fills.forEach(f => { f.col = sw(f.col); f.swapA = sw(f.swapA); f.swapB = sw(f.swapB); f.passes = f.passes.replace(word0, (m0, p) => p + el.value); });
           const word = new RegExp('(^|[^\\w"\'])' + was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w"\'])', 'g');
           cfg.filters.forEach(f => { f.when = f.when.replace(word, (m0, p) => p + el.value); });
           document.querySelectorAll('#filterList [data-i]').forEach(r => { const f = cfg.filters[Number(r.dataset.i)], b = r.querySelector('[data-f="when"]'); if (f && b && b.value !== f.when) b.value = f.when; });
@@ -171,13 +192,15 @@
       if (el.dataset && el.dataset.k && (el.tagName === 'SELECT' || el.type === 'checkbox')) { set(cfg, el.dataset.k, el.type === 'checkbox' ? el.checked : el.value); renderForm(); }
     });
     document.addEventListener('click', e => {
-      const del = e.target.closest('[data-del]'), g = e.target.closest('[data-group]');
+      const del = e.target.closest('[data-del]'), g = e.target.closest('[data-group]'), cc = e.target.closest('[data-cfcol]');
+      if (cc) { const a = cfg.conflicts.cols, i = a.indexOf(cc.dataset.cfcol); if (i >= 0) a.splice(i, 1); else a.push(cc.dataset.cfcol); renderForm(); return; }
       if (del) { const row = del.closest('[data-i]'); listOf(row).splice(Number(row.dataset.i), 1); renderForm(); }
       else if (g) { const a = cfg.summary.group, i = a.indexOf(g.dataset.group); if (i >= 0) a.splice(i, 1); else a.push(g.dataset.group); renderForm(); }
     });
     $('addRule').addEventListener('click', () => { cfg.rules.push({ kind: 'min', col: '', val: '' }); renderForm(); });
     $('addFilter').addEventListener('click', () => { cfg.filters.push({ when: '', label: '', join: 'and' }); renderForm(); const all = document.querySelectorAll('#filterList input[data-f="when"]'); if (all.length) all[all.length - 1].focus(); });
     $('addMetric').addEventListener('click', () => { cfg.summary.metrics.push({ name: '', agg: 'sum', col: '' }); renderForm(); });
+    $('addFill').addEventListener('click', () => { cfg.fills.push(K.fillBlank()); renderForm(); });
     $('startOwn').addEventListener('click', () => toBlank(null));
     S.ownEntry({ isExample: () => st.example, toBlank });
     S.clearSetup({ onClear: () => { store.clear(); store.set('blank', true); st = { example: false, done: [] }; cfg = K.blank(); $('sampleMsg').innerHTML = ''; fill(); renderForm(); } });
