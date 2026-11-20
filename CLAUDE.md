@@ -280,6 +280,10 @@ pandas script per file, modelled on the owner's own snippet notebooks (read, cle
   postal, phone, sku, account) or has leading zeros is Text. `to_whole` is only written when the user picks Whole.
 - Escapes in generated Python: Python regexes are written inside JS strings, so `\s` must be `\\s` in the source (a lone
   `\s` became the letter s, and `to_number` stripped every s instead of spaces; found Nov 2026). pscoretest checks it.
+- Dates (owner, Nov 2026: "you cannot go by just the first row... needs a mixed format"): `to_datetime` reads each value
+  on its own (`format="mixed"` on pandas 2+, dayfirst when ticked), and 5-digit Excel day numbers become dates. A sample
+  column of dates in any mix of the recognised formats is Date (Date and time if any value has a time). The dates task
+  reads text columns the same way. Check: pstasktest "mixed dates".
 - The lookup matches keys as trimmed text and stops on repeated lookup keys, so the row count can't grow.
 - Rows that fail a check: report (kept, also listed), split (moved to a rejected file or sheet) or stop.
 - Review fixes (Nov 2026): exact copies are always counted and removed by default (`opts.dropDupRows`); values in a non-key

@@ -64,8 +64,8 @@
     /* numbers are Decimal unless you choose Whole: a sample of whole numbers says nothing about the rest of the file (owner: "users need a float / decimal") */
     if (all(RX.whole)) return v.some(s => /^-?0\d/.test(s)) || (ID_NAME.test(String(name || '').replace(/([a-z])([A-Z])/g, '$1 $2')) || /#|\bno\.?\s*$/i.test(String(name || ''))) ? 'text' : 'decimal';      // leading zeros or an id-like name: a code, not a number
     if (all(RX.decimal) && v.some(s => /\d/.test(s))) return 'decimal';
-    if (all(RX.datetime)) return v.every(s => /[ T]0?0:00(:00)?$/.test(s)) ? 'date' : 'datetime';
-    if (all(RX.date)) return 'date';
+    /* dates in any mix of the formats above (2026-01-05, 1/5/2026, Jan 5, 2026, with or without a time): the script reads each value on its own */
+    if (v.every(s => RX.date.test(s) || RX.datetime.test(s))) return v.every(s => RX.date.test(s) || /[ T]0?0:00(:00)?$/.test(s)) ? 'date' : 'datetime';
     return 'text';
   };
   K.parseSample = function (text) {
@@ -382,8 +382,13 @@
       if (kinds.has('whole') || kinds.has('decimal')) V.push('def to_number(s):', '    """Text to number. Drops thousands separators and currency signs; (12.50) becomes -12.50."""',
         '    t = s.astype("string").str.strip().str.replace(r"[,$\u20ac\u00a3\\s]", "", regex=True)', '    t = t.str.replace(r"^\\((.*)\\)$", r"-\\1", regex=True)', '    return pd.to_numeric(t, errors="coerce").astype("Float64")', '');
       if (kinds.has('whole')) V.push('def to_whole(s):', '    """Whole numbers only: 12.5 is not converted, so it shows up as a problem."""', '    n = to_number(s)', '    return n.where(n % 1 == 0).astype("Int64")', '');
-      if (kinds.has('date') || kinds.has('datetime')) V.push('def to_datetime(s):', '    """Text to date and time. The first value sets the expected format; values that don\'t fit become missing."""', '    if pd.api.types.is_datetime64_any_dtype(s):', '        return s',
-        '    return pd.to_datetime(s.astype("string").str.strip(), errors="coerce"' + (o.dayFirst ? ', dayfirst=True' : '') + ')', '');
+      if (kinds.has('date') || kinds.has('datetime')) V.push('def to_datetime(s):', '    """Text to date and time. Each value is read on its own, so formats can be mixed in one column',
+        '    (2026-01-05, 1/5/2026, Jan 5, 2026, 05-Jan-2026, with or without a time), and Excel day numbers such as 46027 work.',
+        '    Values that can\'t be read as a date become missing and are counted."""', '    if pd.api.types.is_datetime64_any_dtype(s):', '        return s',
+        '    t = s.astype("string").str.strip()', '    mixed = {"format": "mixed"} if int(pd.__version__.split(".")[0]) >= 2 else {}   # pandas 1.x reads each value on its own anyway',
+        '    out = pd.to_datetime(t, errors="coerce"' + (o.dayFirst ? ', dayfirst=True' : '') + ', **mixed)',
+        '    serial = t.str.fullmatch(r"\\d{5}(\\.\\d+)?").fillna(False).astype(bool) & out.isna()', '    if serial.any():   # a date Excel stored as its day number',
+        '        out[serial] = pd.to_datetime(pd.to_numeric(t[serial]), unit="D", origin="1899-12-30")', '    return out', '');
       if (kinds.has('date')) V.push('def to_date(s):', '    """A date with no time of day."""', '    return to_datetime(s).dt.normalize()', '');
       if (kinds.has('bool')) V.push('BOOL_WORDS = {"true": True, "t": True, "yes": True, "y": True, "1": True, "false": False, "f": False, "no": False, "n": False, "0": False}', '', 'def to_bool(s):', '    """Yes/no, true/false, y/n and 1/0 in any letter case."""',
         '    return s.astype("string").str.strip().str.lower().map(BOOL_WORDS).astype("boolean")', '');

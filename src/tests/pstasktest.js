@@ -93,6 +93,15 @@ ok('% change from previous', col(r.rows, 'amount_pct_change') === '|9|2||-0.96|0
 ok('previous value of a text column', col(r.rows, 'status_previous') === '|Shipped|n/a|SHIPPED Inc.|Open|open', col(r.rows, 'status_previous'));
 ok('running total of text is refused', K.problems(Object.assign(base(), { tasks: [task('running', { col: 'status' })] }), null).some(p => p.sev === 'err' && /isn’t a number column/.test(p.msg)));
 
+// dates written in different ways in one column (owner, Nov 2026: "you cannot go by just the first row")
+{ const mcsv = 'Order ID,Order Date,Shipped At\n1,2026-01-05,2026-01-06 09:30\n2,1/7/2026,1/8/2026 3:15 PM\n3,"Jan 9, 2026",10-Jan-2026\n4,46032,2026-01-12\n5,not a date,\n';
+  fs.writeFileSync(path.join(dir, 'mixed.csv'), mcsv);
+  const c = K.blank(); c.input.path = path.join(dir, 'mixed.csv'); c.output.kind = 'excel'; c.cols = K.mapCols(K.parseSample(mcsv.split('\n').slice(0, 4).join('\n')), []);
+  ok('a column with mixed date formats is a date (time of day kept apart)', c.cols[1].type === 'date' && c.cols[2].type === 'datetime', c.cols.map(x => x.type).join());
+  c.tasks = [task('dates', { col: 'order_date', parts: ['day'], until: 'shipped_at' })];
+  const r2 = run(c, 'mixed dates');
+  ok('every format read, Excel day number too; unreadable is missing', col(r2.rows, 'order_date_day') === '5|7|9|10|' && col(r2.rows, 'days_order_date_to_shipped_at') === '1|1|1|2|', col(r2.rows, 'order_date') + ' / ' + col(r2.rows, 'days_order_date_to_shipped_at')); }
+
 // find problems
 r = run(Object.assign(base(), { tasks: [task('split', { col: 'contact', sep: ',', into: 'last_name, first_name', keep: true }), task('dupflag', { cols: ['last_name', 'first_name'] })] }), 'possible duplicates');
 ok('possible duplicates: capitals and spaces ignored, rows listed', col(r.rows, 'possible_duplicate_group') === '1|1|||2|2' && col(r.rows, 'possible_duplicate_rows') === '2; 3|2; 3|||6; 7|6; 7', col(r.rows, 'possible_duplicate_group') + ' / ' + col(r.rows, 'possible_duplicate_rows'));

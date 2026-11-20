@@ -503,9 +503,9 @@
   C.dates = function (t) {
     if (!t.col) return null;
     const P = { year: 'd.dt.year.astype("Int64")', quarter: 'd.dt.quarter.astype("Int64")', month: 'd.dt.month.astype("Int64")', month_name: 'd.dt.month_name().astype("string")', week: 'd.dt.isocalendar().week.astype("Int64")', weekday: 'd.dt.day_name().astype("string")', day: 'd.dt.day.astype("Int64")' };
-    const L = ['d = pd.to_datetime(df[' + py(t.col) + '], errors="coerce")'];
+    const L = ['d = df[' + py(t.col) + '] if pd.api.types.is_datetime64_any_dtype(df[' + py(t.col) + ']) else pd.to_datetime(df[' + py(t.col) + '].astype("string").str.strip(), errors="coerce", **({"format": "mixed"} if int(pd.__version__.split(".")[0]) >= 2 else {}))   # any mix of formats'];
     t.parts.forEach(p => L.push('df[' + py(t.col + '_' + p) + '] = ' + P[p]));
-    if (t.until) L.push('df[' + py(daysName(t)) + '] = ((' + (t.until === 'today' ? 'pd.Timestamp.today().normalize()' : 'pd.to_datetime(df[' + py(t.until) + '], errors="coerce").dt.normalize()') + ' - d.dt.normalize()).dt.days).astype("Int64")   # whole days; negative = before ' + t.col);
+    if (t.until) L.push('df[' + py(daysName(t)) + '] = ((' + (t.until === 'today' ? 'pd.Timestamp.today().normalize()' : '(df[' + py(t.until) + '] if pd.api.types.is_datetime64_any_dtype(df[' + py(t.until) + ']) else pd.to_datetime(df[' + py(t.until) + '].astype("string").str.strip(), errors="coerce", **({"format": "mixed"} if int(pd.__version__.split(".")[0]) >= 2 else {}))).dt.normalize()') + ' - d.dt.normalize()).dt.days).astype("Int64")   # whole days; negative = before ' + t.col);
     return { title: 'Date parts of ' + t.col, md: 'New columns from ' + t.col + '. A missing date gives missing parts.' + (t.until === 'today' ? ' Days to today change each day the script runs.' : ''), code: L };
   };
   C.rank = function (t) {
